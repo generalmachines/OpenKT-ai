@@ -11,6 +11,22 @@ A 4-billion-parameter model cannot be trusted with one big open question ("what 
 3. **Thinking stays off.** Qwen3.5-4B loops when allowed to think and breaks its JSON. Every call is single-shot, schema-constrained, temperature 0. Hard inputs are handled by decomposing the task, never by turning thinking on.
 4. **Everything the model claims must point at evidence** — a quote from the transcript, or text the OCR found. No evidence, no fact.
 
+## 1a. Interim runtime (decided 2026-09-19) — ship now, swap later
+
+The Swift/MLX engine in this spec is the destination. To put working capture in testers' hands now, the desktop app ships an interim runtime behind the **same provider seam**, so replacing it later changes no caller:
+
+| Job | Interim (in the DMG today) | Destination |
+|---|---|---|
+| Text, vision, agents | `llama-server` (llama.cpp, MIT) bundled in the app; GGUF builds of Qwen3.5-4B (+ `mmproj`), Qwen3.5-2B on ≤ 8 GB Macs | `mlx-swift-lm` in-process |
+| Embeddings | `llama-server --embedding --pooling last`, Qwen3-Embedding-0.6B Q8_0 — **the server uses the same runtime and file**, so client and server vectors match | MLX, gated by the golden-vector test |
+| Dictation and voice notes | `whisper-cli` (whisper.cpp, MIT, Metal), `ggml-large-v3-turbo-q5_0`; non-streaming, so the pill shows a timer while recording and the text after release | streaming Parakeet / Omnilingual via `speech-swift` |
+| OCR | `openkt-ocr`, a ~60-line Swift CLI over Apple Vision, compiled in CI | the same code inside the engine |
+| Screenshot | macOS `screencapture -i` | ScreenCaptureKit |
+| Hotkeys | Electron `globalShortcut` (Control+Option+Space, Control+Option+S) | native event tap for `fn` |
+| Meetings | not shipped | §5 |
+
+Rules that do not change: models download on first launch with resume and checksum; everything binds to 127.0.0.1 on random ports; thinking off and JSON-Schema-constrained output for every agent call; a model never rewrites a transcript; audio is deleted after transcription unless the user keeps it. "Works" means green on a real Apple-Silicon machine — in CI that is the `macos-14` runner.
+
 ## 2. Models and where each runs
 
 | Job | Model | Runtime | Loaded |
