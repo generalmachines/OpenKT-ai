@@ -11,6 +11,10 @@ import { registerPermissionsIpc } from './permissions/ipc';
 import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
+// ── in-app updates ──
+import { checkForUpdatesFromMenu, isUpdateSmoke, registerUpdateIpc } from './update/ipc';
+import { runUpdateSmoke } from './update/smoke';
+// ── end in-app updates ──
 
 // Voice notes and screenshots are real (./capture/ipc.ts). The stub engine remains for MEETINGS only.
 const engine = new StubEngine();
@@ -98,9 +102,11 @@ if (!app.requestSingleInstanceLock()) {
     registerLocalAiIpc(allWindows);
     registerCaptureIpc();
     registerPermissionsIpc(allWindows); // first run: system permissions (src/main/permissions)
+    if (isUpdateSmoke()) return void runUpdateSmoke(); // in-app updates: CI job update-smoke
     if (isSmoke()) return void runSmoke(() => openMainWindow());
     registerNetIpc();
     registerAuthIpc(() => void openMainWindow());
+    void registerUpdateIpc(allWindows); // in-app updates
     capture.onEvent(broadcast);
     capture.onMeetingDetected((meeting) => {
       pendingMeeting = meeting;
@@ -113,6 +119,7 @@ if (!app.requestSingleInstanceLock()) {
       captureScreenshot: () => void captureScreenshot(),
       openApp: () => void openMainWindow(),
       simulateMeeting: () => engine.simulateMeetingDetected(),
+      checkForUpdates: () => checkForUpdatesFromMenu((route) => openMainWindow(route)), // in-app updates
     };
     applyAppMenu(actions);
     createTray(actions);

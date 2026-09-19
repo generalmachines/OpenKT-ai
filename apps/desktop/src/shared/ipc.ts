@@ -64,8 +64,19 @@ export type IpcChannel =
   | 'models:setup-info'
   | 'models:pause'
   | 'models:resume'
-  | 'app:start-capture';
-// ── first run (end) ──
+  | 'app:start-capture'
+  // ── first run (end) ──
+  // ── in-app updates (main: src/main/update) ──
+  | 'update:status'
+  | 'update:check'
+  | 'update:download'
+  | 'update:install'
+  | 'update:set-auto'
+  | 'update:move-to-applications'
+  | 'update:rollback'
+  | 'update:seen'
+  | 'update:event';
+  // ── end in-app updates ──
 
 // ── first run: permissions + on-device AI setup (begin) ── main: src/main/permissions, src/main/models/setup.ts
 import type { PermissionKind, PermissionsStatusDto } from './permissions';
@@ -238,6 +249,35 @@ export interface ScreenshotResultDto {
   notes: string[];
 }
 
+// ── In-app updates (main: src/main/update; see apps/desktop/README.md "Updates") ──
+
+export type UpdatePhaseDto = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error';
+
+export interface UpdateStatusDto {
+  /** The running build: `0.3.<run>` from CI, `0.3.0-dev.0` from source. */
+  version: string;
+  commit: string;
+  builtAt: string;
+  channel: string;
+  /** `custom`: verified self-update for ad-hoc signed builds · `signed`: electron-updater (Developer ID) · `disabled`: dev build / not macOS. */
+  mode: 'custom' | 'signed' | 'disabled';
+  phase: UpdatePhaseDto;
+  /** "Download updates automatically" (default on). */
+  auto: boolean;
+  lastCheckedAt: string | null;
+  /** The newer version the feed offers, once a check found one. */
+  available: { version: string; notes: string[]; releasedAt: string; size: number } | null;
+  progress: { receivedBytes: number; totalBytes: number; bytesPerSec: number } | null;
+  /** Last failure, in words. */
+  error: string | null;
+  /** Where the app runs from. `ok: false` blocks installing; `canMove` → offer "Move to Applications". */
+  location: { ok: boolean; message: string | null; canMove: boolean };
+  /** Shown once after an update: "Updated to 0.3.128 — what's new". */
+  whatsNew: { version: string; from: string; notes: string[] } | null;
+  /** Two starts of this version never became healthy and the previous copy is still there. */
+  rollback: { from: string; to: string } | null;
+}
+
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
 export interface OpenKTBridge {
   platform: string;
@@ -320,6 +360,24 @@ export interface OpenKTBridge {
     set(key: string, value: string): Promise<void>;
     delete(key: string): Promise<void>;
   };
+  // ── in-app updates ──
+  update: {
+    status(): Promise<UpdateStatusDto>;
+    /** Asks the feed now. Downloads in the background when "automatically" is on. */
+    check(): Promise<UpdateStatusDto>;
+    download(): Promise<UpdateStatusDto>;
+    /** Quits, swaps the bundle and relaunches. Resolves only if it could not start. */
+    install(): Promise<UpdateStatusDto>;
+    setAuto(on: boolean): Promise<UpdateStatusDto>;
+    /** Moves the app to /Applications and relaunches it (Electron's moveToApplicationsFolder). */
+    moveToApplications(): Promise<UpdateStatusDto>;
+    /** "Go back to the previous version". */
+    rollback(): Promise<UpdateStatusDto>;
+    /** The "what's new" note has been seen. */
+    seen(): Promise<UpdateStatusDto>;
+    onEvent(listener: (status: UpdateStatusDto) => void): () => void;
+  };
+  // ── end in-app updates ──
 }
 
 declare global {
