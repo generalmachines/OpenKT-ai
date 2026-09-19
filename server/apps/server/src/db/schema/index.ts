@@ -26,3 +26,4 @@ export * from "./personal-access-tokens";
 export * from "./oauth";
 export * from "./sessions";
 export * from "./grants";
+export * from "./accounts";
