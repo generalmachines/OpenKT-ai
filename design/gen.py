@@ -1,6 +1,42 @@
-# Generates the .dc.html artboards from shared fragments (own content only).
+#!/usr/bin/env python3
+"""Generate the design canvas: design/canvas/*.dc.html and canvas.json.
+
+    python3 design/gen.py      # regenerates every artboard (this file, then gen2.py)
+
+Runs from any directory and needs only the standard library. The output is
+deterministic: running it on a clean checkout leaves `git diff design/canvas` empty.
+This file holds the shared fragments and the app and capture artboards; gen2.py
+adds the knowledge and MCP card artboards.
+"""
 import json, datetime, pathlib
-P = pathlib.Path("project")
+HERE = pathlib.Path(__file__).resolve().parent
+P = HERE / "canvas"
+P.mkdir(exist_ok=True)
+
+
+def write_index(boards, order, notes):
+    """Merge boards, order and notes into canvas.json without disturbing anything else.
+
+    The canvas tool adds keys of its own (`attachments`, a note's `w`) and sorts what it
+    saves. Updating in place keeps those and the original creation time, so the file
+    does not change unless a board or note really changed.
+    """
+    path = P / "canvas.json"
+    if path.exists():
+        idx = json.loads(path.read_text())
+    else:
+        idx = {"v": 3, "createdOnFiles": {"v": 1, "at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
+               "title": "OpenKT desktop app mocks", "launch": {"view": "canvas"}, "pages": [], "boards": {}, "order": [], "notes": {}, "designSystems": []}
+    for name, board in boards.items():
+        idx["boards"].setdefault(name, {}).update(board)
+    for name in order:
+        if name not in idx["order"]:
+            idx["order"].append(name)
+    for key, note in notes.items():
+        idx["notes"].setdefault(key, {}).update(note)
+    path.write_text(json.dumps(idx, indent=1))
+    return idx
+
 FONT = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">'
 INK, INK2, INK3, LINE, SIDE, ACC = "#1a1a18", "#55544f", "#6b6a65", "#e8e7e3", "#f7f7f5", "#b4532a"
 BASE = f"""body{{margin:0;font-family:'Geist',system-ui,sans-serif;color:{INK};background:#fff;-webkit-font-smoothing:antialiased}}
@@ -359,10 +395,12 @@ yB = H + 120 + 300
 rowB = [("Capture-Voice.dc.html","6 · Hold fn, think out loud"),("Capture-Meeting.dc.html","7 · A meeting, no bot"),("Capture-Screenshot.dc.html","8 · A screenshot, filed")]
 for i,(b,t) in enumerate(rowB):
     boards[b] = {"x": i*(CW+80), "y": yB, "w": CW, "h": CH, "title": t}; order.append(b)
-idx = {"v":3,"createdOnFiles":{"v":1,"at":datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
- "title":"OpenKT desktop app mocks","launch":{"view":"canvas"},"pages":[],"boards":boards,"order":order,
- "notes":{"t-app":{"x":0,"y":-300,"text":"The app — a quiet control pane","kind":"title1","maxW":5*W+4*80},
-          "t-cap":{"x":0,"y":yB-300,"text":"Capture — a function key away","kind":"title1","maxW":3*CW+2*80}},
- "designSystems":[]}
-(P/"canvas.json").write_text(json.dumps(idx, indent=1))
+idx = write_index(boards, order,
+ {"t-app":{"x":0,"y":-300,"text":"The app — a quiet control pane","kind":"title1","maxW":5*W+4*80},
+  "t-cap":{"x":0,"y":yB-300,"text":"Capture — a function key away","kind":"title1","maxW":3*CW+2*80}})
 print(sorted(p.name for p in P.iterdir()))
+
+# Run directly, this file also runs gen2.py so one command regenerates the whole canvas.
+if __name__ == "__main__" and "_FROM_GEN2" not in globals():
+    import runpy
+    runpy.run_path(str(HERE / "gen2.py"), run_name="gen2")
