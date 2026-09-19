@@ -34,7 +34,8 @@ async function request(req: unknown): Promise<NetResponse> {
 
 const secretPath = (key: string) => join(app.getPath('userData'), 'secrets', `${key}.bin`);
 
-function secureGet(key: unknown): string | null {
+/** Also read by the on-device worker (src/main/worker/ipc.ts) for the signed-in token. */
+export function secureGet(key: unknown): string | null {
   if (typeof key !== 'string' || !KEY.test(key) || !existsSync(secretPath(key))) return null;
   try {
     const raw = readFileSync(secretPath(key));

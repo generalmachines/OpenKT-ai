@@ -96,8 +96,14 @@ export type IpcChannel =
   | 'connect:test'
   | 'connect:folders'
   | 'connect:map-folder'
-  | 'connect:share-sign-in';
+  | 'connect:share-sign-in'
   // ── connect tools (end) ──
+  // ── on-device worker (main: src/main/worker) ──
+  | 'worker:status'
+  | 'worker:set-enabled'
+  | 'worker:configure'
+  | 'worker:poke'
+  | 'worker:changed';
 
 // ── first run: permissions + on-device AI setup (begin) ── main: src/main/permissions, src/main/models/setup.ts
 import type { PermissionKind, PermissionsStatusDto } from './permissions';
@@ -299,6 +305,28 @@ export interface UpdateStatusDto {
   rollback: { from: string; to: string } | null;
 }
 
+// ── On-device worker (main: src/main/worker) — keeps the team's pages current with the local model ──
+
+export type WorkerStateDto = 'off' | 'signed-out' | 'no-model' | 'idle' | 'working' | 'error';
+
+export interface WorkerStatusDto {
+  enabled: boolean;
+  /** Signed in to a real server (not sample data). */
+  configured: boolean;
+  state: WorkerStateDto;
+  current: { space: string; step: string } | null;
+  last: { kind: 'process_session' | 'refresh_brief'; space: string; at: string; ms: number; facts: number; sections: number } | null;
+  lastError: string | null;
+  nextCheckAt: string | null;
+  jobsDone: number;
+}
+
+export interface WorkerConfigDto {
+  baseUrl: string;
+  adapter: 'http' | 'mock';
+  signedIn: boolean;
+}
+
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
 export interface OpenKTBridge {
   platform: string;
@@ -379,6 +407,16 @@ export interface OpenKTBridge {
   /** Connect AI tools on this Mac (packages/connect). Errors come back as `{error}` values. */
   connect: ConnectBridge;
   // ── connect tools (end) ──
+  /** The on-device worker: processes the team's closed sessions into pages with the local model. */
+  worker: {
+    status(): Promise<WorkerStatusDto>;
+    setEnabled(on: boolean): Promise<WorkerStatusDto>;
+    /** Which server the app is signed in to; the token stays in the keychain. */
+    configure(config: WorkerConfigDto): Promise<WorkerStatusDto>;
+    /** Look for work now. */
+    poke(): Promise<WorkerStatusDto>;
+    onChange(listener: (status: WorkerStatusDto) => void): () => void;
+  };
   /** OS-keychain-encrypted strings (the access token). */
   secureStore: {
     get(key: string): Promise<string | null>;

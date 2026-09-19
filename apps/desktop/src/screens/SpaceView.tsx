@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { describeError } from '../api/errors';
 import { firstName, relativeDay, roleLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
-import type { ContextItem, Space, SpaceMember } from '../api/types';
+import type { ContextItem, Space, SpaceBrief, SpaceMember, SpaceProcessing } from '../api/types';
+import { Markdown } from '../components/Markdown';
+import { sinceLabel } from '../components/WorkerCard';
 import { AccessPanel } from '../components/AccessPanel';
 import { ContributorsPanel } from '../components/ContributorsPanel';
 import { Avatar, ErrorNote, KindChip, Loading } from '../components/bits';
@@ -63,6 +65,34 @@ function InviteSheet({ space, onClose }: { space: Space; onClose: () => void }) 
   );
 }
 
+/** The space brief (T3): what an AI tool reads first when a session starts here. */
+function BriefCard({ brief }: { brief: SpaceBrief }) {
+  return (
+    <section className="space__brief" aria-label="Brief">
+      <div className="space__brief-head">
+        <h2 className="h-label">Brief</h2>
+        <span className="mono space__fine">what an AI tool reads first here · {sinceLabel(brief.updatedAt)}</span>
+      </div>
+      <div className="space__brief-body">
+        <Markdown source={brief.markdown} />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Sessions become pages on members' Macs with on-device AI. With no such Mac in the space the work
+ * simply waits, and the page says so rather than showing nothing.
+ */
+export function processingNote(p: SpaceProcessing | null | undefined, now: Date = new Date()): string | null {
+  if (!p) return null;
+  const sessions = (n: number) => `${n} ${n === 1 ? 'session' : 'sessions'}`;
+  if (p.running > 0) return `Updating the pages from ${sessions(p.running)} on a teammate’s Mac now.`;
+  if (p.waiting > 0) return `Waiting for a teammate’s Mac with on-device AI · ${sessions(p.waiting)} to add.`;
+  if (p.lastDoneAt) return `Last updated on ${p.lastDoneBy ? `${firstName(p.lastDoneBy)}’s` : 'a teammate’s'} Mac · ${sinceLabel(p.lastDoneAt, now)}`;
+  return null;
+}
+
 /** Space.dc.html — plus who is in the space and who saved what. */
 export function SpaceView() {
   const { id = '', tab } = useParams();
@@ -71,6 +101,8 @@ export function SpaceView() {
   const openSearch = useSearch();
   const space = useQuery((c) => c.getSpace(id), [id]);
   const pages = useQuery((c) => c.listPages(id), [id]);
+  const brief = useQuery((c) => c.getSpaceBrief(id), [id]);
+  const processing = useQuery((c) => c.getSpaceProcessing(id), [id]);
   const sessions = useQuery((c) => c.listSessions({ spaceId: id }), [id]);
   const context = useQuery((c) => c.listSpaceContext(id, { limit: 12 }), [id]);
   const members = useQuery((c) => c.listSpaceMembers(id), [id]);
@@ -188,9 +220,10 @@ export function SpaceView() {
               </Link>
             )}
           </div>
+          {brief.data && <BriefCard brief={brief.data} />}
           <div className="space__cols">
             <section className="space__pages">
-              {(pages.data?.length ?? 0) > 0 && (
+              {((pages.data?.length ?? 0) > 0 || processingNote(processing.data)) && (
                 <>
                   <div className="space__head">
                     <h2 className="h-label">Pages · kept current for you</h2>
@@ -201,6 +234,11 @@ export function SpaceView() {
                       </Link>
                     )}
                   </div>
+                  {processingNote(processing.data) && (
+                    <p className="space__waiting mono" role="status">
+                      {processingNote(processing.data)}
+                    </p>
+                  )}
                   <ul className="plain space__block">
                     {(pages.data ?? []).map((p) => (
                       <li key={p.id}>

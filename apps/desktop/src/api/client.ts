@@ -29,7 +29,9 @@ import type {
   SkillFile,
   SkillSummary,
   Space,
+  SpaceBrief,
   SpaceMembers,
+  SpaceProcessing,
   Workspace,
 } from './types';
 
@@ -76,6 +78,12 @@ export interface OpenKTClient {
   joinSpace(linkOrCode: string): Promise<Space>;
   listPages(spaceId: Id): Promise<PageListItem[]>;
   getPage(id: Id): Promise<Page>;
+  /** A person's edit of one section (editor). The section is locked against agents from then on. */
+  editPageSection(pageId: Id, sectionId: Id, markdown: string): Promise<Page>;
+  /** The space brief, or null before the first one is written. */
+  getSpaceBrief(spaceId: Id): Promise<SpaceBrief | null>;
+  /** Whether sessions here are waiting for a Mac with on-device AI. Null when the server does not say. */
+  getSpaceProcessing(spaceId: Id): Promise<SpaceProcessing | null>;
 
   /** `mine` limits to sessions the signed-in person created (the sidebar). */
   listSessions(filter?: { spaceId?: Id; mine?: boolean }): Promise<SessionListItem[]>;

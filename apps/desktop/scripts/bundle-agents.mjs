@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * After `tsc`: (1) bundle the ESM workspace packages @openkt/agents (+ ajv) and @openkt/connect into CommonJS
+ * After `tsc`: (1) bundle the ESM workspace packages @openkt/agents (+ ajv), @openkt/pipeline and @openkt/connect into CommonJS
  * files the packaged main process can `require` — no node_modules resolution inside the asar;
  * (2) copy models.manifest.json next to the compiled manifest.js.
  * esbuild is a declared devDependency of this app.
@@ -36,5 +36,16 @@ await build({
   target: 'node22',
   logLevel: 'warning',
 });
+// packages/pipeline (the rules the on-device worker applies without a model, src/main/worker): plain TypeScript
+// with no generated files, bundled straight from its sources like packages/connect.
+await build({
+  entryPoints: [join(root, '../../packages/pipeline/src/index.ts')],
+  outfile: join(root, 'dist-electron/vendor/openkt-pipeline.cjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node22',
+  logLevel: 'warning',
+});
 cpSync(join(root, 'src/main/models/models.manifest.json'), join(root, 'dist-electron/main/models/models.manifest.json'));
-console.log('bundled dist-electron/vendor/openkt-agents.cjs and openkt-connect.cjs; copied models.manifest.json');
+console.log('bundled dist-electron/vendor/openkt-agents.cjs, openkt-connect.cjs and openkt-pipeline.cjs; copied models.manifest.json');
