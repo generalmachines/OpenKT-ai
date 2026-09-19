@@ -24,6 +24,10 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
   app.useLogger(app.get(Logger));
+  // Express stops a JSON body at 100 KB by default; a skill may carry 1 MB of
+  // text (more once JSON-escaped). Registered globally, never per path — see
+  // the note above.
+  app.useBodyParser("json", { limit: "3mb" });
   // Behind a reverse proxy, `req.ip` is the proxy unless Express is told how
   // many hops to trust — and the per-IP sign-in limit would be shared by
   // everyone. OPENKT_TRUST_PROXY takes Express's own values: a hop count

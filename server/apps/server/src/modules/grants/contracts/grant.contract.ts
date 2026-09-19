@@ -3,7 +3,7 @@ import { z } from "zod";
 export const UUID = z.string().uuid();
 export const ISO = z.string().datetime({ offset: true });
 
-export const GrantResourceTypeSchema = z.enum(["org", "project", "session"]);
+export const GrantResourceTypeSchema = z.enum(["org", "project", "session", "skill"]);
 export type GrantResourceType = z.infer<typeof GrantResourceTypeSchema>;
 
 export const GrantRoleSchema = z.enum(["reader", "editor", "owner"]);

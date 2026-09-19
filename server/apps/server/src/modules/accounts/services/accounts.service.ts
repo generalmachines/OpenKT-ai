@@ -16,6 +16,7 @@ import {
   SESSION_TOKEN_NAME_PREFIX,
 } from "../../personal-tokens/services/personal-tokens.service";
 import { ProjectScopeService } from "../../projects/services/project-scope.service";
+import { SkillsApplicationService } from "../../skills/services/skills-application.service";
 import { GoogleIdTokenVerifier, type GoogleIdentity } from "./google-id-token-verifier.service";
 import { LoginAttemptsService } from "./login-attempts.service";
 import { dummyPasswordHash, hashPassword, verifyPassword } from "./password-hasher";
@@ -57,6 +58,7 @@ export class AccountsService {
     private readonly grantRepository: GrantRepository,
     private readonly actorContextFactory: ActorContextFactory,
     private readonly audit: AuditService,
+    private readonly skills: SkillsApplicationService,
   ) {}
 
   providers(): { password: true; google: { enabled: boolean; client_id?: string } } {
@@ -233,8 +235,8 @@ export class AccountsService {
     }, request);
   }
 
-  // Profile + credentials in one transaction, then the personal space and any
-  // shares that were waiting for this email.
+  // Profile + credentials in one transaction, then the personal space, the
+  // starter skill, and any shares that were waiting for this email.
   private async createAccount(input: {
     email: string;
     displayName: string;
@@ -280,6 +282,7 @@ export class AccountsService {
       jwt: null,
     });
     await this.projectScope.resolvePersonalProjectId(context);
+    await this.skills.seedStarterSkill(userId);
     const converted = await this.grantRepository.convertPendingForEmail(input.email, userId);
     this.logger.log(`[accounts] created user=${userId} provider=${input.authProvider} pending_grants=${converted}`);
     return userId;

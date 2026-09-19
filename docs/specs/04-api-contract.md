@@ -53,6 +53,29 @@ The database says `project` and `memory`; the API keeps those words in paths for
 | `DELETE /v1/projects/:id/grants/:id` · `DELETE /v1/sessions/:id/grants/:id` | owner → `{revoked}`. `:id` is the grantee's user id, or a `PendingGrant.id` to withdraw a waiting share. |
 | `GET /v1/me/connector-defaults` · `PUT /v1/me/connector-defaults/:source` | `{project_id?, grant_template:[{subject_id, role}]}` |
 
+### Skills
+A skill is a small folder of UTF-8 text files in the open Agent Skills format: a required `SKILL.md` — YAML frontmatter with `name` (lowercase kebab, ≤ 64) and `description` (≤ 1024), then a markdown body — plus optional files such as `references/*.md`. Limits: ≤ 20 files, each ≤ 200 KB, ≤ 1 MB in total; paths relative, `/`-separated, no `.`/`..` segment, no leading `/`. It lives in a space (`project_id`) or, with none, is personal to its owner. Every save is a new immutable version; restoring copies an old version forward as a new one.
+
+**Access.** Read: the owner; anyone who can read its space; anyone holding a grant on the skill (`resource_type = 'skill'`). Edit (new version, archive, move): the owner; an editor/owner grant on the skill; editor/owner on its space. Grants and delete: the owner only. A skill the caller cannot read is 404; a reader who tries to edit gets 403. `my_role` is `owner` only for the literal owner — an `owner` grant reads as `editor`, as for spaces. `space_name` is `null` unless the caller can open that space.
+
+`Skill = {id, slug, title, description, project_id, space_name, owner:{id, display_name}, current_version, archived, created_at, updated_at, run_count, run_count_30d, my_role}` · `SkillFile = {path, content, bytes}` · `SkillVersion = {version, change_note, created_by:{id, display_name}, created_at}`
+
+| | |
+|---|---|
+| `GET /v1/skills?project_id=&q=&archived=` | → `[Skill]`, visible to the caller, newest first. `project_id` (id or slug) narrows to one space (404 if the caller cannot read it); `q` matches title, name and description; archived skills only with `archived=true`. |
+| `POST /v1/skills` | `{title, project_id?, files? \| skill_md?, change_note?}` → `Skill & {files, versions}`, version 1 (201). With neither `files` nor `skill_md`, a starter `SKILL.md` is written from the title (`name` = the slugified title, made unique). Creating in a space needs write access to it. |
+| `GET /v1/skills/:id` | → `Skill & {files:[SkillFile] (current version, SKILL.md first), versions:[SkillVersion] (newest first)}` |
+| `GET /v1/skills/:id/versions/:n` | → `SkillVersion & {skill_id, files:[SkillFile]}` |
+| `PUT /v1/skills/:id` | `{files, change_note?, title?, base_version}` (editor) → a new version. `base_version` must equal `current_version`, else 409 `version_conflict`. `slug` and `description` are re-read from the new `SKILL.md`; `title` is the one given, else the first `# heading`, else unchanged. |
+| `POST /v1/skills/:id/versions/:n/restore` | (editor) → a new version holding version *n*'s files, change note "Restored v*n*". |
+| `PATCH /v1/skills/:id` | `{project_id? (null = personal), archived?}` (editor). Moving into a space needs write access to it. |
+| `DELETE /v1/skills/:id` | (owner) → `{deleted:true}`; versions, runs and grants go with it. |
+| `GET /v1/skills/:id/grants` · `PUT /v1/skills/:id/grants` · `DELETE /v1/skills/:id/grants/:grantId` | exactly the shapes of the space grants above, including `{email, role}` and pending shares converted at sign-up. |
+| `POST /v1/skills/:id/runs` | `{surface: app\|mcp\|api}` (reader) → `{skill: Skill, version, files}` — records one use and returns the content in the same call. |
+| `GET /v1/skills/:id/export` | → `{slug, version, files}` as JSON; the client writes the folder itself. |
+
+Folder errors are 422 with a code: `invalid_frontmatter`, `missing_skill_md`, `file_too_large`, `skill_too_large`, `too_many_files`, `bad_path`, `not_text`. A `name` already used by another skill in the same space (or among the owner's personal skills) is 409 `slug_taken`. Request bodies may be up to 3 MB of JSON.
+
 ### Operations
 `GET /healthz` · `GET /v1/meta` → `{version, embedding_model, rerank:boolean, features:[]}` · `GET /v1/admin/jobs?status=` (workspace owner).
 
@@ -72,6 +95,9 @@ Every tool has `title` and `annotations` (`readOnlyHint` / `destructiveHint`). E
 | `kt_feedback` | `{recall_id, used:[ids]}` | ok |
 | `kt_search_memories` · `kt_forget_memory` | existing | unchanged |
 | `kt_setup` | `{client?}` | paste-able setup steps for that client. **No mock tokens.** |
+| `kt_list_skills` | `{project?, q?}` | numbered list `title (name) — description — space`; `structuredContent = {count, skills:[Skill]}`. Read-only. |
+| `kt_get_skill` | `{skill (id or name), project?}` | the full `SKILL.md`, then each other file under a `--- <path> ---` header; `structuredContent = {skill, version, files}`. Records a run with surface `mcp`. |
+| `kt_save_skill` | `{title, skill_md, project?, skill?, change_note?}` | Without `skill`: creates one (personal unless `project`). With `skill`: a new version (edit access), keeping the other files. → `{skill}` |
 
 Card tools (registered only when the client advertises the `io.modelcontextprotocol/ui` extension; resource `ui://openkt/cards.html`, MIME `text/html;profile=mcp-app`):
 
@@ -94,6 +120,7 @@ OpenKT is this team's shared context. Use it so people do not have to re-explain
 3. When something durable is settled — a decision, a fact, a how-to, an issue and its cause, an open question, an owner and deadline, an idea — call kt_save_memory right then, one short self-contained statement each. Never save secrets, credentials or private personal data.
 4. If it is unclear which space something belongs to, ask once; otherwise use the session's space. Personal is the default.
 5. When the work ends, call kt_session_end with a 2–3 sentence summary.
+6. When the user asks to do something "the way we do it", or mentions a team procedure, template or house style, call kt_list_skills and follow the matching skill (kt_get_skill returns it in full).
 If a tool fails, continue the user's task and mention it once.
 ```
 

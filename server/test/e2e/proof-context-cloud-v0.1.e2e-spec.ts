@@ -61,6 +61,8 @@ import { GrantsApplicationService } from "../../apps/server/src/modules/grants/s
 import { AccessScopeService } from "../../apps/server/src/modules/access/services/access-scope.service";
 import { McpServerFactoryService } from "../../apps/server/src/modules/mcp/services/mcp-server-factory.service";
 import { McpUiRendererService } from "../../apps/server/src/modules/mcp/services/mcp-ui-renderer.service";
+import { SkillRepository } from "../../apps/server/src/modules/skills/repositories/skill.repository";
+import { SkillsApplicationService } from "../../apps/server/src/modules/skills/services/skills-application.service";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const describeIfDb = DATABASE_URL ? describe : describe.skip;
@@ -194,6 +196,12 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
       briefingStub,
       new McpUiRendererService(),
       sessionsApp,
+      new SkillsApplicationService(
+        new SkillRepository(db as never),
+        projectScopeService,
+        accessScopeService,
+        grantRepository,
+      ),
     );
 
     // Fixture profiles — memories.owner_user_id FKs to profiles.
