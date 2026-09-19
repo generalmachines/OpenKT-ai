@@ -7,6 +7,7 @@
  * actually loaded and that nothing overflows horizontally.
  *
  * CHROMIUM_PATH overrides the browser binary (no browser is downloaded).
+ * `--only=<text>` shoots just the shots whose name contains it.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,6 +19,8 @@ import { chromium } from 'playwright-core';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'shots');
 const dev = process.argv.includes('--dev');
+/** `--only=skill` shoots just the matching names (and keeps the other PNGs). */
+const only = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length) ?? '';
 const port = dev ? 5173 : 4173;
 const base = `http://localhost:${port}`;
 const executablePath =
@@ -102,6 +105,88 @@ function fakeCaptureIpc() {
   };
 }
 
+/**
+ * A stand-in for the first-run halves of the Electron bridge: macOS permissions and the on-device AI
+ * download, in the state named by `?fake=` (models) and `?perms=` (permissions) in the route. Nothing
+ * here reaches a Mac: the shots show what each state looks like, not that macOS agrees.
+ */
+function fakeFirstRun() {
+  const q = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const mode = q.get('fake') ?? 'fresh';
+  localStorage.setItem('openkt.api', JSON.stringify({ adapter: 'mock' }));
+  if (q.get('onboarded') === '1') localStorage.setItem('openkt.onboarded', '1');
+  if (mode === 'tried') localStorage.setItem('openkt.onboarding', JSON.stringify({ step: 5, skipped: [3], tried: ['voice', 'note'], startedAt: Date.now() }));
+  const GiB = 1024 ** 3;
+  const big = { embed: 639150592, llm: 2740937888, whisper: 574041195, mmproj: 672423616 };
+  const small = { embed: 639150592, llm: 1280835840, whisper: 487601967, mmproj: 668227264 };
+  const sizes = mode === 'small' ? small : big;
+  const ready = ['ready', 1];
+  const at =
+    {
+      downloading: { embed: ready, llm: ['downloading', 0.38] },
+      small: { embed: ready, llm: ['partial', 0.62] },
+      error: { embed: ready, llm: ['error', 0.21] },
+      tryit: { embed: ready, llm: ready, whisper: ['downloading', 0.46] },
+      tried: { embed: ready, llm: ready, whisper: ready, mmproj: ready },
+      ready: { embed: ready, llm: ready, whisper: ready, mmproj: ready },
+      sidebar: { embed: ready, llm: ['downloading', 0.71] },
+    }[mode] ?? {};
+  const rows = ['embed', 'llm', 'whisper', 'mmproj'].map((role) => {
+    const [state, f] = at[role] ?? ['missing', 0];
+    return { role, id: role, file: `${role}.gguf`, path: '', totalBytes: sizes[role], receivedBytes: Math.round(sizes[role] * f), state, ...(state === 'error' ? { error: 'gave up after 5 attempts: fetch failed' } : {}) };
+  });
+  const total = rows.reduce((n, r) => n + r.totalBytes, 0);
+  const remaining = rows.reduce((n, r) => n + (r.state === 'ready' ? 0 : r.totalBytes - r.receivedBytes), 0);
+  const info = {
+    totalBytes: total,
+    remainingBytes: remaining,
+    freeBytes: mode === 'lowdisk' ? 2.1e9 : 212.4e9,
+    neededBytes: remaining + GiB,
+    enoughDisk: mode !== 'lowdisk',
+    totalMemBytes: (mode === 'small' ? 8 : 16) * GiB,
+    smallModel: mode === 'small',
+    paused: mode === 'small',
+    bundled: { runtime: true, transcriber: true, textReader: true },
+  };
+  const none = { microphone: 'not-determined', screen: 'not-determined', accessibility: 'not-determined', systemAudio: 'not-determined', relaunchSuggested: false };
+  const perms =
+    {
+      fresh: none,
+      mixed: { microphone: 'granted', screen: 'denied', accessibility: 'not-determined', systemAudio: 'denied', relaunchSuggested: true },
+      tryit: { microphone: 'granted', screen: 'not-determined', accessibility: 'granted', systemAudio: 'not-determined', relaunchSuggested: false },
+      settings: { microphone: 'granted', screen: 'granted', accessibility: 'denied', systemAudio: 'granted', relaunchSuggested: false },
+    }[q.get('perms') ?? 'fresh'] ?? none;
+  window.openkt = {
+    platform: 'darwin',
+    app: {
+      onNavigate: () => () => undefined,
+      openMain: async () => undefined,
+      hotkeys: async () => [
+        { id: 'voice', display: 'fn', fallbackAccelerator: 'Control+Alt+Space', registered: true },
+        { id: 'screenshot', display: '⌃⌥S', fallbackAccelerator: 'Control+Alt+S', registered: true },
+      ],
+      startCapture: async () => undefined,
+    },
+    capture: { onEvent: () => () => undefined },
+    overlay: { close: async () => undefined },
+    permissions: { status: async () => ({ ...perms }), request: async () => ({ ...perms }), openSettings: async () => undefined, onChange: () => () => undefined, relaunch: async () => undefined },
+    models: {
+      status: async () => ({ models: rows }),
+      ensure: () => new Promise(() => undefined),
+      onProgress: (l) => {
+        const d = rows.find((r) => r.state === 'downloading');
+        if (d) setTimeout(() => l({ ...d, bytesPerSec: 18.4e6, overall: 0 }), 30);
+        return () => undefined;
+      },
+      setupInfo: async () => info,
+      pause: async () => info,
+      resume: async () => info,
+    },
+    localAi: { extractNote: async () => ({ status: 'noop' }) },
+    voice: { begin: async () => 'v1', chunk: () => undefined, end: async () => ({}), toSession: async () => null, cancel: () => undefined },
+  };
+}
+
 const VOICE_WIN = { width: 536, height: 244 };
 const SHOT_WIN = { width: 536, height: 132 };
 
@@ -156,8 +241,9 @@ const SHOTS = [
     },
     null,
   ],
-  ['02-onboarding-2-connect-tools', '/onboarding/2', APP, null, 'Onboarding.dc.html'],
-  ['03-onboarding-3-models', '/onboarding/3', APP, null, null],
+  // In a browser there is nothing to allow, so step 2 hands straight over to step 3.
+  ['02-onboarding-3-connect-tools', '/onboarding/2', APP, async (p) => p.getByRole('heading', { name: 'Connect your tools' }).waitFor(), 'Onboarding.dc.html'],
+  ['03-onboarding-4-models-browser', '/onboarding/4', APP, null, null],
   ['04-session-summary', S, APP, null, 'Main.dc.html'],
   ['05-session-context', `${S}/context`, APP, null, null],
   ['06-session-transcript', `${S}/transcript`, APP, null, null],
@@ -197,6 +283,56 @@ const SHOTS = [
   ['12-space-access', '/spaces/sp-northgate/access', APP, null, null],
   ['13-page', '/pages/p-northgate-pricing', APP, null, 'Page.dc.html'],
   ['14-skills', '/skills', APP, null, 'Skills.dc.html'],
+  [
+    '14b-new-skill-dialog',
+    '/skills',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'New skill' }).click();
+      await p.getByLabel('Name').fill('Answer a pricing question');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  ['14c-skill-read', '/skills/sk-marketing', APP, null, 'Skill.dc.html'],
+  ['14d-skill-source', '/skills/sk-marketing', APP, async (p) => p.getByRole('button', { name: 'Source' }).click(), null],
+  ['14e-skill-reference-file', '/skills/sk-marketing', APP, async (p) => p.getByRole('button', { name: /references\/voice\.md/ }).click(), null],
+  ['14f-skill-edit', '/skills/sk-marketing/edit', APP, async (p) => p.getByLabel('Edit SKILL.md').waitFor(), 'Skill-Edit.dc.html'],
+  [
+    '14g-skill-edit-invalid',
+    '/skills/sk-marketing/edit',
+    APP,
+    async (p) => {
+      const editor = p.getByLabel('Edit SKILL.md');
+      await editor.fill(`# Sharpen a marketing message\n\nRewrite the draft so it sounds like us.\n`);
+      await p.getByRole('alert').waitFor();
+    },
+    null,
+  ],
+  ['14h-skill-version-view', '/skills/sk-marketing/versions/3', APP, async (p) => p.getByRole('button', { name: 'Restore this version' }).waitFor(), null],
+  [
+    '14i-skill-run-sheet',
+    '/skills/sk-marketing',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Run', exact: true }).click();
+      await p.getByLabel('Your input').fill('We’re thrilled to unveil our revolutionary AI-powered planogram engine that seamlessly empowers retailers!');
+    },
+    null,
+  ],
+  ['14j-skill-reader', '/skills/sk-followup', APP, null, null],
+  [
+    '14k-skill-share',
+    '/skills/sk-pr',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Share' }).click();
+      await p.getByLabel('Invite by email').fill('dana@northgate.com');
+      await p.getByRole('button', { name: 'Invite', exact: true }).click();
+      await p.getByText('Invited — hasn’t joined yet').waitFor();
+    },
+    null,
+  ],
   ['15-settings-connectors', '/settings/connectors', APP, null, 'Connectors.dc.html'],
   ['16-settings-connectors-menu', '/settings/connectors', APP, async (p) => p.getByRole('button', { name: /New ChatGPT sessions/ }).click(), null],
   ['17-settings-access-defaults', '/settings/access', APP, null, null],
@@ -260,6 +396,31 @@ const SHOTS = [
   ['33-overlay-screenshot', '/overlay/screenshot', SHOT_WIN, async (p) => p.getByRole('textbox', { name: 'Title' }).waitFor(), 'Capture-Screenshot.dc.html', fakeCaptureIpc],
   ['34-overlay-screenshot-nothing', '/overlay/screenshot?fake=nothing', SHOT_WIN, async (p) => p.getByRole('button', { name: 'Close' }).waitFor(), null, fakeCaptureIpc],
   ['27-session-summary-960x640', S, { width: 960, height: 640 }, null, null],
+  ['27b-skill-edit-960x640', '/skills/sk-marketing/edit', { width: 960, height: 640 }, async (p) => p.getByLabel('Edit SKILL.md').waitFor(), null],
+  // ── first run on a Mac (fake bridge: fakeFirstRun) ──
+  ['35-onboarding-2-permissions', '/onboarding/2?perms=fresh', APP, async (p) => p.getByRole('button', { name: 'Allow: Microphone' }).waitFor(), 'Onboarding.dc.html', fakeFirstRun],
+  ['36-onboarding-2-permissions-relaunch', '/onboarding/2?perms=mixed', APP, async (p) => p.getByRole('button', { name: 'Relaunch OpenKT' }).waitFor(), null, fakeFirstRun],
+  ['37-onboarding-4-models-downloading', '/onboarding/4?fake=downloading', APP, async (p) => p.getByText(/MB\/s/).waitFor(), null, fakeFirstRun],
+  ['38-onboarding-4-models-low-disk', '/onboarding/4?fake=lowdisk', APP, async (p) => p.getByRole('alert').waitFor(), null, fakeFirstRun],
+  ['39-onboarding-4-models-small-mac-paused', '/onboarding/4?fake=small', APP, async (p) => p.getByRole('button', { name: 'Resume' }).waitFor(), null, fakeFirstRun],
+  ['40-onboarding-4-models-error', '/onboarding/4?fake=error', APP, async (p) => p.getByRole('button', { name: 'Try again' }).waitFor(), null, fakeFirstRun],
+  ['41-onboarding-5-try-it', '/onboarding/5?fake=tryit&perms=tryit', APP, async (p) => p.getByText(/Finishing setup/).waitFor(), null, fakeFirstRun],
+  [
+    '42-onboarding-5-try-it-writing',
+    '/onboarding/5?fake=ready&perms=settings',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Write' }).click();
+      await p.getByRole('textbox', { name: 'Note' }).fill('Call with Ana — she wants the revised deck by Friday.');
+    },
+    null,
+    fakeFirstRun,
+  ],
+  ['43-onboarding-5-try-it-done', '/onboarding/5?fake=tried&perms=settings', APP, async (p) => p.getByText('2 of 3 tried. The menu bar has all of these any time.').waitFor(), null, fakeFirstRun],
+  ['44-settings-permissions', '/settings/permissions?perms=settings&fake=ready&onboarded=1', APP, async (p) => p.getByRole('button', { name: 'Open System Settings: Accessibility' }).waitFor(), null, fakeFirstRun],
+  ['45-settings-models-live', '/settings/models?fake=downloading&onboarded=1', APP, async (p) => p.getByText(/MB\/s/).waitFor(), 'Models.dc.html', fakeFirstRun],
+  ['46-sidebar-setup-progress', `${S}?fake=sidebar&onboarded=1`, APP, async (p) => p.getByRole('link', { name: /Setting up on-device AI/ }).waitFor(), null, fakeFirstRun],
+  ['47-overlay-voice-finishing-setup', '/overlay/voice?fake=tryit', VOICE_WIN, async (p) => p.getByText(/Finishing setup/).waitFor(), null, fakeFirstRun],
 ];
 
 async function waitForServer(url, ms = 30_000) {
@@ -288,8 +449,9 @@ function audit() {
     const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     // crushed flex children: text-bearing element squeezed to nothing
     if (hasText && (r.width < 2 || r.height < 2)) problems.push(`${label} is crushed to ${Math.round(r.width)}×${Math.round(r.height)}`);
-    // clipped text, unless the element opts into an ellipsis
-    if (hasText && cs.textOverflow !== 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== 'visible')
+    // clipped text, unless the element opts into an ellipsis (a code box that scrolls sideways is not clipping)
+    const scrollsSideways = el.matches('textarea, pre') && (cs.overflowX === 'auto' || cs.overflowX === 'scroll');
+    if (hasText && !scrollsSideways && cs.textOverflow !== 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== 'visible')
       problems.push(`${label} clips its text (${el.scrollWidth} > ${el.clientWidth})`);
     // anything sticking out past the right edge of the window
     if (r.width > 0 && r.right > window.innerWidth + 1 && !el.closest('.sr-only')) problems.push(`${label} extends ${Math.round(r.right - window.innerWidth)}px past the window`);
@@ -300,7 +462,7 @@ function audit() {
 async function main() {
   if (!existsSync(executablePath)) throw new Error(`Chromium not found at ${executablePath}. Set CHROMIUM_PATH.`);
   if (!dev && !existsSync(join(root, 'dist/index.html'))) throw new Error('dist/ is missing — run `npm run build:renderer` first.');
-  rmSync(out, { recursive: true, force: true });
+  if (!only) rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
 
   const vite = join(root, 'node_modules/.bin/vite');
@@ -311,7 +473,7 @@ async function main() {
     await waitForServer(base);
     const browser = await chromium.launch({ executablePath, args: ['--autoplay-policy=no-user-gesture-required'] });
     const report = [];
-    for (const [name, route, viewport, steps, artboard, init] of SHOTS) {
+    for (const [name, route, viewport, steps, artboard, init] of SHOTS.filter(([name]) => !only || name.includes(only))) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' });
       const page = await context.newPage();
       if (init) await page.addInitScript(init);
@@ -341,7 +503,7 @@ async function main() {
       console.log(`${problems.length ? '✗' : '✓'} ${name}  ${route}${problems.length ? `\n    ${problems.join('\n    ')}` : ''}`);
     }
     await browser.close();
-    writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+    if (!only) writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(`\n${report.length} screenshots → ${out}`);
   } finally {
     server.kill();

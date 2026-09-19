@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenKT · Your agent already knows what the meeting decided</title>
+<title>OpenKT · Stop re-explaining your team to every AI</title>
 <meta name="description" content="OpenKT syncs your team's meetings and AI sessions into one shared place. Nobody pastes the call into their assistant, and nobody relays what their assistant worked out to everybody else.">
 <meta name="theme-color" content="#fdfcfa">
 <meta name="color-scheme" content="light">
 <link rel="canonical" href="https://openkt.ai/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="OpenKT · Your agent already knows what the meeting decided">
+<meta property="og:title" content="OpenKT · Stop re-explaining your team to every AI">
 <meta property="og:description" content="OpenKT syncs your team's meetings and AI sessions into one shared place, so nobody briefs an assistant and nobody relays what one found.">
 <meta property="og:image" content="assets/hero-wall.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -51,7 +51,7 @@
         <a href="#how">How it works</a>
         <a href="#access">Access</a>
         <a href="#run">Run it</a>
-        <a href="https://github.com/openkt/openkt">GitHub</a>
+        <a href="https://github.com/masti-ai/OpenKT-ai">GitHub</a>
       </nav>
       <span class="menubar__status" aria-hidden="true">
         <svg class="ico"><use href="#i-batt"/></svg>
@@ -71,9 +71,9 @@
   </figure>
 
   <div class="wrap hero__text">
-    <h1>Your agent already knows what the meeting decided.</h1>
+    <h1>Stop re-explaining your team to every AI.</h1>
     <p class="hero__sub">OpenKT syncs your team's meetings and AI sessions into one shared place. Nobody pastes the call into their assistant, and nobody relays what their assistant worked out to everybody else.</p>
-    <a class="btn btn--light" href="https://github.com/openkt/openkt/releases">
+    <a class="btn btn--light" href="https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg">
       <svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac
     </a>
     <p class="hero__note">Free to start. Open source, and yours to self-host.</p>
@@ -293,7 +293,7 @@
         <li>Meetings, voice and screenshots included</li>
         <li>Everything exportable on any day you like</li>
       </ul>
-      <a class="btn btn--solid" href="https://github.com/openkt/openkt/releases"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac</a>
+      <a class="btn btn--solid" href="https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac</a>
     </div>
     <div class="way">
       <h3>You run it yourself</h3>
@@ -303,7 +303,7 @@
         <li>Any OpenAI-compatible model endpoint</li>
         <li>No graph database, no broker, no queue to babysit</li>
       </ul>
-      <a class="btn btn--ghost" href="https://github.com/openkt/openkt#quick-start"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>Read the quickstart</a>
+      <a class="btn btn--ghost" href="https://github.com/masti-ai/OpenKT-ai#quick-start"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>Read the quickstart</a>
     </div>
   </div>
 </section>
@@ -346,10 +346,20 @@
   <div class="wrap">
     <h2>Try it on this week's meetings.</h2>
     <p class="sub">Install it, let it sit through one call, then open your assistant and ask what was decided. That is the whole demonstration.</p>
-    <a class="btn btn--solid" href="https://github.com/openkt/openkt/releases">
+    <a class="btn btn--solid" href="https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg">
       <svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac
     </a>
     <p class="close__note">Free to start. Open source, and yours to self-host.</p>
+    <div class="install" id="install">
+      <p class="install__label">Or let your AI install it. Paste this into Claude Code, Codex or Cowork:</p>
+      <pre class="install__code">Install the OpenKT Mac app for me: download https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg,
+open the disk image, copy OpenKT.app to /Applications, then run
+xattr -dr com.apple.quarantine /Applications/OpenKT.app
+(the preview build is not signed yet, so macOS blocks it until then) and open it.</pre>
+      <p class="install__label">If macOS says OpenKT can't be opened, run this once in Terminal:</p>
+      <pre class="install__code">xattr -dr com.apple.quarantine /Applications/OpenKT.app</pre>
+      <p class="install__label">Connect any AI tool to your team's context: <code>https://mcp.openkt.ai/mcp</code></p>
+    </div>
   </div>
 </section>
 
@@ -360,27 +370,27 @@
     <div class="foot__brand">
       <span class="wordmark">OpenKT</span>
       <p class="foot__tag">One shared context for a team and all of its agents. Open source, and yours to run.</p>
-      <a class="foot__gh" href="https://github.com/openkt/openkt"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>github.com/openkt</a>
+      <a class="foot__gh" href="https://github.com/masti-ai/OpenKT-ai"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>github.com/openkt</a>
     </div>
     <nav class="foot__col" aria-label="Product">
       <h2 class="mono foot__h">Product</h2>
       <a href="#how">How it works</a>
       <a href="#access">Access</a>
       <a href="#run">Run it yourself</a>
-      <a href="https://github.com/openkt/openkt/releases">Download for Mac</a>
+      <a href="https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg">Download for Mac</a>
     </nav>
     <nav class="foot__col" aria-label="Project">
       <h2 class="mono foot__h">Project</h2>
-      <a href="https://github.com/openkt/openkt">Source</a>
-      <a href="https://github.com/openkt/openkt/blob/main/docs/product.md">What it is</a>
-      <a href="https://github.com/openkt/openkt/blob/main/CONTRIBUTING.md">Contributing</a>
-      <a href="https://github.com/openkt/openkt/blob/main/SECURITY.md">Report a problem</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai">Source</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai#readme">What it is</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai/blob/main/SECURITY.md">Report a problem</a>
     </nav>
     <nav class="foot__col" aria-label="Legal">
       <h2 class="mono foot__h">Legal</h2>
-      <a href="https://github.com/openkt/openkt/blob/main/LICENSE">Licence</a>
-      <a href="https://github.com/openkt/openkt/blob/main/SECURITY.md">Security</a>
-      <a href="https://github.com/openkt/openkt/blob/main/docs/product.md#privacy-and-trust">Privacy</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai/blob/main/LICENSE">Licence</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/masti-ai/OpenKT-ai#readme#privacy-and-trust">Privacy</a>
     </nav>
   </div>
   <div class="wrap foot__legal">

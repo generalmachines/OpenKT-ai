@@ -1,4 +1,6 @@
 import { NotFoundError, type OpenKTClient } from '../client';
+import { ApiError } from '../errors';
+import { filesProblem, parseFrontmatter, SKILL_MD, slugify, starterSkillMd, toSkillFile } from '../skillFiles';
 import type {
   Connector,
   ContextItem,
@@ -7,17 +9,23 @@ import type {
   Id,
   ModelJob,
   ModelSettings,
+  NewSkillInput,
   NewFactInput,
   NewSessionInput,
   RecallHit,
   ResourceRef,
   Role,
+  SaveSkillInput,
   Session,
   SessionListItem,
   Skill,
+  SkillFile,
+  SkillFileInput,
+  SkillSummary,
 } from '../types';
 import { sourceLabel } from '../format';
 import { createSeed, type SeedData } from './seed';
+import type { SeedSkill } from './skills';
 
 const clone = <T,>(v: T): T => structuredClone(v);
 
@@ -255,34 +263,162 @@ export class MockClient implements OpenKTClient {
     return clone(c);
   }
 
-  async listSkills() {
-    return clone(this.db.skills);
+  // ── skills ────────────────────────────────────────────────────────────
+
+  private skill(id: Id): SeedSkill {
+    const s = this.db.skills.find((x) => x.id === id && !x.archived);
+    // A skill you cannot read does not exist for you: the server says 404 for both.
+    if (!s) throw new ApiError('not-found', 'skill not found', 404, 'not_found', `/skills/${id}`);
+    return s;
   }
 
-  async createSkill(name: string): Promise<Skill> {
-    const skill: Skill = {
-      id: this.nextId('sk'),
-      name: name.trim() || 'Untitled skill',
-      description: 'Describe what this skill does and which space it should pull context from.',
-      meta: 'v1 · draft',
-      sharedWith: 'only me',
-      version: 1,
-    };
-    this.db.skills.push(skill);
-    this.changed();
-    return clone(skill);
-  }
-
-  async runSkill(id: Id) {
-    const s = this.db.skills.find((x) => x.id === id);
-    if (!s) throw new NotFoundError('skill', id);
-    const understanding = this.db.models.models.find((m) => m.job === 'understanding');
-    await new Promise((r) => setTimeout(r, 600));
+  private toSummary(s: SeedSkill): SkillSummary {
+    const current = s.versions[s.versions.length - 1]!;
+    const main = current.files.find((f) => f.path === SKILL_MD)?.content ?? '';
+    const description = parseFrontmatter(main)?.description ?? '';
     return {
-      skillId: id,
-      model: understanding?.name ?? 'local model',
-      output: `Simulated run of “${s.name}”. The Swift engine is not attached, so no model ran.`,
+      id: s.id,
+      slug: s.slug,
+      title: s.title,
+      description,
+      spaceId: s.spaceId,
+      spaceName: s.spaceName,
+      owner: { ...s.owner },
+      currentVersion: current.version,
+      updatedAt: current.createdAt,
+      runCount30d: s.runCount30d,
+      myRole: s.myRole,
     };
+  }
+
+  private toSkill(s: SeedSkill): Skill {
+    const current = s.versions[s.versions.length - 1]!;
+    return {
+      ...this.toSummary(s),
+      files: clone(current.files),
+      versions: [...s.versions].reverse().map(({ files: _files, ...v }) => clone(v)),
+    };
+  }
+
+  private checkFiles(files: readonly SkillFileInput[], path: string): SkillFile[] {
+    const problem = filesProblem(files);
+    if (problem) throw new ApiError('invalid', problem.message, 422, problem.code, path);
+    return files.map(toSkillFile);
+  }
+
+  private mustEdit(s: SeedSkill): void {
+    if (s.myRole === 'reader') throw new ApiError('forbidden', 'editors only', 403, 'forbidden', `/skills/${s.id}`);
+  }
+
+  private pushVersion(s: SeedSkill, files: SkillFile[], changeNote: string, by = this.db.workspace.me): void {
+    const last = s.versions[s.versions.length - 1]!;
+    s.versions.push({ version: last.version + 1, changeNote, createdBy: { id: by.id, name: by.name }, createdAt: new Date().toISOString(), files });
+  }
+
+  async listSkills(filter?: { spaceId?: Id; q?: string }): Promise<SkillSummary[]> {
+    const q = filter?.q?.trim().toLowerCase() ?? '';
+    return this.db.skills
+      .filter((s) => !s.archived)
+      .filter((s) => (filter?.spaceId ? s.spaceId === filter.spaceId : true))
+      .map((s) => this.toSummary(s))
+      .filter((s) => !q || `${s.title} ${s.slug} ${s.description} ${s.spaceName}`.toLowerCase().includes(q));
+  }
+
+  async getSkill(id: Id): Promise<Skill> {
+    return this.toSkill(this.skill(id));
+  }
+
+  async getSkillVersion(id: Id, version: number): Promise<SkillFile[]> {
+    const v = this.skill(id).versions.find((x) => x.version === version);
+    if (!v) throw new ApiError('not-found', 'version not found', 404, 'not_found', `/skills/${id}/versions/${version}`);
+    return clone(v.files);
+  }
+
+  async createSkill(input: NewSkillInput): Promise<Skill> {
+    const title = input.title.trim() || 'Untitled skill';
+    const files = this.checkFiles(input.files?.length ? input.files : [{ path: SKILL_MD, content: starterSkillMd(title) }], '/skills');
+    const me = this.db.workspace.me;
+    const space = this.db.spaces.find((x) => x.id === input.spaceId) ?? this.db.spaces.find((x) => x.personal);
+    const taken = new Set(this.db.skills.map((x) => x.slug));
+    let slug = slugify(title);
+    for (let n = 2; taken.has(slug); n += 1) slug = `${slugify(title).slice(0, 60)}-${n}`;
+    const skill: SeedSkill = {
+      id: this.nextId('sk'),
+      slug,
+      title,
+      spaceId: space?.id ?? '',
+      spaceName: space?.name ?? 'personal',
+      owner: { id: me.id, name: me.name },
+      runCount30d: 0,
+      myRole: 'owner',
+      versions: [{ version: 1, changeNote: '', createdBy: { id: me.id, name: me.name }, createdAt: new Date().toISOString(), files }],
+    };
+    this.db.skills.unshift(skill);
+    this.db.grants.push({
+      id: this.nextId('g'),
+      resource: { type: 'skill', id: skill.id },
+      subject: { type: 'user', id: me.id, name: me.name, initials: me.initials, email: me.email },
+      role: 'owner',
+      note: 'you · wrote this skill',
+      inherited: true,
+    });
+    this.changed();
+    return this.toSkill(skill);
+  }
+
+  async saveSkill(id: Id, input: SaveSkillInput): Promise<Skill> {
+    const s = this.skill(id);
+    this.mustEdit(s);
+    const files = this.checkFiles(input.files, `/skills/${id}`);
+    const current = s.versions[s.versions.length - 1]!.version;
+    if (input.baseVersion !== current) throw new ApiError('conflict', `version ${current} was saved first`, 409, 'version_conflict', `/skills/${id}`);
+    this.pushVersion(s, files, input.changeNote?.trim() ?? '');
+    this.changed();
+    return this.toSkill(s);
+  }
+
+  async restoreSkillVersion(id: Id, version: number): Promise<Skill> {
+    const s = this.skill(id);
+    this.mustEdit(s);
+    const v = s.versions.find((x) => x.version === version);
+    if (!v) throw new ApiError('not-found', 'version not found', 404, 'not_found', `/skills/${id}/versions/${version}`);
+    this.pushVersion(s, clone(v.files), `restored v${version}`);
+    this.changed();
+    return this.toSkill(s);
+  }
+
+  async updateSkill(id: Id, patch: { spaceId?: Id; archived?: boolean }): Promise<SkillSummary> {
+    const s = this.skill(id);
+    if (s.myRole !== 'owner') throw new ApiError('forbidden', 'owners only', 403, 'forbidden', `/skills/${id}`);
+    const space = patch.spaceId ? this.db.spaces.find((x) => x.id === patch.spaceId) : undefined;
+    if (patch.spaceId && !space) throw new NotFoundError('space', patch.spaceId);
+    if (space) Object.assign(s, { spaceId: space.id, spaceName: space.name });
+    const summary = this.toSummary(s);
+    if (patch.archived !== undefined) s.archived = patch.archived;
+    this.changed();
+    return summary;
+  }
+
+  async deleteSkill(id: Id): Promise<void> {
+    const s = this.skill(id);
+    if (s.myRole !== 'owner') throw new ApiError('forbidden', 'owners only', 403, 'forbidden', `/skills/${id}`);
+    this.db.skills = this.db.skills.filter((x) => x.id !== id);
+    this.db.grants = this.db.grants.filter((g) => !(g.resource.type === 'skill' && g.resource.id === id));
+    this.changed();
+  }
+
+  async recordSkillRun(id: Id): Promise<SkillFile[]> {
+    const s = this.skill(id);
+    s.runCount30d += 1;
+    this.changed();
+    return clone(s.versions[s.versions.length - 1]!.files);
+  }
+
+  /** Sample data only: a teammate saves while you are editing, so the conflict path can be seen and tested. */
+  simulateTeammateSave(id: Id, personId: Id, changeNote: string, edit: (files: SkillFile[]) => SkillFileInput[]): void {
+    const s = this.skill(id);
+    const by = this.db.workspace.people.find((p) => p.id === personId) ?? this.db.workspace.me;
+    this.pushVersion(s, edit(clone(s.versions[s.versions.length - 1]!.files)).map(toSkillFile), changeNote, by);
   }
 
   async getModelSettings(): Promise<ModelSettings> {

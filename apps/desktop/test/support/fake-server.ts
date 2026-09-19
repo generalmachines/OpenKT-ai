@@ -11,13 +11,30 @@
  *     or PendingGrantView `{id, pending:true, email, role, …}`; the list carries both; DELETE takes a
  *     user id or a pending share's own id (modules/grants/contracts/grant.contract.ts on feat/built-in-accounts)
  *   - snake_case profile / project / org member rows, as observed on a live server 2026-09-19
+ *   - skills: the contract the desktop was built against (GET/POST /v1/skills, GET/PUT/PATCH/DELETE /v1/skills/:id,
+ *     /versions/:n, /versions/:n/restore, /runs, /grants with DELETE by user id or pending share id, like the
+ *     other grants — modules/skills on feat/skills); 422 codes
+ *     invalid_frontmatter | missing_skill_md | file_too_large | too_many_files | bad_path; 409 version_conflict;
+ *     a skill the caller cannot read is a 404
  * Behaviour mirrors what the adapter relies on: one project per session list
  * (none → personal), owner-only grant management, delete = archive, recall
  * scoped to readable projects.
  */
 import { http, HttpResponse, type HttpHandler } from 'msw';
+import { byteLength, filesProblem, parseFrontmatter, slugify, starterSkillMd } from '../../src/api/skillFiles';
 
 type Row = Record<string, unknown>;
+interface SkillRow {
+  id: string;
+  slug: string;
+  title: string;
+  project_id: string;
+  owner_user_id: string;
+  archived: boolean;
+  /** Timestamps of recorded runs. */
+  runs: number[];
+  versions: { version: number; change_note: string; created_by: string; created_at: string; files: { path: string; content: string }[] }[];
+}
 const uuid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const ok = (data: unknown, meta: unknown = null, status = 200) => HttpResponse.json({ data, error: null, meta }, { status });
@@ -43,6 +60,7 @@ export function createFakeServer(baseUrl: string) {
   const turns: Row[] = [];
   const memories: Row[] = [];
   const grants: Row[] = [];
+  const skills: SkillRow[] = [];
   /** Knobs a test can turn. `google` is what /auth/providers answers; `rateLimited` makes every auth POST a 429. */
   const state = { google: { enabled: true, client_id: 'test-client.apps.googleusercontent.com' } as { enabled: boolean; client_id?: string; client_secret?: string }, rateLimited: false };
   const revoked = new Set<string>();
@@ -62,7 +80,11 @@ export function createFakeServer(baseUrl: string) {
   const canRead = (u: FakeUser, projectId: unknown) =>
     projects.some((p) => p['id'] === projectId && p['owner_user_id'] === u.user_id) || grants.some((g) => g['resource_type'] === 'project' && g['resource_id'] === projectId && g['subject_id'] === u.user_id);
   const owns = (u: FakeUser, type: string, id: unknown) =>
-    type === 'project' ? projects.some((p) => p['id'] === id && p['owner_user_id'] === u.user_id) : sessions.some((s) => s['id'] === id && s['owner_user_id'] === u.user_id);
+    type === 'project'
+      ? projects.some((p) => p['id'] === id && p['owner_user_id'] === u.user_id)
+      : type === 'skill'
+        ? skills.some((s) => s.id === id && s.owner_user_id === u.user_id)
+        : sessions.some((s) => s['id'] === id && s['owner_user_id'] === u.user_id);
 
   const memoryRecord = (m: Row): Row => {
     const owner = users.find((u) => u.user_id === m['owner_user_id'])!;
@@ -90,8 +112,8 @@ export function createFakeServer(baseUrl: string) {
     return { ...g, pending: false, subject: { id: g['subject_id'], email: u?.email ?? null, display_name: u?.display_name ?? null } };
   };
 
-  const grantRoutes = (segment: 'projects' | 'sessions'): HttpHandler[] => {
-    const type = segment === 'projects' ? 'project' : 'session';
+  const grantRoutes = (segment: 'projects' | 'sessions' | 'skills'): HttpHandler[] => {
+    const type = segment === 'projects' ? 'project' : segment === 'skills' ? 'skill' : 'session';
     const find = (id: unknown, key: 'subject_id' | 'pending_email', value: unknown) => grants.find((x) => x['resource_type'] === type && x['resource_id'] === id && x[key] === value);
     const upsert = (user: FakeUser, id: unknown, key: 'subject_id' | 'pending_email', value: unknown, role: unknown): Row => {
       let g = find(id, key, value);
@@ -138,6 +160,155 @@ export function createFakeServer(baseUrl: string) {
       ),
     ];
   };
+
+  // ── skills ────────────────────────────────────────────────────────────
+  const roleOn = (u: FakeUser, s: SkillRow): string | null => {
+    if (s.archived) return null;
+    if (s.owner_user_id === u.user_id) return 'owner';
+    const direct = grants.find((g) => g['resource_type'] === 'skill' && g['resource_id'] === s.id && g['subject_id'] === u.user_id);
+    if (direct) return String(direct['role']);
+    const viaSpace = grants.find((g) => g['resource_type'] === 'project' && g['resource_id'] === s.project_id && g['subject_id'] === u.user_id);
+    if (viaSpace) return String(viaSpace['role']);
+    return projects.some((p) => p['id'] === s.project_id && p['owner_user_id'] === u.user_id) ? 'owner' : null;
+  };
+  const person = (id: string) => {
+    const u = users.find((x) => x.user_id === id);
+    return { id, display_name: u?.display_name ?? null, email: u?.email ?? null };
+  };
+  const skillHead = (u: FakeUser, s: SkillRow): Row => {
+    const current = s.versions[s.versions.length - 1]!;
+    const main = current.files.find((f) => f.path === 'SKILL.md')?.content ?? '';
+    const since = Date.now() - 30 * 86_400_000;
+    return {
+      id: s.id,
+      slug: s.slug,
+      title: s.title,
+      description: parseFrontmatter(main)?.description ?? '',
+      project_id: s.project_id,
+      space_name: String(projects.find((p) => p['id'] === s.project_id)?.['name'] ?? ''),
+      owner: person(s.owner_user_id),
+      current_version: current.version,
+      updated_at: current.created_at,
+      run_count_30d: s.runs.filter((t) => t >= since).length,
+      my_role: roleOn(u, s),
+    };
+  };
+  const skillDetail = (u: FakeUser, s: SkillRow): Row => ({
+    ...skillHead(u, s),
+    files: s.versions[s.versions.length - 1]!.files.map((f) => ({ ...f, bytes: byteLength(f.content) })),
+    versions: [...s.versions].reverse().map((v) => ({ version: v.version, change_note: v.change_note, created_by: person(v.created_by), created_at: v.created_at })),
+  });
+  const readable = (u: FakeUser, id: unknown): SkillRow | null => {
+    const s = skills.find((x) => x.id === id);
+    return s && roleOn(u, s) ? s : null;
+  };
+  const checked = (files: unknown): { files: { path: string; content: string }[] } | Response => {
+    const list = (Array.isArray(files) ? files : []).map((f) => ({ path: String((f as Row)['path'] ?? ''), content: String((f as Row)['content'] ?? '') }));
+    const problem = filesProblem(list);
+    return problem ? fail(422, problem.code, problem.message) : { files: list };
+  };
+  const skillRoutes: HttpHandler[] = [
+    http.get(
+      v1('/skills'),
+      authed(({ user, url }) => {
+        const q = (url.searchParams.get('q') ?? '').toLowerCase();
+        const projectId = url.searchParams.get('project_id');
+        const rows = skills
+          .filter((s) => roleOn(user, s) && (!projectId || s.project_id === projectId))
+          .map((s) => skillHead(user, s))
+          .filter((r) => !q || `${r['title']} ${r['slug']} ${r['description']}`.toLowerCase().includes(q));
+        return ok(rows);
+      }),
+    ),
+    http.post(
+      v1('/skills'),
+      authed(({ user, body }) => {
+        const title = String(body['title'] ?? '').trim();
+        if (!title) return fail(400, 'validation_failed', 'title: Required');
+        const projectId = String(body['project_id'] ?? personalOf(user)['id']);
+        if (!projects.some((p) => p['id'] === projectId && p['owner_user_id'] === user.user_id)) return fail(404, 'not_found', 'project');
+        const result = checked(Array.isArray(body['files']) && body['files'].length ? body['files'] : [{ path: 'SKILL.md', content: starterSkillMd(title) }]);
+        if (result instanceof Response) return result;
+        const s: SkillRow = { id: uuid(), slug: slugify(title), title, project_id: projectId, owner_user_id: user.user_id, archived: false, runs: [], versions: [{ version: 1, change_note: '', created_by: user.user_id, created_at: now(), files: result.files }] };
+        skills.push(s);
+        return ok(skillDetail(user, s), null, 201);
+      }),
+    ),
+    http.get(
+      v1('/skills/:id'),
+      authed(({ user, params }) => {
+        const s = readable(user, params['id']);
+        return s ? ok(skillDetail(user, s)) : fail(404, 'not_found', 'skill');
+      }),
+    ),
+    http.get(
+      v1('/skills/:id/versions/:n'),
+      authed(({ user, params }) => {
+        const v = readable(user, params['id'])?.versions.find((x) => x.version === Number(params['n']));
+        return v ? ok({ version: v.version, files: v.files.map((f) => ({ ...f, bytes: byteLength(f.content) })) }) : fail(404, 'not_found', 'skill version');
+      }),
+    ),
+    http.put(
+      v1('/skills/:id'),
+      authed(({ user, params, body }) => {
+        const s = readable(user, params['id']);
+        if (!s) return fail(404, 'not_found', 'skill');
+        if (roleOn(user, s) === 'reader') return fail(403, 'forbidden', 'editors only');
+        const result = checked(body['files']);
+        if (result instanceof Response) return result;
+        const current = s.versions[s.versions.length - 1]!.version;
+        if (Number(body['base_version']) !== current) return fail(409, 'version_conflict', `version ${current} was saved first`);
+        s.versions.push({ version: current + 1, change_note: String(body['change_note'] ?? ''), created_by: user.user_id, created_at: now(), files: result.files });
+        return ok(skillDetail(user, s));
+      }),
+    ),
+    http.post(
+      v1('/skills/:id/versions/:n/restore'),
+      authed(({ user, params }) => {
+        const s = readable(user, params['id']);
+        const v = s?.versions.find((x) => x.version === Number(params['n']));
+        if (!s || !v) return fail(404, 'not_found', 'skill version');
+        if (roleOn(user, s) === 'reader') return fail(403, 'forbidden', 'editors only');
+        s.versions.push({ version: s.versions[s.versions.length - 1]!.version + 1, change_note: `restored v${v.version}`, created_by: user.user_id, created_at: now(), files: v.files.map((f) => ({ ...f })) });
+        return ok(skillDetail(user, s));
+      }),
+    ),
+    http.patch(
+      v1('/skills/:id'),
+      authed(({ user, params, body }) => {
+        const s = readable(user, params['id']);
+        if (!s) return fail(404, 'not_found', 'skill');
+        if (roleOn(user, s) !== 'owner') return fail(403, 'forbidden', 'owners only');
+        if (body['project_id'] !== undefined) {
+          if (!projects.some((p) => p['id'] === body['project_id'] && p['owner_user_id'] === user.user_id)) return fail(404, 'not_found', 'project');
+          s.project_id = String(body['project_id']);
+        }
+        const head = skillHead(user, s);
+        if (typeof body['archived'] === 'boolean') s.archived = body['archived'];
+        return ok(head);
+      }),
+    ),
+    http.delete(
+      v1('/skills/:id'),
+      authed(({ user, params }) => {
+        const s = readable(user, params['id']);
+        if (!s) return fail(404, 'not_found', 'skill');
+        if (roleOn(user, s) !== 'owner') return fail(403, 'forbidden', 'owners only');
+        skills.splice(skills.indexOf(s), 1);
+        return ok({ deleted: true });
+      }),
+    ),
+    http.post(
+      v1('/skills/:id/runs'),
+      authed(({ user, params, body }) => {
+        const s = readable(user, params['id']);
+        if (!s) return fail(404, 'not_found', 'skill');
+        if (body['surface'] !== 'app') return fail(400, 'validation_failed', 'surface: Invalid enum value');
+        s.runs.push(Date.now());
+        return ok({ version: s.versions[s.versions.length - 1]!.version, files: s.versions[s.versions.length - 1]!.files.map((f) => ({ ...f, bytes: byteLength(f.content) })) }, null, 201);
+      }),
+    ),
+  ];
 
   // ── built-in accounts ─────────────────────────────────────────────────
   const open = async (request: Request): Promise<Row> => (await request.json().catch(() => ({}))) as Row;
@@ -311,8 +482,10 @@ export function createFakeServer(baseUrl: string) {
     ),
     ...grantRoutes('projects'),
     ...grantRoutes('sessions'),
+    ...skillRoutes,
+    ...grantRoutes('skills'),
     ...authRoutes,
   ];
 
-  return { handlers, users, state, revoked, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
+  return { handlers, users, state, revoked, skills, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
 }

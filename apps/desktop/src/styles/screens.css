@@ -473,55 +473,6 @@
   color: var(--ink-2);
 }
 
-/* ── skills (Skills.dc.html) ──────────────────────────────────────────── */
-.skills {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding-bottom: 24px;
-}
-.skill {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.skill__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.skill__icon {
-  color: var(--ink-2);
-  display: flex;
-}
-.skill__name {
-  font-size: 15px;
-  font-weight: 500;
-  flex-grow: 1;
-  min-width: 0;
-}
-.skill__desc {
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--ink-2);
-}
-.skill__foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 2px;
-}
-.skill__meta {
-  flex-grow: 1;
-}
-.skill__out {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--ink-2);
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
 /* ── settings (Connectors.dc.html, Models.dc.html) ────────────────────── */
 .setnav {
   width: 190px;

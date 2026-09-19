@@ -22,10 +22,18 @@
  *   GET    /v1/{sessions|projects}/:id/grants          owner only → rows with `subject:{id,email,display_name}` or `{pending:true,email}`
  *   PUT    /v1/{sessions|projects}/:id/grants          {email, role} → the grant, or `{pending:true}` when that person has no account yet
  *   DELETE /v1/{sessions|projects}/:id/grants/:userId  (or the pending share's own id)
+ *   GET    /v1/skills?project_id=&q=       [{id, slug, title, description, project_id, space_name, owner, current_version, updated_at, run_count_30d, my_role}]
+ *   POST   /v1/skills                      {title, project_id?, files?} → v1 (the server writes a starter SKILL.md)
+ *   GET    /v1/skills/:id                  skill + files:[{path,content,bytes}] + versions:[{version,change_note,created_by,created_at}]
+ *   GET    /v1/skills/:id/versions/:n      {files}
+ *   PUT    /v1/skills/:id                  {files, change_note?, base_version} → new version; 409 version_conflict
+ *   POST   /v1/skills/:id/versions/:n/restore · PATCH /v1/skills/:id {project_id?|archived?} · DELETE /v1/skills/:id
+ *   GET|PUT /v1/skills/:id/grants          as above; DELETE /v1/skills/:id/grants/:userId (or the pending share's id), as above
+ *   POST   /v1/skills/:id/runs             {surface:'app'} → records a run, returns the current files
  *   (signing in and out: src/api/auth.ts)
  *
  * The server says project and memory; the app says space and context. Those
- * words stop at this file. Pages, skills, connectors, access defaults, teams
+ * words stop at this file. Pages, connectors, access defaults, teams
  * and models have no endpoint: they come from the local mock and are listed
  * in `preview` so their screens carry a "sample data" badge.
  */
@@ -34,6 +42,7 @@ import { netRequest } from './bridge';
 import { NotFoundError, type OpenKTClient } from './client';
 import { ApiError, kindForStatus } from './errors';
 import { MockClient } from './mock';
+import { byteLength } from './skillFiles';
 import type {
   ContextItem,
   ContextKind,
@@ -43,13 +52,18 @@ import type {
   Me,
   NewFactInput,
   NewSessionInput,
+  NewSkillInput,
   PreviewArea,
   RecallHit,
   ResourceRef,
   Role,
+  SaveSkillInput,
   Session,
   SessionListItem,
   SessionSource,
+  Skill,
+  SkillFile,
+  SkillSummary,
   Space,
   Workspace,
 } from './types';
@@ -163,7 +177,7 @@ interface Member {
 
 export class HttpClient implements OpenKTClient {
   readonly kind = 'http' as const;
-  readonly preview: ReadonlySet<PreviewArea> = new Set<PreviewArea>(['pages', 'skills', 'connectors', 'access-defaults', 'models', 'teams']);
+  readonly preview: ReadonlySet<PreviewArea> = new Set<PreviewArea>(['pages', 'connectors', 'access-defaults', 'models', 'teams']);
   readonly baseUrl: string;
   private readonly token: string;
   private readonly fetchImpl: typeof fetch | null;
@@ -452,7 +466,8 @@ export class HttpClient implements OpenKTClient {
   // ── access ────────────────────────────────────────────────────────────
 
   private grantsPath(resource: ResourceRef): string {
-    return `/${resource.type === 'space' ? 'projects' : 'sessions'}/${encodeURIComponent(resource.id)}/grants`;
+    const segment = resource.type === 'space' ? 'projects' : resource.type === 'skill' ? 'skills' : 'sessions';
+    return `/${segment}/${encodeURIComponent(resource.id)}/grants`;
   }
 
   /**
@@ -510,7 +525,7 @@ export class HttpClient implements OpenKTClient {
         resource,
         subject: { type: 'user', id: ownerId, name, initials: initialsOf(name), email: m?.email || undefined },
         role: 'owner',
-        note: ownerId === me.id ? `you · created this ${resource.type}` : `created this ${resource.type}`,
+        note: `${ownerId === me.id ? 'you · ' : ''}${resource.type === 'skill' ? 'wrote' : 'created'} this ${resource.type}`,
         inherited: true,
       });
     }
@@ -519,6 +534,7 @@ export class HttpClient implements OpenKTClient {
 
   private async ownerOf(resource: ResourceRef): Promise<Id> {
     if (resource.type === 'space') return str(pick(obj(await this.data('GET', `/projects/${encodeURIComponent(resource.id)}`)), 'owner_user_id'));
+    if (resource.type === 'skill') return (await this.getSkill(resource.id)).owner.id;
     return str((await this.sessionPayload(resource.id)).session['owner_user_id']);
   }
 
@@ -544,6 +560,115 @@ export class HttpClient implements OpenKTClient {
     const key = subject.id.startsWith('invited:') ? subject.id.slice('invited:'.length) : subject.id;
     await this.data('DELETE', `${this.grantsPath(resource)}/${encodeURIComponent(key)}`);
     this.changed();
+  }
+
+  // ── skills ────────────────────────────────────────────────────────────
+
+  private toSkillSummary(j: Json): SkillSummary {
+    const owner = obj(j['owner']);
+    const ownerName = str(pick(owner, 'display_name'), str(owner['email'], 'Owner'));
+    return {
+      id: str(j['id']),
+      slug: str(j['slug']),
+      title: str(j['title'], 'Untitled skill'),
+      description: str(j['description']),
+      spaceId: str(pick(j, 'project_id')),
+      spaceName: str(pick(j, 'space_name')),
+      owner: { id: str(owner['id'] ?? pick(owner, 'user_id')), name: ownerName },
+      currentVersion: Number(pick(j, 'current_version') ?? 1) || 1,
+      updatedAt: str(pick(j, 'updated_at'), new Date().toISOString()),
+      runCount30d: Number(pick(j, 'run_count_30d') ?? 0) || 0,
+      myRole: (['owner', 'editor', 'reader'] as const).find((r) => r === pick(j, 'my_role')) ?? 'reader',
+    };
+  }
+
+  private toSkillFiles(v: unknown): SkillFile[] {
+    return arr(v).map((f) => {
+      const content = typeof f['content'] === 'string' ? f['content'] : '';
+      return { path: str(f['path']), content, bytes: Number(f['bytes'] ?? NaN) || byteLength(content) };
+    });
+  }
+
+  private toSkill(d: unknown): Skill {
+    // The detail may arrive flat, or as `{skill, files, versions}` like a session does.
+    const j = obj(d);
+    const head = obj(j['skill'])['id'] ? { ...obj(j['skill']), ...j } : j;
+    return {
+      ...this.toSkillSummary(head),
+      files: this.toSkillFiles(j['files']),
+      versions: arr(j['versions'])
+        .map((v) => {
+          const by = obj(pick(v, 'created_by'));
+          return {
+            version: Number(v['version']) || 1,
+            changeNote: str(pick(v, 'change_note')),
+            createdBy: { id: str(by['id'] ?? pick(by, 'user_id')), name: str(pick(by, 'display_name'), str(by['email'], 'Someone')) },
+            createdAt: str(pick(v, 'created_at'), new Date().toISOString()),
+          };
+        })
+        .sort((a, b) => b.version - a.version),
+    };
+  }
+
+  /** A write may answer with the whole skill or just its new head; either way the caller gets it opened. */
+  private async opened(d: unknown, id?: Id): Promise<Skill> {
+    const skill = this.toSkill(d);
+    return skill.files.length && skill.versions.length ? skill : this.getSkill(id ?? skill.id);
+  }
+
+  async listSkills(filter?: { spaceId?: Id; q?: string }): Promise<SkillSummary[]> {
+    const query = new URLSearchParams();
+    if (filter?.spaceId) query.set('project_id', filter.spaceId);
+    if (filter?.q?.trim()) query.set('q', filter.q.trim());
+    const qs = query.toString();
+    return arr(await this.data('GET', `/skills${qs ? `?${qs}` : ''}`)).map((j) => this.toSkillSummary(j));
+  }
+
+  async getSkill(id: Id): Promise<Skill> {
+    return this.toSkill(await this.data('GET', `/skills/${encodeURIComponent(id)}`));
+  }
+
+  async getSkillVersion(id: Id, version: number): Promise<SkillFile[]> {
+    return this.toSkillFiles(obj(await this.data('GET', `/skills/${encodeURIComponent(id)}/versions/${version}`))['files']);
+  }
+
+  async createSkill(input: NewSkillInput): Promise<Skill> {
+    const d = await this.data('POST', '/skills', { title: input.title.trim(), project_id: input.spaceId || undefined, files: input.files?.length ? input.files : undefined });
+    this.changed();
+    return this.opened(d);
+  }
+
+  async saveSkill(id: Id, input: SaveSkillInput): Promise<Skill> {
+    const d = await this.data('PUT', `/skills/${encodeURIComponent(id)}`, {
+      files: input.files.map(({ path, content }) => ({ path, content })),
+      change_note: input.changeNote?.trim() || undefined,
+      base_version: input.baseVersion,
+    });
+    this.changed();
+    return this.opened(d, id);
+  }
+
+  async restoreSkillVersion(id: Id, version: number): Promise<Skill> {
+    const d = await this.data('POST', `/skills/${encodeURIComponent(id)}/versions/${version}/restore`, {});
+    this.changed();
+    return this.opened(d, id);
+  }
+
+  async updateSkill(id: Id, patch: { spaceId?: Id; archived?: boolean }): Promise<SkillSummary> {
+    const j = obj(await this.data('PATCH', `/skills/${encodeURIComponent(id)}`, { project_id: patch.spaceId, archived: patch.archived }));
+    this.changed();
+    return this.toSkillSummary(obj(j['skill'])['id'] ? obj(j['skill']) : j);
+  }
+
+  async deleteSkill(id: Id): Promise<void> {
+    await this.data('DELETE', `/skills/${encodeURIComponent(id)}`);
+    this.changed();
+  }
+
+  async recordSkillRun(id: Id): Promise<SkillFile[]> {
+    const files = this.toSkillFiles(obj(await this.data('POST', `/skills/${encodeURIComponent(id)}/runs`, { surface: 'app' }))['files']);
+    this.changed();
+    return files;
   }
 
   // ── recall ────────────────────────────────────────────────────────────
@@ -584,9 +709,6 @@ export class HttpClient implements OpenKTClient {
   listAccessDefaults = () => this.fallback.listAccessDefaults();
   listConnectors = () => this.fallback.listConnectors();
   updateConnector: OpenKTClient['updateConnector'] = (id, patch) => this.fallback.updateConnector(id, patch);
-  listSkills = () => this.fallback.listSkills();
-  createSkill = (name: string) => this.fallback.createSkill(name);
-  runSkill = (id: Id) => this.fallback.runSkill(id);
   getModelSettings = () => this.fallback.getModelSettings(); // local to the Mac, never a server call
   setModel: OpenKTClient['setModel'] = (job, name) => this.fallback.setModel(job, name);
   setModelEndpoint = (endpoint: string) => this.fallback.setModelEndpoint(endpoint);

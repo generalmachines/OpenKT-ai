@@ -4,11 +4,11 @@ dist/
 dist-electron/
 release/
 coverage/
+*.dmg
 *.tsbuildinfo
 
 # environment and secrets
-.env
-.env.*
+.env*
 !.env.example
 
 # logs
@@ -36,3 +36,5 @@ packages/mcp-cards/screenshots/
 
 # Impeccable review captures are build artifacts, not source
 apps/site/.impeccable/review/
+# end-to-end test output (screenshots, traces, reports)
+e2e/artifacts/

@@ -31,6 +31,12 @@ import { passwordProblem } from "./password-policy";
 export type SessionClient = "desktop" | "web" | "cli";
 const SESSION_DAYS = 90;
 
+export interface SignedInUser {
+  userId: string;
+  email: string;
+  displayName: string | null;
+}
+
 export interface AccountSession {
   token: string;
   expires_at: string;
@@ -70,18 +76,37 @@ export class AccountsService {
     input: { email: string; password: string; displayName: string; client: SessionClient },
     request: RequestMetadata,
   ): Promise<AccountSession> {
+    const user = await this.registerWithPassword(input, request);
+    return this.startSession(user.userId, user.email, user.displayName, input.client);
+  }
+
+  async login(
+    input: { email: string; password: string; client: SessionClient },
+    request: RequestMetadata,
+  ): Promise<AccountSession> {
+    const user = await this.authenticateWithPassword(input, request);
+    return this.startSession(user.userId, user.email, user.displayName, input.client);
+  }
+
+  // The sign-up checks without minting a session: `signup` above and the
+  // OAuth sign-in page (which issues an authorization code instead) share it,
+  // so both get the same password rules, attempt limits and errors.
+  async registerWithPassword(
+    input: { email: string; password: string; displayName: string },
+    request: RequestMetadata,
+  ): Promise<SignedInUser> {
     const ip = request.ip ?? null;
-    await this.attempts.assertAllowed(input.email, ip);
+    await this.attempts.assertSignupAllowed(ip);
 
     // Judged before anything touches the database, so a refused password says
     // nothing about the email — and fumbling the rules does not use up attempts.
     const problem = passwordProblem(input.password, input.email);
     if (problem) throw fail(HttpStatus.BAD_REQUEST, "weak_password", problem);
 
-    // From here every sign-up counts, successful or not: it caps both
-    // account-farming from one address and probing the 409 below for who has
-    // an account.
-    await this.attempts.record(input.email, ip);
+    // From here every sign-up counts against the address (never the email),
+    // successful or not: it caps both account-farming from one address and
+    // probing the 409 below for who has an account.
+    await this.attempts.recordSignup(input.email, ip);
 
     if (await this.findByEmail(input.email)) {
       throw fail(HttpStatus.CONFLICT, "email_taken", "an account with this email already exists");
@@ -98,13 +123,15 @@ export class AccountsService {
       authProvider: "email",
     }, request);
     await this.writeAudit("auth.signup.success", userId, request);
-    return this.startSession(userId, input.email, input.displayName, input.client);
+    return { userId, email: input.email, displayName: input.displayName };
   }
 
-  async login(
-    input: { email: string; password: string; client: SessionClient },
+  // The login checks without minting a session (see registerWithPassword).
+  // Every failure is the same 401 `invalid_credentials`.
+  async authenticateWithPassword(
+    input: { email: string; password: string },
     request: RequestMetadata,
-  ): Promise<AccountSession> {
+  ): Promise<SignedInUser> {
     const ip = request.ip ?? null;
     await this.attempts.assertAllowed(input.email, ip);
 
@@ -119,7 +146,11 @@ export class AccountsService {
 
     await this.touchLastLogin(credentials.userId);
     await this.writeAudit("auth.login.success", credentials.userId, request);
-    return this.startSession(credentials.userId, credentials.email, await this.displayNameOf(credentials.userId), input.client);
+    return {
+      userId: credentials.userId,
+      email: credentials.email,
+      displayName: await this.displayNameOf(credentials.userId),
+    };
   }
 
   async googleSignIn(

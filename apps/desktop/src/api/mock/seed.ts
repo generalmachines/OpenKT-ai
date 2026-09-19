@@ -12,11 +12,11 @@ import type {
   Page,
   Person,
   Session,
-  Skill,
   Space,
   Team,
   Workspace,
 } from '../types';
+import { createSeedSkills, type SeedSkill } from './skills';
 
 function at(daysAgo: number, hh: number, mm: number, now: Date): string {
   const d = new Date(now);
@@ -34,7 +34,7 @@ export interface SeedData {
   grants: Grant[];
   accessDefaults: AccessDefault[];
   connectors: Connector[];
-  skills: Skill[];
+  skills: SeedSkill[];
   models: ModelSettings;
 }
 
@@ -472,40 +472,9 @@ export function createSeed(now: Date = new Date()): SeedData {
     { id: 'cursor', source: 'cursor', name: 'Cursor', detail: 'not connected', connected: false, defaultAccess: 'only-me' },
   ];
 
-  const skills: Skill[] = [
-    {
-      id: 'sk-marketing',
-      name: 'Sharpen a marketing message',
-      description: 'Rewrites a draft in our voice: short sentences, one claim, no superlatives. Pulls the current positioning from the marketing space.',
-      meta: 'v4 · used 31 times this month',
-      sharedWith: 'marketing · sales',
-      version: 4,
-    },
-    {
-      id: 'sk-followup',
-      name: 'Follow-up after a customer call',
-      description: 'Turns a meeting session into a follow-up email with decisions, owners and dates.',
-      meta: 'v2 · used 12 times this month',
-      sharedWith: 'sales',
-      version: 2,
-    },
-    {
-      id: 'sk-pr',
-      name: 'Write a pull request description',
-      description: 'What changed, why, how it was tested. Reads the coding session it came from.',
-      meta: 'v7 · skill file · claude code, cursor',
-      sharedWith: 'engineering',
-      version: 7,
-    },
-    {
-      id: 'sk-weekly',
-      name: 'Weekly update for founders',
-      description: 'Collects decisions and open questions across every space you can read.',
-      meta: 'v1 · draft',
-      sharedWith: 'only me',
-      version: 1,
-    },
-  ];
+  const seededSkills = createSeedSkills((d, hh, mm) => at(d, hh, mm, now));
+  const skills = seededSkills.skills;
+  grants.push(...seededSkills.grants);
 
   const models: ModelSettings = {
     endpoint: '',

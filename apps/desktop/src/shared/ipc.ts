@@ -53,7 +53,51 @@ export type IpcChannel =
   | 'voice:cancel'
   | 'screenshot:capture'
   | 'auth:google:start'
-  | 'auth:google:cancel';
+  | 'auth:google:cancel'
+  // ── first run: permissions + on-device AI setup + try-it (begin) ──
+  | 'permissions:status'
+  | 'permissions:request'
+  | 'permissions:open-settings'
+  | 'permissions:watch'
+  | 'permissions:changed'
+  | 'permissions:relaunch'
+  | 'models:setup-info'
+  | 'models:pause'
+  | 'models:resume'
+  | 'app:start-capture';
+// ── first run (end) ──
+
+// ── first run: permissions + on-device AI setup (begin) ── main: src/main/permissions, src/main/models/setup.ts
+import type { PermissionKind, PermissionsStatusDto } from './permissions';
+export type { PermissionKind, PermissionState, PermissionsStatusDto } from './permissions';
+
+/** What the first-run "Set up on-device AI" screen needs before and while downloading. */
+export interface ModelsSetupInfoDto {
+  totalBytes: number;
+  remainingBytes: number;
+  /** null when free space could not be read. */
+  freeBytes: number | null;
+  neededBytes: number;
+  enoughDisk: boolean;
+  totalMemBytes: number;
+  /** ≤ 8 GB of memory: the smaller models are used. */
+  smallModel: boolean;
+  paused: boolean;
+  /** Helpers inside the app. false = missing from this build. */
+  bundled: { runtime: boolean; transcriber: boolean; textReader: boolean };
+}
+
+export interface PermissionsBridge {
+  status(): Promise<PermissionsStatusDto>;
+  /** The right thing for the current state: the macOS prompt, or System Settings when macOS will not ask again. */
+  request(kind: PermissionKind): Promise<PermissionsStatusDto>;
+  openSettings(kind: PermissionKind): Promise<void>;
+  /** Main polls every 1.5 s while anything is subscribed, and re-checks when the app regains focus. */
+  onChange(listener: (status: PermissionsStatusDto) => void): () => void;
+  /** Quit and reopen (macOS only applies a new Screen Recording answer to a fresh process). */
+  relaunch(): Promise<void>;
+}
+// ── first run (end) ──
 
 /** Google sign-in in the system browser (main: src/main/auth). Errors cross IPC as a tagged value, never a throw. */
 export type GoogleAuthResultDto = { id_token: string } | { error: 'cancelled' | 'timeout' | 'failed'; message: string };
@@ -208,13 +252,24 @@ export interface OpenKTBridge {
     hotkeys(): Promise<HotkeyInfo[]>;
     /** Main asks the main window to navigate (tray → "New voice note"). */
     onNavigate(listener: (route: string) => void): () => void;
+    /** first run: what the hotkey does, for the person whose hotkey is taken — opens the voice pill or the screenshot picker. */
+    startCapture(kind: 'voice' | 'screenshot'): Promise<void>;
   };
   models: {
     status(): Promise<LocalAiStatusDto>;
     /** Downloads whatever is missing (embeddings first). Resolves when embeddings + LLM are on disk. Safe to call repeatedly. */
     ensure(): Promise<ModelsEnsureResult>;
     onProgress(listener: (progress: ModelsProgressDto) => void): () => void;
+    // ── first run (begin) ──
+    setupInfo(): Promise<ModelsSetupInfoDto>;
+    /** Stops the transfer and keeps what arrived. `ensure()` and `resume()` continue from there. */
+    pause(): Promise<ModelsSetupInfoDto>;
+    resume(): Promise<ModelsSetupInfoDto>;
+    // ── first run (end) ──
   };
+  // ── first run (begin) ──
+  permissions: PermissionsBridge;
+  // ── first run (end) ──
   localAi: {
     extractNote(input: { text: string; title?: string; date?: string; source?: string; author?: string }): Promise<ExtractedNoteDto>;
     /** Unit-norm 1024-dim vectors. kind "query" adds the retrieval instruction prefix. */

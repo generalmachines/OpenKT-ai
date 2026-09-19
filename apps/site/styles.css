@@ -699,3 +699,9 @@ sup { font-size: 9px; vertical-align: super; line-height: 0; color: var(--accent
 }
 
 @media (min-width: 1440px) { :root { --wrap: 1140px; } }
+
+/* install prompt (close section) */
+.install{max-width:640px;margin:40px auto 0;text-align:left}
+.install__label{margin:18px 0 8px;font-size:14px;opacity:.8}
+.install__code{margin:0;padding:14px 16px;border-radius:10px;border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.08);font:13px/1.55 "Geist Mono",ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;overflow-x:auto}
+.install code{font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-size:13px}

@@ -143,7 +143,7 @@ export interface Page {
 
 export type PageListItem = Pick<Page, 'id' | 'spaceId' | 'title' | 'summary' | 'sessionCount' | 'updatedAt'>;
 
-export type ResourceRef = { type: 'session' | 'space'; id: Id };
+export type ResourceRef = { type: 'session' | 'space' | 'skill'; id: Id };
 
 export interface GrantSubject {
   type: 'user' | 'team';
@@ -183,21 +183,61 @@ export interface Connector {
   defaultAccess: Id;
 }
 
-export interface Skill {
-  id: Id;
-  name: string;
-  description: string;
-  /** "v4 · used 31 times this month" */
-  meta: string;
-  /** "marketing · sales" | "only me" */
-  sharedWith: string;
-  version: number;
+/** One text file inside a skill. `SKILL.md` is always there; the rest are references it points at. */
+export interface SkillFile {
+  /** Relative, forward slashes: "SKILL.md", "references/voice.md". */
+  path: string;
+  content: string;
+  bytes: number;
 }
 
-export interface SkillRun {
-  skillId: Id;
-  output: string;
-  model: string;
+export type SkillFileInput = Pick<SkillFile, 'path' | 'content'>;
+
+export interface SkillVersion {
+  version: number;
+  /** One line from whoever saved it; may be empty. */
+  changeNote: string;
+  createdBy: { id: Id; name: string };
+  createdAt: string;
+}
+
+/** A row in the library. */
+export interface SkillSummary {
+  id: Id;
+  /** What connected tools call it: "sharpen-marketing-message". */
+  slug: string;
+  title: string;
+  description: string;
+  /** Empty for a skill that lives in nobody's space but the owner's personal one. */
+  spaceId: Id;
+  spaceName: string;
+  owner: { id: Id; name: string };
+  currentVersion: number;
+  updatedAt: string;
+  runCount30d: number;
+  /** What the signed-in person may do with it. A skill they cannot read does not exist for them. */
+  myRole: Role;
+}
+
+/** A skill opened: its current files and its history, newest first. */
+export interface Skill extends SkillSummary {
+  files: SkillFile[];
+  versions: SkillVersion[];
+}
+
+export interface NewSkillInput {
+  title: string;
+  /** None → the personal space. */
+  spaceId?: Id;
+  /** None → the server writes a starter SKILL.md. */
+  files?: SkillFileInput[];
+}
+
+export interface SaveSkillInput {
+  files: SkillFileInput[];
+  changeNote?: string;
+  /** The version this edit started from. Someone else saving first makes the save a conflict. */
+  baseVersion: number;
 }
 
 export type ModelJob = 'dictation' | 'meetings' | 'understanding' | 'images' | 'search' | 'reranking';

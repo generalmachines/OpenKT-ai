@@ -288,6 +288,13 @@
       "when": 1781000000000,
       "tag": "0040_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0041_login_attempt_kinds",
+      "breakpoints": true
     }
   ]
 }

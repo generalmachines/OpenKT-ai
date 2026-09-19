@@ -4,7 +4,7 @@
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
+import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind, PermissionsStatusDto } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
 
@@ -32,12 +32,34 @@ const bridge: OpenKTBridge = {
     openMain: (route?: string) => ipcRenderer.invoke(ch('app:open-main'), typeof route === 'string' ? route : undefined),
     hotkeys: () => ipcRenderer.invoke(ch('app:hotkeys')) as Promise<HotkeyInfo[]>,
     onNavigate: (listener) => listen<string>(ch('app:navigate'), listener),
+    startCapture: (kind) => ipcRenderer.invoke(ch('app:start-capture'), kind === 'screenshot' ? 'screenshot' : 'voice'),
   },
   models: {
     status: () => ipcRenderer.invoke(ch('models:status')),
     ensure: () => ipcRenderer.invoke(ch('models:ensure')),
     onProgress: (listener) => listen<ModelsProgressDto>(ch('models:progress'), listener),
+    // ── first run (begin) ──
+    setupInfo: () => ipcRenderer.invoke(ch('models:setup-info')),
+    pause: () => ipcRenderer.invoke(ch('models:pause')),
+    resume: () => ipcRenderer.invoke(ch('models:resume')),
+    // ── first run (end) ──
   },
+  // ── first run (begin) ──
+  permissions: {
+    status: () => ipcRenderer.invoke(ch('permissions:status')),
+    request: (kind) => ipcRenderer.invoke(ch('permissions:request'), String(kind)),
+    openSettings: (kind) => ipcRenderer.invoke(ch('permissions:open-settings'), String(kind)),
+    onChange: (listener) => {
+      const off = listen<PermissionsStatusDto>(ch('permissions:changed'), listener);
+      void ipcRenderer.invoke(ch('permissions:watch'), true);
+      return () => {
+        off();
+        void ipcRenderer.invoke(ch('permissions:watch'), false);
+      };
+    },
+    relaunch: () => ipcRenderer.invoke(ch('permissions:relaunch')),
+  },
+  // ── first run (end) ──
   localAi: {
     extractNote: (input) => ipcRenderer.invoke(ch('local-ai:extract-note'), { ...input, text: String(input?.text ?? '') }),
     embed: (texts, kind) => ipcRenderer.invoke(ch('local-ai:embed'), texts, kind === 'query' ? 'query' : 'document'),

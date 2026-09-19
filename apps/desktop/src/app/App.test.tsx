@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ApiProvider } from '../api/hooks';
 import { MockClient } from '../api/mock';
 import { AppRoutes } from './AppRoutes';
@@ -211,9 +211,11 @@ describe('⌘K palette', () => {
 });
 
 describe('onboarding', () => {
+  afterEach(() => localStorage.clear()); // the first run keeps its step on this Mac
+
   it('counts the tools that are ticked', async () => {
     const user = userEvent.setup();
-    renderApp('/onboarding/2');
+    renderApp('/onboarding/3'); // step 3 since the first run grew a permissions step
     expect(screen.getByRole('button', { name: 'Connect 4 tools' })).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'Claude' }));
     expect(screen.getByRole('button', { name: 'Connect 5 tools' })).toBeInTheDocument();

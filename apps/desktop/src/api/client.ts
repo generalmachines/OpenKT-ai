@@ -18,8 +18,11 @@ import type {
   Role,
   Session,
   SessionListItem,
+  NewSkillInput,
+  SaveSkillInput,
   Skill,
-  SkillRun,
+  SkillFile,
+  SkillSummary,
   Space,
   Workspace,
 } from './types';
@@ -74,9 +77,26 @@ export interface OpenKTClient {
   listConnectors(): Promise<Connector[]>;
   updateConnector(id: Id, patch: Partial<Pick<Connector, 'defaultAccess' | 'connected'>>): Promise<Connector>;
 
-  listSkills(): Promise<Skill[]>;
-  createSkill(name: string): Promise<Skill>;
-  runSkill(id: Id): Promise<SkillRun>;
+  /**
+   * Skills. Grants on a skill go through `listGrants`/`inviteByEmail`/… with `{type:'skill'}`.
+   * Failures are `ApiError`s: `conflict` + code `version_conflict` when someone saved first;
+   * `invalid` + one of `SKILL_ERROR_CODES` (src/api/skillFiles.ts) when the files are not a skill.
+   */
+  listSkills(filter?: { spaceId?: Id; q?: string }): Promise<SkillSummary[]>;
+  /** Creates v1 and returns it opened, ready to edit. */
+  createSkill(input: NewSkillInput): Promise<Skill>;
+  getSkill(id: Id): Promise<Skill>;
+  /** The files as they were at version `n`. */
+  getSkillVersion(id: Id, version: number): Promise<SkillFile[]>;
+  /** Saves the whole file set as a new version. */
+  saveSkill(id: Id, input: SaveSkillInput): Promise<Skill>;
+  /** Makes version `n` current again, as a new version on top. */
+  restoreSkillVersion(id: Id, version: number): Promise<Skill>;
+  /** Move to another space, or archive. */
+  updateSkill(id: Id, patch: { spaceId?: Id; archived?: boolean }): Promise<SkillSummary>;
+  deleteSkill(id: Id): Promise<void>;
+  /** Tell the server a run really happened here. Returns the files that ran. Never call it for a run that did not happen. */
+  recordSkillRun(id: Id): Promise<SkillFile[]>;
 
   getModelSettings(): Promise<ModelSettings>;
   setModel(job: ModelJob, name: string): Promise<ModelSettings>;
