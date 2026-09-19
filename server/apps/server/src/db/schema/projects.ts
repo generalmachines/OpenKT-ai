@@ -20,6 +20,10 @@ export const projects = pgTable(
     // THE personal space (migration 0043): one per person, made at sign-up or
     // on first use. Never inferred from slug, visibility or age.
     isPersonal: boolean("is_personal").notNull().default(false),
+    // What the space is for (migration 0046).
+    description: text("description"),
+    // Soft delete (migration 0046): a deleted space is not found anywhere.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

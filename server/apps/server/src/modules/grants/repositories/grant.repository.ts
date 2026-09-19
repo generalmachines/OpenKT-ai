@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { ValidationDomainError } from "@openkt/core-errors";
 
@@ -37,6 +37,24 @@ export class GrantRepository {
       : resourceType === "skill" ? skills
       : null;
     if (!table) return null;
+    // A deleted space — and a session in one — is not found (migration 0046).
+    if (table === projects) {
+      const [row] = await db
+        .select({ ownerUserId: projects.ownerUserId, orgId: projects.orgId })
+        .from(projects)
+        .where(and(eq(projects.id, resourceId), isNull(projects.deletedAt)))
+        .limit(1);
+      return row ?? null;
+    }
+    if (table === sessions) {
+      const [row] = await db
+        .select({ ownerUserId: sessions.ownerUserId, orgId: sessions.orgId })
+        .from(sessions)
+        .innerJoin(projects, eq(projects.id, sessions.projectId))
+        .where(and(eq(sessions.id, resourceId), isNull(projects.deletedAt)))
+        .limit(1);
+      return row ?? null;
+    }
     const [row] = await db
       .select({ ownerUserId: table.ownerUserId, orgId: table.orgId })
       .from(table)

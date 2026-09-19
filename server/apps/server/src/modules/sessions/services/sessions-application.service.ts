@@ -193,6 +193,20 @@ export class SessionsApplicationService {
     });
   }
 
+  // DELETE /v1/sessions/:id — the session's owner. Its facts are archived
+  // (gone from recall), its shares go, the session and transcript are deleted.
+  async delete(
+    context: ActorContext,
+    sessionId: string,
+  ): Promise<{ id: string; deleted: true; archived_facts: number }> {
+    const session = await this.sessionRepository.findById(sessionId);
+    if (!session) throw new NotFoundDomainError("session");
+    const role = await this.roleOn(context, session);
+    if (role !== "owner") throw new ForbiddenDomainError("only the session's owner can delete it");
+    const { archivedFacts } = await this.sessionRepository.delete(sessionId);
+    return { id: sessionId, deleted: true, archived_facts: archivedFacts };
+  }
+
   private async withRoles(
     context: ActorContext,
     page: { data: SessionRecord[]; meta: SessionListMeta },

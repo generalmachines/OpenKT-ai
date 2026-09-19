@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 
@@ -51,12 +51,12 @@ export class AccessScopeService {
       this.db
         .select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.ownerUserId, userId)),
+        .where(and(eq(projects.ownerUserId, userId), isNull(projects.deletedAt))),
       this.db
         .select({ id: projects.id })
         .from(projects)
         .innerJoin(orgMembers, eq(orgMembers.orgId, projects.orgId))
-        .where(eq(orgMembers.userId, userId)),
+        .where(and(eq(orgMembers.userId, userId), isNull(projects.deletedAt))),
       this.db
         .select({ id: grants.resourceId })
         .from(grants)
@@ -82,7 +82,7 @@ export class AccessScopeService {
       ? await this.db
           .select({ id: projects.id })
           .from(projects)
-          .where(inArray(projects.orgId, orgGrantIds))
+          .where(and(inArray(projects.orgId, orgGrantIds), isNull(projects.deletedAt)))
       : [];
 
     const projectIds = Array.from(

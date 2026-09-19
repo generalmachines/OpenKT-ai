@@ -56,9 +56,10 @@ describe("MCP text (Spec 04: a text block a model can use on its own)", () => {
     );
   });
 
-  it("falls back to the email, and leaves out a missing source", () => {
+  it("never shows an email for a nameless author, and leaves out a missing source", () => {
     const item = toRecallItem({ ...memory, owner: { ...memory.owner, display_name: null }, source: null, session_id: null });
-    expect(recallLine(item, 1)).toContain("— ana@example.test, Hackathon team, 2026-09-19");
+    expect(recallLine(item, 1)).toContain("— someone, Hackathon team, 2026-09-19");
+    expect(JSON.stringify(item)).not.toContain("ana@example.test");
     expect(item.session).toBeNull();
   });
 

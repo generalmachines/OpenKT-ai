@@ -8,11 +8,12 @@ import { sql, type SQL } from "drizzle-orm";
 // (libs/auth/authorization/src/access-policy.ts and
 // ProjectScopeService.requireProjectAccess): the owner; a member of the
 // space's org with role owner/admin/member; a reader/editor/owner grant on the
-// space or on its org. Keep the three in step.
+// space or on its org — and never a deleted space. Keep the three in step.
 export function readableProjectIdsSql(userId: string): SQL {
   return sql`(
     SELECT p.id FROM projects p
-     WHERE p.owner_user_id = ${userId}::uuid
+     WHERE p.deleted_at IS NULL
+       AND (p.owner_user_id = ${userId}::uuid
         OR (p.org_id IS NOT NULL AND EXISTS (
               SELECT 1 FROM org_members om
                WHERE om.org_id = p.org_id
@@ -24,7 +25,7 @@ export function readableProjectIdsSql(userId: string): SQL {
                  AND g.subject_id = ${userId}::uuid
                  AND g.role IN ('reader', 'editor', 'owner')
                  AND ((g.resource_type = 'project' AND g.resource_id = p.id)
-                   OR (p.org_id IS NOT NULL AND g.resource_type = 'org' AND g.resource_id = p.org_id)))
+                   OR (p.org_id IS NOT NULL AND g.resource_type = 'org' AND g.resource_id = p.org_id))))
   )`;
 }
 

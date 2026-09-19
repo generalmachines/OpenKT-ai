@@ -1,8 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
-import { requireMemoryWriteAccess } from "@openkt/auth-authorization";
-import { ValidationDomainError } from "@openkt/core-errors";
+import {
+  requireMemoryReadAccess,
+  requireMemoryWriteAccess,
+  requireProjectAccess,
+} from "@openkt/auth-authorization";
+import { ForbiddenDomainError, NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
 
 import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { AuditService } from "../../audit/services/audit.service";
@@ -124,6 +128,22 @@ export class MemoryCommandsApplicationService {
     return created;
   }
 
+  // Archiving (Spec 04 DELETE /v1/memories/:id): the author, or anyone who may
+  // write to its space. A reader gets 403; someone who cannot read it, 404
+  // (a teammate's `personal` fact is not readable, so not theirs to archive).
+  private async requireArchiveAccess(context: ActorContext, memoryId: string): Promise<void> {
+    const memory = await requireMemoryReadAccess(context, memoryId);
+    if (memory.ownerUserId === context.principal.userId) return;
+    try {
+      await requireProjectAccess(context, memory.projectId, "write");
+    } catch (err) {
+      if (err instanceof NotFoundDomainError) {
+        throw new ForbiddenDomainError("only the author or an editor of its space can delete a fact");
+      }
+      throw err;
+    }
+  }
+
   private async resolveSessionStamp(
     sessionId: string,
     projectId: string,
@@ -140,7 +160,11 @@ export class MemoryCommandsApplicationService {
     context: ActorContext,
     input: DeleteMemoryInput,
   ): Promise<DeleteMemoryResult> {
-    await requireMemoryWriteAccess(context, input.id);
+    if (input.hard) {
+      await requireMemoryWriteAccess(context, input.id);
+    } else {
+      await this.requireArchiveAccess(context, input.id);
+    }
     await this.memoryEngine.forget(context, input.id, input.hard);
     await this.memoryRepository.forget(context, input.id, input.hard);
     if (!input.hard) {

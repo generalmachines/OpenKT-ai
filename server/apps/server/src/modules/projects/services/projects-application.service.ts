@@ -7,10 +7,12 @@ import {
   type CreateProjectRecord,
   type OrgRepository,
   type ProjectListFilters,
+  type ProjectRecord,
   type ProjectRepository,
+  type UpdateProjectRecord,
 } from "@openkt/data-repositories";
-import { requireOrgAccess } from "@openkt/auth-authorization";
-import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
+import { requireOrgAccess, requireProjectAccess } from "@openkt/auth-authorization";
+import { ForbiddenDomainError, NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
 
 @Injectable()
 export class ProjectsApplicationService {
@@ -57,6 +59,39 @@ export class ProjectsApplicationService {
     }
   }
 
+  // PATCH /v1/projects/:id — the owner renames the space or changes its description.
+  async update(context: ActorContext, projectId: string, patch: UpdateProjectRecord): Promise<ProjectRecord> {
+    await this.requireOwner(context, projectId);
+    const updated = await this.projectRepository.update(projectId, patch);
+    if (!updated) throw new NotFoundDomainError("project");
+    return updated;
+  }
+
+  // GET /v1/projects/:id/members — any member: names and roles, no emails.
+  async members(context: ActorContext, projectId: string) {
+    await requireProjectAccess(context, projectId, "read");
+    const members = await this.projectRepository.listMembers(projectId);
+    return members.map((m) => ({ user_id: m.userId, display_name: m.displayName, role: m.role }));
+  }
+
+  // DELETE /v1/projects/:id — the owner deletes a space (never the personal one).
+  async delete(context: ActorContext, projectId: string): Promise<{ id: string; deleted: true }> {
+    const project = await this.requireOwner(context, projectId);
+    if (project.isPersonal) throw new ValidationDomainError("the personal space cannot be deleted");
+    await this.projectRepository.softDelete(projectId);
+    return { id: projectId, deleted: true };
+  }
+
+  // The literal owner; someone else who can read the space gets 403, anyone
+  // else 404 (existence is not leaked).
+  private async requireOwner(context: ActorContext, projectId: string): Promise<ProjectRecord> {
+    const project = await this.projectRepository.findById(context, projectId);
+    if (!project) throw new NotFoundDomainError("project");
+    if (project.ownerUserId === context.principal.userId) return project;
+    await requireProjectAccess(context, projectId, "read");
+    throw new ForbiddenDomainError("only the space's owner can do this");
+  }
+
   listVisible(context: ActorContext, filters: ProjectListFilters) {
     return this.projectRepository.listVisible(context, filters);
   }
@@ -66,6 +101,8 @@ export class ProjectsApplicationService {
     if (!project) {
       throw new NotFoundDomainError("project");
     }
+    // Only someone who can read the space learns it exists (Spec 04: 404).
+    await requireProjectAccess(context, projectId, "read");
 
     const viewerRole = await this.projectRepository.findViewerRole(context, projectId);
     return {

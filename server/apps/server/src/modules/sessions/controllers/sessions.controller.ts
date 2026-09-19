@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 
@@ -183,6 +183,16 @@ export class SessionsController {
     const { id } = parseWithSchema(SessionIdParamsSchema, params);
     const input = parseWithSchema(UpdateSessionSchema, body ?? {});
     return okResponse(await this.sessionsApplicationService.update(context, id, input));
+  }
+
+  @Delete(":id")
+  @ApiOperation({
+    summary: "Delete a session (its owner): its facts are archived and leave recall; the transcript and shares go",
+  })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  async delete(@ActorContextParam() context: ActorContext, @Param() params: unknown) {
+    const { id } = parseWithSchema(SessionIdParamsSchema, params);
+    return okResponse(await this.sessionsApplicationService.delete(context, id));
   }
 
   @Get(":id")

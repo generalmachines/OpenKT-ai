@@ -61,6 +61,7 @@ export class MemoryRepository {
       .where(
         and(
           eq(projects.id, projectId),
+          isNull(projects.deletedAt),
           or(
             eq(projects.ownerUserId, userId),
             and(eq(orgMembers.userId, userId), sql`${orgMembers.role} in ('owner', 'admin', 'member')`),
@@ -93,7 +94,12 @@ export class MemoryRepository {
   ): Promise<{ data: MemoryRecord[]; meta: MemoryListMeta }> {
     await this.assertProjectMember(context, input.project_id);
 
-    const conditions = [eq(memories.projectId, input.project_id)];
+    // Any reader of the space lists its facts, but a teammate's
+    // `personal`-visibility fact stays theirs (the same rule as recall).
+    const conditions = [
+      eq(memories.projectId, input.project_id),
+      or(eq(memories.ownerUserId, context.principal.userId!), sql`${memories.visibility} <> 'personal'`)!,
+    ];
     if (!input.include_archived) conditions.push(eq(memories.archived, false));
     if (input.kind) conditions.push(eq(memories.kind, input.kind));
     if (input.visibility) conditions.push(eq(memories.visibility, input.visibility));

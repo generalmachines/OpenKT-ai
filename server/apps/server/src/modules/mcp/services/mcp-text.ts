@@ -31,7 +31,8 @@ export function toRecallItem(memory: RecalledMemory): RecallItem {
     kind: memory.kind,
     tags: (memory.tags ?? []).map((tag) => tag.slug),
     space: { id: memory.project.id, name: memory.project.name },
-    author: { id: memory.owner.user_id, name: memory.owner.display_name ?? memory.owner.email ?? null },
+    // A name, never an email: other people's emails are only for a resource's owner.
+    author: { id: memory.owner.user_id, name: memory.owner.display_name ?? null },
     session: memory.session_id ? { id: memory.session_id, source: memory.source ?? null } : null,
     source: memory.source ?? null,
     visibility: memory.visibility,

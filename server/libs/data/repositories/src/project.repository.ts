@@ -9,6 +9,8 @@ export interface ProjectRecord {
   ownerUserId: string;
   // The owner's personal space (one per person). Never inferred from the slug.
   isPersonal: boolean;
+  // What the space is for, shown to its members.
+  description: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +20,20 @@ export interface CreateProjectRecord {
   name: string;
   visibility: ProjectRecord["visibility"];
   orgId: string | null;
+  description?: string | null;
+}
+
+export interface UpdateProjectRecord {
+  name?: string;
+  description?: string | null;
+}
+
+// A member of a space as every member sees it: a name and a role, never an
+// email (emails and pending shares stay with the owner's grants list).
+export interface ProjectMemberRecord {
+  userId: string;
+  displayName: string | null;
+  role: "owner" | "editor" | "reader";
 }
 
 export interface ProjectListFilters {
@@ -39,4 +55,7 @@ export interface ProjectRepository {
     projectSlug: string,
   ): Promise<ProjectRecord | null>;
   findViewerRole(context: ActorContext, projectId: string): Promise<ProjectRoleRecord["role"]>;
+  update(projectId: string, patch: UpdateProjectRecord): Promise<ProjectRecord | null>;
+  listMembers(projectId: string): Promise<ProjectMemberRecord[]>;
+  softDelete(projectId: string): Promise<void>;
 }
