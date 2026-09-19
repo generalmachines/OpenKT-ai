@@ -4,7 +4,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { ValidationDomainError } from "@openkt/core-errors";
 
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
-import { grants, pendingGrants, profiles, projects, sessions, userCredentials } from "../../../db/schema";
+import { grants, pendingGrants, profiles, projects, sessions, skills, userCredentials } from "../../../db/schema";
 import type {
   GrantRecord,
   GrantResourceType,
@@ -22,20 +22,69 @@ export interface ResourceOwnerLookup {
 export class GrantRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDb) {}
 
-  async findProjectOwner(projectId: string): Promise<ResourceOwnerLookup | null> {
-    const row = await this.db.query.projects.findFirst({
-      where: eq(projects.id, projectId),
-      columns: { ownerUserId: true, orgId: true },
-    });
-    return row ? { ownerUserId: row.ownerUserId, orgId: row.orgId } : null;
+  // Who owns a grantable resource, and which org (if any) it belongs to. The
+  // one lookup behind "only the owner manages grants" and behind converting a
+  // pending share — so a new resource type is added here once. `org` has no
+  // single owner and is not shared through these routes.
+  async findResourceOwner(
+    resourceType: GrantResourceType,
+    resourceId: string,
+    db: Pick<DrizzleDb, "select"> = this.db,
+  ): Promise<ResourceOwnerLookup | null> {
+    const table =
+      resourceType === "project" ? projects
+      : resourceType === "session" ? sessions
+      : resourceType === "skill" ? skills
+      : null;
+    if (!table) return null;
+    const [row] = await db
+      .select({ ownerUserId: table.ownerUserId, orgId: table.orgId })
+      .from(table)
+      .where(eq(table.id, resourceId))
+      .limit(1);
+    return row ?? null;
   }
 
-  async findSessionOwner(sessionId: string): Promise<ResourceOwnerLookup | null> {
-    const row = await this.db.query.sessions.findFirst({
-      where: eq(sessions.id, sessionId),
-      columns: { ownerUserId: true, orgId: true },
-    });
-    return row ? { ownerUserId: row.ownerUserId, orgId: row.orgId } : null;
+  // The caller's own role on one resource, or null.
+  async findUserRole(
+    resourceType: GrantResourceType,
+    resourceId: string,
+    userId: string,
+  ): Promise<GrantRole | null> {
+    const [row] = await this.db
+      .select({ role: grants.role })
+      .from(grants)
+      .where(
+        and(
+          eq(grants.resourceType, resourceType),
+          eq(grants.resourceId, resourceId),
+          eq(grants.subjectType, "user"),
+          eq(grants.subjectId, userId),
+        ),
+      )
+      .limit(1);
+    return (row?.role as GrantRole | undefined) ?? null;
+  }
+
+  // Every role the caller holds on resources of one type, keyed by resource id.
+  async listUserRoles(resourceType: GrantResourceType, userId: string): Promise<Map<string, GrantRole>> {
+    const rows = await this.db
+      .select({ resourceId: grants.resourceId, role: grants.role })
+      .from(grants)
+      .where(
+        and(eq(grants.resourceType, resourceType), eq(grants.subjectType, "user"), eq(grants.subjectId, userId)),
+      );
+    return new Map(rows.map((r) => [r.resourceId, r.role as GrantRole]));
+  }
+
+  // Everything attached to a resource that is going away.
+  async removeAllForResource(resourceType: GrantResourceType, resourceId: string): Promise<void> {
+    await this.db
+      .delete(grants)
+      .where(and(eq(grants.resourceType, resourceType), eq(grants.resourceId, resourceId)));
+    await this.db
+      .delete(pendingGrants)
+      .where(and(eq(pendingGrants.resourceType, resourceType), eq(pendingGrants.resourceId, resourceId)));
   }
 
   async list(resourceType: GrantResourceType, resourceId: string): Promise<GrantRecord[]> {
@@ -195,16 +244,7 @@ export class GrantRepository {
       let converted = 0;
       for (const row of rows) {
         const resourceType = row.resourceType as GrantResourceType;
-        const owner =
-          resourceType === "project"
-            ? await tx.query.projects.findFirst({
-                where: eq(projects.id, row.resourceId),
-                columns: { ownerUserId: true, orgId: true },
-              })
-            : await tx.query.sessions.findFirst({
-                where: eq(sessions.id, row.resourceId),
-                columns: { ownerUserId: true, orgId: true },
-              });
+        const owner = await this.findResourceOwner(resourceType, row.resourceId, tx);
         // The resource was deleted while the share waited, or the new account IS the owner.
         if (!owner || owner.ownerUserId === userId) continue;
         const inserted = await tx

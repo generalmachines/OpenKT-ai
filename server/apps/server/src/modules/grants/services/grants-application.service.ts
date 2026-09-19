@@ -15,6 +15,7 @@ import { GrantRepository } from "../repositories/grant.repository";
 
 // GrantsApplicationService — architecture.md §3: "A grant gives a
 // person... a role... on a workspace, a space, or a single session."
+// A skill is shared the same way (resource_type = 'skill').
 // Management is owner-only (product.md "Grant and role" — "access
 // works like a code host"): only the resource's literal owner can
 // list/add/revoke grants on it. This is deliberately stricter than
@@ -120,12 +121,7 @@ export class GrantsApplicationService {
     const userId = context.principal.userId;
     if (!userId) throw new ValidationDomainError("user principal required");
 
-    const owner =
-      resourceType === "project"
-        ? await this.grantRepository.findProjectOwner(resourceId)
-        : resourceType === "session"
-          ? await this.grantRepository.findSessionOwner(resourceId)
-          : null;
+    const owner = await this.grantRepository.findResourceOwner(resourceType, resourceId);
 
     if (!owner) throw new NotFoundDomainError(resourceType);
     if (owner.ownerUserId !== userId) {
