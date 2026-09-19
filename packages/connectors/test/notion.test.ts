@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MAX_BODY_CHARS, TRUNCATION_MARKER } from "../src/obsidian.js";
+import { MAX_BODY_CHARS, TRUNCATION_MARKER, sha256Hex } from "../src/obsidian.js";
 import {
   createNotionConnector,
   notionBlocksToMarkdown,
+  notionToSession,
   richTextToPlain,
-  sha256Hex,
-  toSession,
 } from "../src/notion.js";
 import type { Block, ExternalItem, ProviderHandle } from "../src/types.js";
 
@@ -58,9 +57,9 @@ function item(body: string | Block[], overrides?: Partial<ExternalItem>): Extern
 
 // --- toSession -----------------------------------------------------------
 
-describe("toSession (pure)", () => {
+describe("notionToSession (pure)", () => {
   it("a heading-less page is one turn", () => {
-    const s = toSession(item(PLAIN_PAGE));
+    const s = notionToSession(item(PLAIN_PAGE));
     expect(s.source).toBe("connector");
     expect(s.client).toBe("notion");
     expect(s.external_id).toBe("page-1");
@@ -73,7 +72,7 @@ describe("toSession (pure)", () => {
   });
 
   it("one turn per top-level section; heading_2 stays inside its section", () => {
-    const s = toSession(item(STRUCTURED_PAGE));
+    const s = notionToSession(item(STRUCTURED_PAGE));
     expect(s.turns).toEqual([
       { seq: 1, role: "note", content: expect.stringContaining("# Top") },
       { seq: 2, role: "note", content: "# Second\n\nclosing" },
@@ -87,26 +86,26 @@ describe("toSession (pure)", () => {
   });
 
   it("unknown block types keep their plain text; empty ones are dropped", () => {
-    const s = toSession(item(UNKNOWN_PAGE));
+    const s = notionToSession(item(UNKNOWN_PAGE));
     expect(s.turns).toHaveLength(1);
     expect(s.turns[0]!.content).toBe("keep\n\ncallout text");
   });
 
   it("a string body passes through (no frontmatter for Notion)", () => {
-    const s = toSession(item("# Title\n\nbody text"));
+    const s = notionToSession(item("# Title\n\nbody text"));
     expect(s.turns).toEqual([
       { seq: 1, role: "note", content: "# Title\n\nbody text" },
     ]);
   });
 
   it("an empty page has no turns", () => {
-    const s = toSession(item(EMPTY_PAGE));
+    const s = notionToSession(item(EMPTY_PAGE));
     expect(s.turns).toEqual([]);
     expect(s.content_hash).toBe(sha256Hex(""));
   });
 
   it("items over 200 KB are truncated with a marker turn", () => {
-    const s = toSession(item(HUGE_BLOCKS));
+    const s = notionToSession(item(HUGE_BLOCKS));
     const marker = s.turns[s.turns.length - 1]!;
     expect(marker.content).toBe(TRUNCATION_MARKER);
     expect(marker.role).toBe("note");
@@ -120,7 +119,7 @@ describe("toSession (pure)", () => {
 
   it("a string body over the limit is truncated too", () => {
     const huge = "z".repeat(MAX_BODY_CHARS + 5);
-    const s = toSession(item(huge));
+    const s = notionToSession(item(huge));
     expect(s.turns[s.turns.length - 1]!.content).toBe(TRUNCATION_MARKER);
     for (const t of s.turns.slice(0, -1)) {
       expect(t.content.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
@@ -139,13 +138,29 @@ describe("block helpers", () => {
   it("notionBlocksToMarkdown handles an empty list", () => {
     expect(notionBlocksToMarkdown([])).toBe("");
   });
+
+  it("notionBlocksToMarkdown flattens child blocks into the parent, indented two spaces (#118)", () => {
+    const blocks: Block[] = [
+      {
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [{ plain_text: "parent" }] },
+        children: [
+          {
+            type: "bulleted_list_item",
+            bulleted_list_item: { rich_text: [{ plain_text: "CHILD" }] },
+          },
+        ],
+      },
+    ];
+    expect(notionBlocksToMarkdown(blocks)).toBe("- parent\n  - CHILD");
+  });
 });
 
 // --- connector over a fake provider --------------------------------------
 
 type Listing = Array<{ id: string; title: string; lastEditedTime: string; url: string }>;
 
-function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: string }>, listings: Record<string, Listing>): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
+function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: string }>, listings: Record<string, Listing>, pageSize = 2): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
   const calls: Array<[string, Record<string, unknown>]> = [];
   return {
     calls,
@@ -159,10 +174,10 @@ function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: 
         const cursor = params["cursor"] as string | undefined;
         const all = listings[containerId];
         if (all === undefined) throw new Error(`no listing for container: ${containerId}`);
-        // three pages of two entries, driven by the cursor
+        // pages of `pageSize` entries, driven by the cursor
         const start = cursor === undefined ? 0 : Number.parseInt(cursor, 10);
-        const page = all.slice(start, start + 2);
-        const next = start + 2 < all.length ? String(start + 2) : undefined;
+        const page = all.slice(start, start + pageSize);
+        const next = start + pageSize < all.length ? String(start + pageSize) : undefined;
         return { entries: page, nextCursor: next } as T;
       }
       if (action === "notion.readPage") {
@@ -247,5 +262,29 @@ describe("createNotionConnector", () => {
     const c = createNotionConnector();
     const items = await c.poll(p, { id: "ts1", name: "ts1" }, "not-a-date");
     expect(items.map((i) => i.externalId)).toEqual(["p"]);
+  });
+
+  it("poll pages through listChildren until the listing is exhausted (#118)", async () => {
+    // page 1 (with a nextCursor) holds only p1; p2 lives on page 2 — a poll
+    // that reads just the first page would miss it
+    const listings = {
+      ts1: [
+        { id: "p1", title: "P1", lastEditedTime: "2026-09-19T01:00:00Z", url: "https://notion.so/p1" },
+        { id: "p2", title: "P2", lastEditedTime: "2026-09-19T09:00:00Z", url: "https://notion.so/p2" },
+      ],
+    };
+    const p = fakeProvider(
+      {
+        p1: { blocks: PLAIN_PAGE, lastEditedTime: "2026-09-19T01:00:00Z" },
+        p2: { blocks: PLAIN_PAGE, lastEditedTime: "2026-09-19T09:00:00Z" },
+      },
+      listings,
+      1, // one entry per listChildren page
+    );
+    const c = createNotionConnector();
+    const items = await c.poll(p, { id: "ts1", name: "ts1" }, "2026-09-19T05:00:00Z");
+    expect(items.map((i) => i.externalId)).toEqual(["p2"]);
+    // both listing pages were fetched before filtering
+    expect(p.calls.filter(([a]) => a === "notion.listChildren")).toHaveLength(2);
   });
 });

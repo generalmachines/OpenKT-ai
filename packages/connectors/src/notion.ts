@@ -5,23 +5,20 @@
 //   notion.listContainers {}                    → Array<{ id, name }>
 //   notion.listChildren { containerId, cursor? } → { entries: [{ id, title, lastEditedTime, url }], nextCursor? }
 //   notion.readPage { pageId }                  → { title, lastEditedTime, url, blocks }
+//       `blocks` carry `children: Block[]` filled in for `has_children`
+//       blocks, so nested bullets/toggles/paragraphs arrive inline.
 //
 // Rich block content is flattened to markdown with the product's own
 // block-to-markdown helper (Spec 05 §4); turn rules and truncation follow
 // the same helpers as the Obsidian connector.
 
-import { createHash } from "node:crypto";
-
 import {
   MAX_BODY_CHARS,
   TRUNCATION_MARKER,
   noteToTurns,
+  sha256Hex,
 } from "./obsidian.js";
 import type { Block, Connector, ExternalItem, SessionDraft } from "./types.js";
-
-export function sha256Hex(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
-}
 
 export interface NotionEntry {
   id: string;
@@ -55,6 +52,59 @@ export function richTextToPlain(value: unknown): string {
     .join("");
 }
 
+function renderBlock(block: unknown, indent: string): string[] {
+  const b = (block ?? {}) as Record<string, unknown>;
+  const type = typeof b["type"] === "string" ? b["type"] : "";
+  const inner = (b[type] ?? {}) as Record<string, unknown>;
+  const text = richTextToPlain(inner["rich_text"]).trim();
+  const lines: string[] = [];
+  switch (type) {
+    case "heading_1":
+      lines.push(`${indent}# ${text}`, "");
+      break;
+    case "heading_2":
+      lines.push(`${indent}## ${text}`, "");
+      break;
+    case "heading_3":
+      lines.push(`${indent}### ${text}`, "");
+      break;
+    case "paragraph":
+      lines.push(`${indent}${text}`, "");
+      break;
+    case "bulleted_list_item":
+      lines.push(`${indent}- ${text}`);
+      break;
+    case "numbered_list_item":
+      lines.push(`${indent}1. ${text}`);
+      break;
+    case "to_do":
+      lines.push(`${indent}${inner["checked"] === true ? "- [x] " : "- [ ] "}${text}`);
+      break;
+    case "quote":
+      lines.push(`${indent}> ${text}`, "");
+      break;
+    case "code": {
+      const lang = typeof inner["language"] === "string" ? inner["language"] : "";
+      lines.push(`${indent}\`\`\`${lang}`, `${indent}${text}`, `${indent}\`\`\``, "");
+      break;
+    }
+    case "divider":
+      lines.push(`${indent}---`, "");
+      break;
+    default:
+      if (text !== "") lines.push(`${indent}${text}`, "");
+  }
+  // Nested content lives in the block's children — flattened into the
+  // parent's turn, indented two spaces, never dropped.
+  const children = b["children"];
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      lines.push(...renderBlock(child, `${indent}  `));
+    }
+  }
+  return lines;
+}
+
 /**
  * The product's own block-to-markdown helper (Spec 05 §4): Notion blocks are
  * structured JSON, not HTML, so `turndown` has nothing to convert here.
@@ -64,56 +114,19 @@ export function richTextToPlain(value: unknown): string {
 export function notionBlocksToMarkdown(blocks: Block[]): string {
   const lines: string[] = [];
   for (const block of blocks) {
-    const b = (block ?? {}) as Record<string, unknown>;
-    const type = typeof b["type"] === "string" ? b["type"] : "";
-    const inner = (b[type] ?? {}) as Record<string, unknown>;
-    const text = richTextToPlain(inner["rich_text"]).trim();
-    switch (type) {
-      case "heading_1":
-        lines.push(`# ${text}`, "");
-        break;
-      case "heading_2":
-        lines.push(`## ${text}`, "");
-        break;
-      case "heading_3":
-        lines.push(`### ${text}`, "");
-        break;
-      case "paragraph":
-        lines.push(text, "");
-        break;
-      case "bulleted_list_item":
-        lines.push(`- ${text}`);
-        break;
-      case "numbered_list_item":
-        lines.push(`1. ${text}`);
-        break;
-      case "to_do":
-        lines.push(`${inner["checked"] === true ? "- [x] " : "- [ ] "}${text}`);
-        break;
-      case "quote":
-        lines.push(`> ${text}`, "");
-        break;
-      case "code": {
-        const lang = typeof inner["language"] === "string" ? inner["language"] : "";
-        lines.push("```" + lang, text, "```", "");
-        break;
-      }
-      case "divider":
-        lines.push("---", "");
-        break;
-      default:
-        if (text !== "") lines.push(text, "");
-    }
+    lines.push(...renderBlock(block, ""));
   }
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "");
 }
 
 /**
- * `toSession` per Spec 05 §3, pure: one turn per top-level section
+ * `notionToSession` per Spec 05 §3, pure: one turn per top-level section
  * (`# …`), role `'note'`; `content_hash` = sha256 of the markdown body;
  * items over 200 KB are truncated with a marker turn (Spec 05 §4).
+ * Named `notionToSession` because `index.ts` re-exports both connectors'
+ * helpers and each product's `toSession` must keep a distinct name.
  */
-export function toSession(item: ExternalItem): SessionDraft {
+export function notionToSession(item: ExternalItem): SessionDraft {
   const md = typeof item.body === "string" ? item.body : notionBlocksToMarkdown(item.body);
   // The hash covers the original body; the turns are built from the
   // truncated text (Spec 05 §4: over 200 KB → truncated with a marker turn).
@@ -168,11 +181,22 @@ export function createNotionConnector(): Connector {
     },
 
     async poll(p, container, since) {
-      // One listing pass (no cursor → everything), then read what changed.
-      const page = await p.call<{ entries: ListingEntry[] }>("notion.listChildren", { containerId: container.id });
+      // Page through the listing until it is exhausted, then read what
+      // changed — `listChildren` is paginated per the contract above.
+      const entries: ListingEntry[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const page = await p.call<{ entries: ListingEntry[]; nextCursor?: string }>("notion.listChildren", {
+          containerId: container.id,
+          ...(cursor !== undefined ? { cursor } : {}),
+        });
+        entries.push(...page.entries);
+        if (page.nextCursor === undefined) break;
+        cursor = page.nextCursor;
+      }
       const sinceMs = Date.parse(since);
       const items: ExternalItem[] = [];
-      for (const entry of page.entries) {
+      for (const entry of entries) {
         const editedMs = Date.parse(entry.lastEditedTime);
         if (Number.isFinite(editedMs) && Number.isFinite(sinceMs) && editedMs <= sinceMs) continue;
         const content = await p.call<NotionPage>("notion.readPage", { pageId: entry.id });
@@ -181,7 +205,6 @@ export function createNotionConnector(): Connector {
       return items;
     },
 
-    toSession,
+    toSession: notionToSession,
   };
 }
-
