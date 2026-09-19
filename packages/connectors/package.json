@@ -1,0 +1,19 @@
+{
+  "name": "@openkt/connectors",
+  "version": "0.1.0",
+  "description": "Connectors for OpenKT (Spec 05 sections 3-4): the Connector interface and one small module per product that turns external items into sessions. Talks to providers only through the ProviderHandle.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/OpenKT-ai.git", "directory": "packages/connectors" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }, "./package.json": "./package.json" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.0", "vitest": "^3.0.0" }
+}
