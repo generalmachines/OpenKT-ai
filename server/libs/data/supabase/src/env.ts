@@ -20,6 +20,12 @@ function requireValue(value: string | undefined, key: string): string {
   return value;
 }
 
+// Supabase is optional. A server with built-in accounts only leaves every
+// SUPABASE_* variable unset; nothing may construct a Supabase client then.
+export function isSupabaseConfigured(configService: Pick<ConfigService, "get">): boolean {
+  return Boolean(configService.get<string>("SUPABASE_URL"));
+}
+
 export function resolveSupabaseEnvironment(
   configService: Pick<ConfigService, "get">,
 ): SupabaseEnvironment {

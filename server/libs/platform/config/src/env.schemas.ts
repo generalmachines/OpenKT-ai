@@ -76,6 +76,16 @@ const baseEnvironmentSchema = z.object({
   // the gateway falls back to OPENAI_API_KEY (the embedding-side key)
   // so deployments don't need to duplicate the credential.
   OPENKT_OPENAI_API_KEY: z.string().min(1).optional(),
+  // Built-in accounts. Google sign-in is on only when this lists at least one
+  // OAuth client id (comma-separated; one per platform — web, desktop, iOS…).
+  // An ID token is accepted only if its `aud` is one of them.
+  OPENKT_GOOGLE_CLIENT_IDS: z.string().min(1).optional(),
+  // Express `trust proxy`. Set it when the API sits behind a reverse proxy or
+  // load balancer (e.g. `1` = one hop), otherwise every request appears to
+  // come from the proxy's address and the per-IP sign-in limit is shared by
+  // everyone. Leave unset when clients connect directly.
+  OPENKT_TRUST_PROXY: z.string().min(1).optional(),
+  // Supabase sign-in — optional, all-or-nothing (see ensureSupabaseIsAllOrNothing).
   SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL").optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1).optional(),
@@ -227,53 +237,41 @@ const ensureWorkerEnvironment = <T extends z.ZodRawShape>(schema: z.ZodObject<T>
     }
   });
 
-const ensureSupabasePublishableKey = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) =>
+// Supabase is OPTIONAL: built-in accounts (email + password, Google) need no
+// third-party auth service, and the server boots with every SUPABASE_*
+// variable unset. But a half-configured Supabase is a mistake worth failing
+// on at boot, so once SUPABASE_URL is set the keys that go with it are required.
+const ensureSupabaseIsAllOrNothing = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) =>
   schema.superRefine((value, ctx) => {
     const environment = value as {
+      SUPABASE_URL?: string;
       SUPABASE_ANON_KEY?: string;
       SUPABASE_PUBLISHABLE_KEY?: string;
+      SUPABASE_SERVICE_ROLE_KEY?: string;
     };
+    if (!environment.SUPABASE_URL) return;
 
     if (!environment.SUPABASE_ANON_KEY && !environment.SUPABASE_PUBLISHABLE_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["SUPABASE_ANON_KEY"],
-        message: "SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY is required",
+        message: "SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY is required when SUPABASE_URL is set",
       });
     }
-  });
-
-const ensureSupabaseAuthEnvironment = <T extends z.ZodRawShape>(schema: z.ZodObject<T>) =>
-  schema.superRefine((value, ctx) => {
-    const environment = value as {
-      SUPABASE_URL?: string;
-      SUPABASE_SERVICE_ROLE_KEY?: string;
-    };
-
-    if (!environment.SUPABASE_URL) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["SUPABASE_URL"],
-        message: "SUPABASE_URL is required",
-      });
-    }
-
     if (!environment.SUPABASE_SERVICE_ROLE_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["SUPABASE_SERVICE_ROLE_KEY"],
-        message: "SUPABASE_SERVICE_ROLE_KEY is required",
+        message: "SUPABASE_SERVICE_ROLE_KEY is required when SUPABASE_URL is set",
       });
     }
   });
 
 export const apiEnvironmentSchema = ensureDatabaseUrl(
-  ensureSupabaseAuthEnvironment(
-    ensureSupabasePublishableKey(
-      baseEnvironmentSchema.extend({
-        PORT: z.coerce.number().int().min(1).max(65535).default(4100),
-      }),
-    ),
+  ensureSupabaseIsAllOrNothing(
+    baseEnvironmentSchema.extend({
+      PORT: z.coerce.number().int().min(1).max(65535).default(4100),
+    }),
   ),
 );
 
