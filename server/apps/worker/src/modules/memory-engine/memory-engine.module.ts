@@ -31,8 +31,7 @@ import { WorkerLlmConfigResolverService } from "./services/worker-llm-config-res
 // the Drizzle module graph — binds its own pg-backed recorder
 // (`WorkerLlmCallRecorder`). Without this binding every LLM call from
 // the worker (triage / synthesize / episode / member_knowledge /
-// briefing) goes unrecorded in `llm_calls`, which is exactly what
-// prod was seeing (0 rows in the table despite hundreds of runs).
+// briefing) goes unrecorded in `llm_calls`.
 @Module({
   imports: [WorkerDatabaseModule],
   providers: [

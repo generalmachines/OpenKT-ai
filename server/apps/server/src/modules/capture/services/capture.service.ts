@@ -68,7 +68,7 @@ KINDS (use the most specific match):
   - decision: explicit choice between alternatives ("we chose X over Y because Z")
   - pattern: workflow / approach that should be repeated ("always run X before Y")
   - anti-pattern: workflow / approach that should be avoided ("don't deploy on Fridays")
-  - context: domain fact / background ("Pratham is at Deepwork Labs")
+  - context: domain fact / background ("Alex works at Acme Labs")
   - incident: bug / failure with cause + fix ("symptom S was caused by C; fix is F")
   - skill: technique to remember ("the right way to do X is Y")
   - environment: infrastructure / config ("API lives at api.openkt.ai/v1")
@@ -88,13 +88,13 @@ OUTPUT FORMAT — strict JSON, no other text:
 EXAMPLES:
 
 Input: "I want to use AWS for hosting and Cloudflare for DNS"
-Output: {"saveable":true,"kind":"decision","content":"Pratham prefers AWS for hosting and Cloudflare for DNS.","confidence":0.9,"reason":"Explicit deploy-stack preference"}
+Output: {"saveable":true,"kind":"decision","content":"Alex prefers AWS for hosting and Cloudflare for DNS.","confidence":0.9,"reason":"Explicit deploy-stack preference"}
 
 Input: "how is the weather"
 Output: {"saveable":false,"confidence":1.0,"reason":"Not a context transfer"}
 
-Input: "don't use opencode for gas city witness agents — they don't spawn"
-Output: {"saveable":true,"kind":"anti-pattern","content":"opencode provider does not work for gas-city witness/refinery agents; use claude-haiku instead.","confidence":0.85,"reason":"Concrete anti-pattern with reason"}
+Input: "don't use the beta runner for the nightly export agents — they don't spawn"
+Output: {"saveable":true,"kind":"anti-pattern","content":"The beta runner does not work for the nightly export agents; use the stable runner instead.","confidence":0.85,"reason":"Concrete anti-pattern with reason"}
 
 Input: "ok continue"
 Output: {"saveable":false,"confidence":1.0,"reason":"Acknowledgement, no content"}

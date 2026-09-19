@@ -54,7 +54,7 @@ import { DRIZZLE } from "../../apps/server/src/db/drizzle.module";
 //     email / github_username / auth_provider.
 
 const USER_ID = "f36a1bbe-b6d3-43f1-bbab-64c000ee79b1";
-const USER_EMAIL = "pratham+dev@openkt.test";
+const USER_EMAIL = "alex+dev@openkt.test";
 const TEST_JWT = "test.jwt.value";
 
 type StoredProfile = ProfileRecord;
@@ -353,10 +353,10 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
       id: USER_ID,
       email: USER_EMAIL,
       user_metadata: {
-        user_name: "prathamdev",
+        user_name: "alexdev",
         provider_id: "1234567",
         avatar_url: "https://avatars.githubusercontent.com/u/1234567",
-        full_name: "Pratham Dev",
+        full_name: "Alex Dev",
       },
       app_metadata: { provider: "github" },
     };
@@ -369,9 +369,9 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
     expect(res.body.data).toMatchObject({
       user_id: USER_ID,
       email: USER_EMAIL,
-      display_name: "Pratham Dev",
+      display_name: "Alex Dev",
       avatar_url: "https://avatars.githubusercontent.com/u/1234567",
-      github_username: "prathamdev",
+      github_username: "alexdev",
       github_id: "1234567",
       auth_provider: "github",
       bio: null,
@@ -390,7 +390,7 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
       id: USER_ID,
       email: USER_EMAIL,
       user_metadata: {
-        user_name: "prathamdev",
+        user_name: "alexdev",
         provider_id: "1234567",
         avatar_url: "https://avatars.githubusercontent.com/u/1234567",
       },
@@ -408,7 +408,7 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
       display_name: "Original Name",
       bio: "I love TS.",
       // github-derived fields populated
-      github_username: "prathamdev",
+      github_username: "alexdev",
       github_id: "1234567",
       avatar_url: "https://avatars.githubusercontent.com/u/1234567",
       auth_provider: "github",
@@ -418,7 +418,7 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
   it("PATCH /v1/profile/me updates display_name + bio only", async () => {
     store.set(USER_ID, {
       ...makeEmailProfile(),
-      githubUsername: "prathamdev",
+      githubUsername: "alexdev",
       githubId: "1234567",
       authProvider: "github",
     });
@@ -444,7 +444,7 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
       bio: "Building OpenKT.",
       // unchanged
       email: USER_EMAIL,
-      github_username: "prathamdev",
+      github_username: "alexdev",
       auth_provider: "github",
     });
   });

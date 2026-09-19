@@ -3,13 +3,13 @@
 # embed-chain smoke — drives a single memory through the full pipeline and
 # verifies every stage on the way:
 #
-#   POST /v1/memories          (SGS HTTP)
+#   POST /v1/memories          (HTTP API)
 #   → outbox_events.published_at  (worker outbox-relay published it to MQ)
 #   → agentic_jobs[stage=embed].status='done'  (embedding worker ran)
 #   → memories.embedding IS NOT NULL  (BGE-M3 vector landed in row)
 #   → agentic_jobs[stage=briefing].status='done'  (final stage closed the chain)
 #
-# The script does NOT mock anything. It needs a live SGS API + worker pair
+# The script does NOT mock anything. It needs a live API + worker pair
 # pointed at a real Supabase + RabbitMQ + BGE TEI. Use it to prove the
 # pipeline end-to-end on localhost (or staging) before declaring victory on
 # any change that touches MQ, embeddings, or the worker stages.
@@ -25,7 +25,7 @@
 #   EMBED_CHAIN_TIMEOUT        seconds to wait for the chain to complete
 #                              (default 60). BGE TEI cold start can be 20s+
 #                              so don't set this too low.
-#   OPENKT_SKIP_API_BOOTSTRAP=1 if you have SGS already running and don't
+#   OPENKT_SKIP_API_BOOTSTRAP=1 if you have the API already running and don't
 #                              want the smoke harness to start its own
 #
 set -euo pipefail

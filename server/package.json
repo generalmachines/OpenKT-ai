@@ -2,7 +2,7 @@
   "name": "@openkt/api",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenKT NestJS backend — server (HTTP API at api.openkt.ai) + worker (RabbitMQ consumer). Built and deployed independently from web/ (Next.js dashboard).",
+  "description": "OpenKT backend — the HTTP + MCP API server and the background worker (NestJS, Drizzle, Postgres + pgvector).",
   "scripts": {
     "build": "npm run build:api && npm run build:worker",
     "build:api": "nest build server && tsc-alias -p apps/server/tsconfig.app.json",

@@ -47,7 +47,7 @@ describe("LlmGatewayService", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it("defaults to minimax provider with MiniMax-M2.7 model and villamarket base URL", async () => {
+    it("defaults to minimax provider with MiniMax-M2.7 model and the MiniMax base URL", async () => {
       fetchSpy.mockResolvedValueOnce(chatResponse("hello back"));
       const gateway = new LlmGatewayService(
         makeConfig({ OPENKT_DEFAULT_LLM_KEY: "key-123" }),
@@ -71,7 +71,7 @@ describe("LlmGatewayService", () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url, init] = fetchSpy.mock.calls[0];
-      expect(url).toBe("https://api.minimax.villamarket.ai/v1/chat/completions");
+      expect(url).toBe("https://api.minimax.io/v1/chat/completions");
       expect(init?.method).toBe("POST");
       expect((init?.headers as Record<string, string>).Authorization).toBe(
         "Bearer key-123",
@@ -87,7 +87,7 @@ describe("LlmGatewayService", () => {
           OPENKT_DEFAULT_LLM_KEY: "k",
           OPENKT_DEFAULT_LLM_PROVIDER: "openai",
           OPENKT_DEFAULT_LLM_BASE_URL:
-            "https://bedrock-mantle.ap-south-1.api.aws/v1",
+            "https://llm.example.com/v1",
           OPENKT_DEFAULT_LLM_MODEL: "deepseek.v3.2",
         }),
       );
@@ -99,7 +99,7 @@ describe("LlmGatewayService", () => {
       expect(result?.provider).toBe("openai");
       expect(result?.model).toBe("deepseek.v3.2");
       expect(fetchSpy.mock.calls[0][0]).toBe(
-        "https://bedrock-mantle.ap-south-1.api.aws/v1/chat/completions",
+        "https://llm.example.com/v1/chat/completions",
       );
     });
 

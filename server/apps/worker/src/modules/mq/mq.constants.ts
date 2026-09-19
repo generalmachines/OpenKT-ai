@@ -1,5 +1,5 @@
 /**
- * RabbitMQ topology constants — Track C of the SGS migration.
+ * RabbitMQ topology constants.
  *
  * Source of truth: `docs/specs/memory-engine-rabbitmq-pipeline-v1.md`
  * (sections "RabbitMQ topology", "Routing keys", "Queues"). Keep this

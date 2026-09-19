@@ -150,7 +150,7 @@ export interface LlmQuotaChecker {
 const DEFAULTS: Record<DefaultLlmProvider, { model: string; baseUrl: string }> = {
   minimax: {
     model: "MiniMax-M2.7",
-    baseUrl: "https://api.minimax.villamarket.ai/v1",
+    baseUrl: "https://api.minimax.io/v1",
   },
   openai: {
     model: "gpt-4o-mini",
@@ -554,7 +554,7 @@ export class LlmGatewayService {
       provider = new MinimaxProvider(this.configService);
     } else if (id === "openai") {
       // The primary OpenAI provider may target any OpenAI-compatible API,
-      // including Amazon Bedrock Mantle. Honour the deployment-level route
+      // (a self-hosted server, a cloud gateway). Honour the deployment-level route
       // and model overrides instead of silently falling back to OpenAI's
       // public endpoint and gpt-4o-mini. Do not apply primary-provider
       // overrides when OpenAI is only the fallback for another provider.

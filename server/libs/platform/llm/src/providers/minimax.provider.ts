@@ -1,5 +1,5 @@
-// MiniMax provider — talks to the user-controlled proxy at
-// `api.minimax.villamarket.ai/v1`. Speaks OpenAI Chat Completions wire
+// MiniMax provider — talks to MiniMax's OpenAI-compatible API at
+// `api.minimax.io/v1`. Speaks OpenAI Chat Completions wire
 // format so it shares the openai-compat client.
 //
 // Configuration is read from env. The two relevant knobs are
@@ -17,7 +17,7 @@ import {
   ProviderCallResult,
 } from "./provider";
 
-const DEFAULT_BASE_URL = "https://api.minimax.villamarket.ai/v1";
+const DEFAULT_BASE_URL = "https://api.minimax.io/v1";
 const DEFAULT_MODEL = "MiniMax-M2.7";
 const DEFAULT_MAX_OUTPUT_TOKENS = 1_500;
 

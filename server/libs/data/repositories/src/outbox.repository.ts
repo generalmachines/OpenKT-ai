@@ -1,7 +1,7 @@
 import type { ActorContext } from "@openkt/core-context";
 
 /**
- * Generic outbox port — Step 7 (sgs-backend-migration-program-v1).
+ * Generic outbox port.
  *
  * Domain modules write events here in the same transactional context as
  * the aggregate write. A separate relay (sibling worker / cron) reads

@@ -1,6 +1,6 @@
 // Shared OpenAI-compatible Chat Completions client.
 //
-// Both MiniMax (`api.minimax.villamarket.ai/v1`) and OpenAI itself
+// Both MiniMax (`api.minimax.io/v1`) and OpenAI itself
 // (`api.openai.com/v1`) speak the same wire format, so the actual
 // fetch + timeout + error-classification lives here. The two provider
 // classes wrap it with their resolved defaults (base URL, key, model).
