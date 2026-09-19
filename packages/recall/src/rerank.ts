@@ -35,6 +35,7 @@ export function createReranker(opts: RerankerOptions = {}): {
     items.map((item) => ({ ...item, score: item.weighted }));
 
   async function rerank(query: string, items: Scored[]): Promise<Scored[]> {
+    if (items.length === 0) return [];
     if (!opts.url) return withoutRerank(items);
 
     const max = Math.max(...items.map((i) => i.weighted), 0);
@@ -44,28 +45,31 @@ export function createReranker(opts: RerankerOptions = {}): {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      let response: Response;
+      // The timeout must cover the body read too — a server that sends
+      // headers and then stalls would otherwise hang recall.
+      let body: unknown;
       try {
-        response = await fetchImpl(`${opts.url}/rerank`, {
+        const response = await fetchImpl(`${opts.url}/rerank`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(opts.apiKey !== undefined ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
+            ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
           },
           body: JSON.stringify({ query, texts: top.map((i) => i.text), raw_scores: false }),
           signal: controller.signal,
         });
+        if (!response.ok) throw new Error(`rerank endpoint returned ${response.status}`);
+        body = await response.json();
       } finally {
         clearTimeout(timer);
       }
-      if (!response.ok) throw new Error(`rerank endpoint returned ${response.status}`);
-
-      const body: unknown = await response.json();
       if (!Array.isArray(body) || body.length !== top.length) {
         throw new Error("malformed rerank response body");
       }
-      const entries = body as RerankEntry[];
-      for (const entry of entries) {
+      // TEI returns results sorted by score, so match by the `index` field —
+      // not by position. Length + range + no duplicates ⇒ every index present.
+      const byIndex = new Map<number, number>();
+      for (const entry of body as RerankEntry[]) {
         const s = (entry as { score?: unknown }).score;
         const idx = (entry as { index?: unknown }).index;
         if (
@@ -77,13 +81,15 @@ export function createReranker(opts: RerankerOptions = {}): {
         ) {
           throw new Error("malformed rerank response entry");
         }
+        if (byIndex.has(idx)) throw new Error("duplicate index in rerank response");
+        byIndex.set(idx, s);
       }
 
       return items
         .map((item, i) => {
           const normalisedItem = normalised[i]!;
           if (i < RECALL.rerankTop) {
-            const rerankScore = entries[i]!.score;
+            const rerankScore = byIndex.get(i)!;
             return {
               ...item,
               rerank: rerankScore,

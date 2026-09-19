@@ -168,6 +168,61 @@ describe("createReranker", () => {
     expect(out[0]!.rerank).toBeUndefined();
   });
 
+  it("scores are matched by index, not by position", async () => {
+    const a = item({ id: "a", weighted: 10 });
+    const b = item({ id: "b", weighted: 0.01 });
+    const { rerank } = createReranker({
+      url: "http://rr",
+      fetchImpl: okFetch([
+        { index: 1, score: 0.95 },
+        { index: 0, score: 0.0 },
+      ]),
+    });
+    const out = await rerank("q", [a, b]);
+    expect(out.map((i) => [i.id, i.rerank])).toEqual([
+      ["b", 0.95],
+      ["a", 0],
+    ]);
+  });
+
+  it("a repeated index → fallback + onError once", async () => {
+    const onError = vi.fn();
+    const { rerank } = createReranker({
+      url: "http://rr",
+      onError,
+      fetchImpl: okFetch([
+        { index: 0, score: 0.5 },
+        { index: 0, score: 0.6 },
+      ]),
+    });
+    const out = await rerank("q", [item({ weighted: 3 }), item({ weighted: 2 })]);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(out.map((i) => i.rerank)).toEqual([undefined, undefined]);
+  });
+
+  it("a body that never finishes falls back after timeoutMs", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = new ReadableStream({
+          start(c) {
+            init?.signal?.addEventListener("abort", () => c.error(new Error("aborted")));
+          },
+        });
+        return new Response(body, { status: 200 });
+      }) as unknown as typeof fetch;
+      const onError = vi.fn();
+      const { rerank } = createReranker({ url: "http://rr", timeoutMs: 50, fetchImpl, onError });
+      const pending = rerank("q", [item({ weighted: 2 })]);
+      await vi.advanceTimersByTimeAsync(50);
+      const out = await pending;
+      expect(onError).toHaveBeenCalledOnce();
+      expect(out[0]!.score).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a request slower than timeoutMs falls back", async () => {
     vi.useFakeTimers();
     try {
