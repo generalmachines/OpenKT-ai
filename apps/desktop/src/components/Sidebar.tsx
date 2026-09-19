@@ -1,4 +1,6 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { daysAgo, sessionListMeta } from '../api/format';
 import { ApiError } from '../api/errors';
 import { useClient, useQuery } from '../api/hooks';
@@ -6,6 +8,7 @@ import type { SessionListItem, Space } from '../api/types';
 import { useConnection } from '../state/connection';
 import { ErrorNote } from './bits';
 import { Icon, SOURCE_ICON, type IconName } from './Icon';
+import { NewSpaceDialog } from '../screens/space/NewSpaceDialog';
 import { SetupProgress } from './SetupProgress';
 import { UpdatePill } from './UpdatePill';
 
@@ -51,6 +54,8 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const { pathname } = useLocation();
   const client = useClient();
   const { settings } = useConnection();
+  const navigate = useNavigate();
+  const [newSpace, setNewSpace] = useState(false);
   const sessions = useQuery((c) => c.listSessions({ mine: true }), []);
   const spaces = useQuery((c) => c.listSpaces(), []);
   const spaceById = new Map<string, Space>((spaces.data ?? []).map((s) => [s.id, s]));
@@ -104,13 +109,29 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
           </div>
         ))}
       </div>
-      <NavRow to="/spaces" icon="folder" label="Spaces" active={pathname.startsWith('/spaces') || pathname.startsWith('/pages')} />
+      <div className="navrow-wrap">
+        <NavRow to="/spaces" icon="folder" label="Spaces" active={pathname.startsWith('/spaces') || pathname.startsWith('/pages')} />
+        <button type="button" className="navrow__add" aria-label="New space" title="New space" onClick={() => setNewSpace(true)}>
+          <Icon name="plus" size={15} />
+        </button>
+      </div>
       <NavRow to="/skills" icon="spark" label="Skills" active={pathname.startsWith('/skills')} />
       <NavRow to="/settings" icon="gear" label="Settings" active={pathname.startsWith('/settings')} />
       {/* first run: the on-device AI download, until it is done */}
       <SetupProgress />
       {/* in-app updates: "Update ready — Restart", "what's new" (src/main/update) */}
       <UpdatePill />
+      {newSpace &&
+        createPortal(
+          <NewSpaceDialog
+            onClose={() => setNewSpace(false)}
+            onCreated={(space) => {
+              setNewSpace(false);
+              navigate(`/spaces/${space.id}`);
+            }}
+          />,
+          document.body,
+        )}
     </nav>
   );
 }

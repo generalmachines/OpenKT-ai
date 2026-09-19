@@ -16,6 +16,16 @@
  *     other grants — modules/skills on feat/skills); 422 codes
  *     invalid_frontmatter | missing_skill_md | file_too_large | too_many_files | bad_path; 409 version_conflict;
  *     a skill the caller cannot read is a 404
+ *   - spaces (probed on api.openkt.ai 2026-09-19): POST /v1/projects {name, slug} → the project; a slug the owner
+ *     already has → 400 validation_error "project slug already exists" (projects_org_slug_unique); GET /v1/projects
+ *     lists owned AND granted projects; GET /v1/projects/:id adds viewer_role (owner | admin | member | viewer —
+ *     a grant's owner/editor/reader); a grantee may search a space (POST /v1/memories/search, every id authorised)
+ *     and write into it as an editor
+ *   - optional routes answer the way Nest does when they are missing — 404 `http_exception` "Cannot PATCH /v1/…" —
+ *     unless a test turns them on: `state.moveSession` (PATCH /v1/sessions/:id {project_id}; on no server yet) and
+ *     `state.joinLinks` (modules/teams, #86: POST /v1/projects/:id/join-links {role} by an owner or editor →
+ *     JoinLinkView {code, url, space_id, role, …}; POST /v1/join {code} → {space: {id, name}, role}, 404 for an
+ *     unknown code)
  * Behaviour mirrors what the adapter relies on: one project per session list
  * (none → personal), owner-only grant management, delete = archive, recall
  * scoped to readable projects.
@@ -38,6 +48,7 @@ interface SkillRow {
 const uuid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const ok = (data: unknown, meta: unknown = null, status = 200) => HttpResponse.json({ data, error: null, meta }, { status });
+const obj = (v: unknown): Row => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {});
 const fail = (status: number, code: string, message: string) => HttpResponse.json({ data: null, error: { code, message, details: null, request_id: uuid() }, meta: null }, { status });
 
 export interface FakeUser {
@@ -67,7 +78,11 @@ export function createFakeServer(baseUrl: string) {
     rateLimited: false,
     /** Mimic the live server's ambiguity: /projects/personal answers with the newest private project, not the personal one. */
     personalAmbiguous: false,
+    /** Routes production does not have yet. Off: Nest's "Cannot PATCH …" 404. */
+    moveSession: false,
+    joinLinks: false,
   };
+  const joinLinks: { code: string; project_id: string; role: string }[] = [];
   const revoked = new Set<string>();
 
   const project = (owner: FakeUser, slug: string, name: string): Row => {
@@ -84,6 +99,12 @@ export function createFakeServer(baseUrl: string) {
   };
   const canRead = (u: FakeUser, projectId: unknown) =>
     projects.some((p) => p['id'] === projectId && p['owner_user_id'] === u.user_id) || grants.some((g) => g['resource_type'] === 'project' && g['resource_id'] === projectId && g['subject_id'] === u.user_id);
+  const grantRole = (u: FakeUser, projectId: unknown) => grants.find((g) => g['resource_type'] === 'project' && g['resource_id'] === projectId && g['subject_id'] === u.user_id)?.['role'];
+  const canWrite = (u: FakeUser, projectId: unknown) =>
+    projects.some((p) => p['id'] === projectId && p['owner_user_id'] === u.user_id) || ['editor', 'owner'].includes(String(grantRole(u, projectId)));
+  const viewerRole = (u: FakeUser, p: Row) => (p['owner_user_id'] === u.user_id ? 'owner' : ({ owner: 'admin', editor: 'member', reader: 'viewer' } as Record<string, string>)[String(grantRole(u, p['id']))] ?? null);
+  /** What Nest answers for a route it does not have. */
+  const noRoute = (request: Request) => fail(404, 'http_exception', `Cannot ${request.method} ${new URL(request.url).pathname}`);
   const owns = (u: FakeUser, type: string, id: unknown) =>
     type === 'project'
       ? projects.some((p) => p['id'] === id && p['owner_user_id'] === u.user_id)
@@ -398,16 +419,50 @@ export function createFakeServer(baseUrl: string) {
       v1('/projects'),
       authed(({ user, body }) => {
         const slug = String(body['slug'] ?? '');
-        if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return fail(400, 'validation_failed', 'slug: Invalid');
-        if (projects.some((p) => p['owner_user_id'] === user.user_id && p['slug'] === slug)) return fail(409, 'conflict', 'project slug already exists');
-        return ok(project(user, slug, String(body['name'] ?? slug)), null, 201);
+        const name = String(body['name'] ?? '');
+        if (!name || name.length > 120) return fail(400, 'validation_error', 'invalid request payload');
+        if (body['slug'] !== undefined && !/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return fail(400, 'validation_error', 'invalid request payload');
+        const mine = new Set(projects.filter((p) => p['owner_user_id'] === user.user_id).map((p) => String(p['slug'])));
+        // A slug this owner already has: the server's own words for it (projects_org_slug_unique). No slug: one made from the name.
+        if (body['slug'] !== undefined && mine.has(slug)) return fail(400, 'validation_error', 'project slug already exists');
+        let made = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'space';
+        for (let n = 2; mine.has(made) || made === 'personal'; n += 1) made = `${(slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 36)}-${n}`;
+        return ok(project(user, made, name), null, 201);
       }),
     ),
     http.get(
       v1('/projects/:id'),
       authed(({ user, params }) => {
         const p = projects.find((x) => x['id'] === params['id']);
-        return p && canRead(user, p['id']) ? ok({ ...p, viewer_role: p['owner_user_id'] === user.user_id ? 'owner' : null }) : fail(404, 'not_found', 'project');
+        return p && canRead(user, p['id']) ? ok({ ...p, viewer_role: viewerRole(user, p) }) : fail(404, 'not_found', 'project');
+      }),
+    ),
+    http.post(
+      v1('/projects/:id/join-links'),
+      authed(({ user, params, body, request }) => {
+        if (!state.joinLinks) return noRoute(request);
+        if (!canRead(user, params['id'])) return fail(404, 'not_found', 'project');
+        if (!canWrite(user, params['id'])) return fail(403, 'forbidden', 'only an owner or editor can invite');
+        const role = String(body['role'] ?? 'editor');
+        if (!['reader', 'editor'].includes(role)) return fail(400, 'validation_error', 'role: Invalid enum value');
+        const code = uuid().replace(/-/g, '').slice(0, 10);
+        joinLinks.push({ code, project_id: String(params['id']), role });
+        const t = now();
+        return ok({ code, url: `https://api.openkt.ai/join/${code}`, space_id: params['id'], role, created_by: user.user_id, created_at: t, expires_at: null, max_uses: null, uses: 0, active: true }, null, 201);
+      }),
+    ),
+    http.post(
+      v1('/join'),
+      authed(({ user, body, request }) => {
+        if (!state.joinLinks) return noRoute(request);
+        const code = String(body['code'] ?? '');
+        if (!code) return fail(400, 'validation_error', 'code: Required');
+        // A whole link works as well as the code in it.
+        const link = joinLinks.find((l) => l.code === (/\/join\/([A-Za-z0-9]+)/.exec(code)?.[1] ?? code));
+        if (!link) return fail(404, 'not_found', 'This invite link does not exist, has expired or has been used up.');
+        const p = projects.find((x) => x['id'] === link.project_id)!;
+        if (!canRead(user, p['id'])) grants.push({ id: uuid(), org_id: null, resource_type: 'project', resource_id: p['id'], subject_type: 'user', subject_id: user.user_id, role: link.role, created_by: p['owner_user_id'], created_at: now() });
+        return ok({ space: { id: p['id'], name: p['name'] }, role: p['owner_user_id'] === user.user_id ? 'owner' : String(grantRole(user, p['id'])) });
       }),
     ),
 
@@ -415,7 +470,7 @@ export function createFakeServer(baseUrl: string) {
       v1('/sessions'),
       authed(({ user, body }) => {
         const projectId = body['project_id'] ?? personalOf(user)['id'];
-        if (!projects.some((p) => p['id'] === projectId && p['owner_user_id'] === user.user_id)) return fail(404, 'not_found', 'project');
+        if (!canWrite(user, projectId)) return fail(404, 'not_found', 'project');
         const t = now();
         const s = { id: uuid(), org_id: null, project_id: projectId, owner_user_id: user.user_id, source: body['source'] ?? 'mcp', client: body['client'] ?? null, title: body['title'] ?? null, summary: null, status: 'open', started_at: t, ended_at: null, last_activity_at: t, metadata: body['metadata'] ?? {}, created_at: t, updated_at: t };
         sessions.push(s);
@@ -441,10 +496,23 @@ export function createFakeServer(baseUrl: string) {
         return ok({ session: s, turns: turns.filter((t) => t['session_id'] === s['id']), memories: memories.filter((m) => m['session_id'] === s['id']).map(memoryRecord) });
       }),
     ),
+    http.patch(
+      v1('/sessions/:id'),
+      authed(({ user, params, body, request }) => {
+        if (!state.moveSession) return noRoute(request);
+        const s = sessions.find((x) => x['id'] === params['id']);
+        if (!s || !canRead(user, s['project_id'])) return fail(404, 'not_found', 'session');
+        if (s['owner_user_id'] !== user.user_id) return fail(403, 'forbidden', 'only the session owner can move it');
+        if (!canWrite(user, body['project_id'])) return fail(404, 'not_found', 'project');
+        Object.assign(s, { project_id: body['project_id'], updated_at: now() });
+        for (const m of memories) if (m['session_id'] === s['id']) m['project_id'] = body['project_id'];
+        return ok(s);
+      }),
+    ),
     http.post(
       v1('/sessions/:id/turns'),
       authed(({ user, params, body }) => {
-        const s = sessions.find((x) => x['id'] === params['id'] && x['owner_user_id'] === user.user_id);
+        const s = sessions.find((x) => x['id'] === params['id'] && canWrite(user, x['project_id']));
         if (!s) return fail(404, 'not_found', 'session');
         if (typeof body['content'] !== 'string' || !body['content']) return fail(400, 'validation_failed', 'content: Required');
         const t = { id: uuid(), session_id: s['id'], seq: turns.filter((x) => x['session_id'] === s['id']).length + 1, role: body['role'], content: body['content'], created_at: now(), metadata: {} };
@@ -455,7 +523,7 @@ export function createFakeServer(baseUrl: string) {
     http.post(
       v1('/sessions/:id/close'),
       authed(({ user, params, body }) => {
-        const s = sessions.find((x) => x['id'] === params['id'] && x['owner_user_id'] === user.user_id);
+        const s = sessions.find((x) => x['id'] === params['id'] && canWrite(user, x['project_id']));
         if (!s) return fail(404, 'not_found', 'session');
         Object.assign(s, { status: 'closed', summary: body['summary'] ?? null, ended_at: now(), updated_at: now() });
         return ok(s);
@@ -466,7 +534,7 @@ export function createFakeServer(baseUrl: string) {
       v1('/memories'),
       authed(({ user, body }) => {
         const projectId = body['project_id'] ?? personalOf(user)['id'];
-        if (!projects.some((p) => p['id'] === projectId && p['owner_user_id'] === user.user_id)) return fail(404, 'not_found', 'project');
+        if (!canWrite(user, projectId)) return fail(404, 'not_found', 'project');
         const t = now();
         const session = sessions.find((s) => s['id'] === body['session_id']);
         const m = { id: uuid(), org_id: null, project_id: projectId, owner_user_id: user.user_id, content: body['content'], kind: body['kind'] ?? 'note', category: body['category'] ?? null, tags: [], visibility: body['visibility'] ?? 'project', confidence: 1, importance: 0.5, decay_lambda: 0.01, importance_at: t, importance_now: 0.5, decay_state: 'warm', access_count: 0, last_accessed_at: null, source_refs: [], superseded_by: null, archived: false, created_at: t, updated_at: t, session_id: body['session_id'] ?? null, source: session?.['source'] ?? null };
@@ -504,6 +572,24 @@ export function createFakeServer(baseUrl: string) {
         return ok(hits, { query_ms: 1 });
       }),
     ),
+    http.post(
+      v1('/memories/search'),
+      authed(({ user, body }) => {
+        const ids = (obj(body['filters'])['project_ids'] as unknown[] | undefined) ?? [];
+        if (!ids.length) return fail(400, 'validation_error', 'search requires filters.project_ids with at least one project');
+        // Every id is authorised; one unreadable id is a 404 for the whole request.
+        if (ids.some((id) => !canRead(user, id))) return fail(404, 'not_found', 'project');
+        const words = String(body['query'] ?? '').toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+        const hits = memories
+          .filter((m) => ids.includes(m['project_id']) && !m['archived'])
+          .map((m) => ({ m, score: words.filter((w) => String(m['content']).toLowerCase().includes(w)).length }))
+          .filter((x) => !words.length || x.score > 0)
+          .sort((a, b) => b.score - a.score || String(b.m['created_at']).localeCompare(String(a.m['created_at'])))
+          .slice(0, Math.min(100, Number(body['limit'] ?? 20)))
+          .map(({ m, score }) => ({ ...memoryRecord(m), similarity: words.length ? Math.min(1, score / 4) : null, source_scope: 'primary', effective_importance: 0.5 }));
+        return ok(hits, { total_matched: hits.length, mode: body['mode'] ?? 'hybrid', next_cursor: null, query_ms: 1 });
+      }),
+    ),
     ...grantRoutes('projects'),
     ...grantRoutes('sessions'),
     ...skillRoutes,
@@ -511,5 +597,5 @@ export function createFakeServer(baseUrl: string) {
     ...authRoutes,
   ];
 
-  return { handlers, users, state, revoked, skills, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
+  return { handlers, users, state, revoked, skills, projects, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
 }

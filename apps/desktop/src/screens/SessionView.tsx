@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { Link, NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { describeError } from '../api/errors';
 import { accessSummary, duration, offset, relativeDayTime, sourceLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
 import { useHotkeys, voiceKeys } from '../api/hotkeys';
+import { writableSpaces } from '../api/spaces';
 import type { ContextItem, Session } from '../api/types';
 import { AccessPanel } from '../components/AccessPanel';
 import { ErrorNote, Key, KindChip, Loading } from '../components/bits';
 import { Icon, SOURCE_ICON } from '../components/Icon';
 import { useConnectedToolCount } from './settings/ConnectorsData';
+import { Overlay } from '../components/Overlay';
+import { Select } from '../components/Select';
+import { spaceOptionLabel } from '../components/useSaveSpace';
 
 const TABS = ['summary', 'context', 'transcript', 'access'] as const;
 type Tab = (typeof TABS)[number];
@@ -27,13 +32,77 @@ function ContextRow({ item, detail }: { item: ContextItem; detail?: boolean }) {
   );
 }
 
+/** File a session under another space: its context moves with it. Only offered when the server can (`capabilities().moveSession`). */
+function MoveDialog({ session, onClose }: { session: Session; onClose: () => void }) {
+  const client = useClient();
+  const spaces = useQuery((c) => c.listSpaces(), []);
+  const choices = writableSpaces(spaces.data ?? []).filter((s) => s.id !== session.spaceId);
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const target = to || choices[0]?.id || '';
+
+  const move = async () => {
+    if (!target || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await client.moveSession(session.id, target);
+      onClose();
+    } catch (e) {
+      setError(describeError(e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Overlay title="Move to another space" subtitle={session.title} onClose={onClose} width={460}>
+      <div className="form">
+        <span className="field__label">Space</span>
+        {choices.length ? (
+          <Select<string>
+            label="Move to"
+            value={target}
+            options={choices.map((s) => ({ value: s.id, label: spaceOptionLabel(s) }))}
+            onChange={setTo}
+            align="left"
+            style={{ width: '100%', height: 44, borderRadius: 10, fontSize: 14 }}
+          />
+        ) : (
+          <p className="empty">There is no other space you can save into. Make one from Spaces first.</p>
+        )}
+        <p className="form__hint move__hint">Its context moves with it, and everyone in that space can find it.</p>
+        {error && (
+          <p className="form__error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="modal__actions modal__actions--flush">
+          <button type="button" className="btn btn--pill" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--pill btn--dark" onClick={() => void move()} disabled={busy || !target}>
+            {busy ? 'Moving…' : 'Move'}
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 function Header({ session, spaceName, access }: { session: Session; spaceName: string; access: string }) {
   const client = useClient();
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const caps = useQuery((c) => c.capabilities(), []);
+  const me = useQuery((c) => c.getMe(), []);
+  const canMove = Boolean(caps.data?.moveSession && me.data && session.authorId === me.data.id);
   const bits = [sourceLabel(session.source)];
   if (session.durationSec) bits.push(duration(session.durationSec));
   bits.push(relativeDayTime(session.createdAt));
+  // A teammate's session says whose it is.
+  if (session.authorName && me.data && session.authorId !== me.data.id) bits.unshift(`saved by ${session.authorName}`);
 
   return (
     <header className="shead">
@@ -52,6 +121,11 @@ function Header({ session, spaceName, access }: { session: Session; spaceName: s
               <li className="menu__item" role="menuitem" onClick={() => (setMenu(false), navigate(`/spaces/${session.spaceId}`))}>
                 Open space
               </li>
+              {canMove && (
+                <li className="menu__item" role="menuitem" onClick={() => (setMenu(false), setMoving(true))}>
+                  Move to another space…
+                </li>
+              )}
               {session.status === 'open' && (
                 <li className="menu__item" role="menuitem" onClick={() => (setMenu(false), void client.closeSession(session.id))}>
                   Close session
@@ -61,6 +135,7 @@ function Header({ session, spaceName, access }: { session: Session; spaceName: s
           )}
         </div>
       </div>
+      {moving && <MoveDialog session={session} onClose={() => setMoving(false)} />}
       <div className="shead__meta mono">
         <span className="with-icon">
           <Icon name={SOURCE_ICON[session.source]} size={13} />

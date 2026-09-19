@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { describeError } from '../../api';
 import { CaptureError, voice } from '../../api/bridge';
-import { useClient, useQuery } from '../../api/hooks';
+import { useClient } from '../../api/hooks';
 import { RecorderError, startRecorder as realRecorder, type Recorder, type StartRecorder } from '../../capture/recorder';
 import { modelsSetup } from '../../api/setup-bridge';
 import { fileCapture, modelsPending } from '../../capture/save';
+import { useSaveSpace } from '../../components/useSaveSpace';
 import { finishingSetup, formatBytes, plainError, rowPercent, speechReadiness, type SpeechReadiness } from '../../onboarding/models';
 import { VoiceSheet, type VoiceState } from './parts';
 
@@ -37,23 +38,18 @@ export interface VoiceCaptureProps {
  */
 export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, lingerMs = 1400 }: VoiceCaptureProps) {
   const client = useClient();
-  const spaces = useQuery((c) => c.listSpaces(), []);
+  const { spaceId, setSpaceId, space, options, remember } = useSaveSpace();
   const [state, setState] = useState<VoiceState>('listening');
   const [text, setText] = useState('');
   const [notice, setNotice] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array<number>(LEVELS).fill(0));
-  const [spaceId, setSpaceId] = useState('');
   const [offer, setOffer] = useState<{ label: string; onClick: () => void; disabled?: boolean } | undefined>(undefined);
 
   const session = useRef<{ id: string; rec: Recorder | null; startedAt: number } | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const closed = useRef(false);
-
-  useEffect(() => {
-    if (!spaceId && spaces.data?.length) setSpaceId((spaces.data.find((s) => s.personal) ?? spaces.data[0]!).id);
-  }, [spaceId, spaces.data]);
 
   const close = useCallback(
     (afterMs = 0) => {
@@ -179,6 +175,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
       const later = await modelsPending();
       const note = later ? null : await voice.toSession(s.id);
       await fileCapture(client, { source: 'voice', title: note?.title ?? '', summary: note?.summary, spaceId, turns: [text], facts: note?.facts ?? [], extractLater: later });
+      remember();
       setNotice(later ? EXTRACT_LATER : '');
       setState('saved');
       close(later && lingerMs ? lingerMs + 1600 : lingerMs); // longer, so the line about the models can be read
@@ -186,7 +183,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
       setNotice(describeError(e));
       setState('review');
     }
-  }, [client, close, lingerMs, spaceId, text]);
+  }, [client, close, lingerMs, spaceId, text, remember]);
 
   // The hotkey toggles: listening → stop; with a transcript on screen → save.
   useEffect(() => onToggle?.(() => void (stateRef.current === 'listening' ? stop() : stateRef.current === 'review' ? save() : undefined)), [onToggle, stop, save]);
@@ -205,7 +202,6 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
     return () => window.removeEventListener('keydown', onKey);
   }, [discard, save]);
 
-  const space = spaces.data?.find((x) => x.id === spaceId);
   return (
     <div onDoubleClick={() => void stop()} style={{ display: 'contents' }}>
       <VoiceSheet
@@ -217,7 +213,8 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
         levels={state === 'listening' ? levels : undefined}
         spaceId={spaceId}
         onSpace={setSpaceId}
-        spaces={(spaces.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+        spaces={options}
+        spaceLabel={space ? (space.personal ? 'Personal' : space.name) : undefined}
         accessNote={space ? (space.personal ? 'private' : 'shared space') : ''}
         notice={notice}
         action={state === 'setup' ? offer : undefined}

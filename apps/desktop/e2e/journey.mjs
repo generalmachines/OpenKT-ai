@@ -396,27 +396,30 @@ try {
   await rec.step('New space → share it with the teammate → file a note in it', async (row) => {
     const p = a.page;
     await a.goto('/spaces');
-    const btn = p.getByRole('button', { name: 'New space' });
+    // The Spaces page's own button (the sidebar's "+" is also called "New space").
+    const btn = p.getByRole('main').getByRole('button', { name: 'New space' });
     if (await btn.isDisabled()) throw new Error('"New space" is disabled — a person cannot create a space to share with a team');
     await btn.click();
-    await p.locator('#new-space').fill(SPACE.name);
+    // The dialog: a name, "Share with people", the teammate's email — created and shared in one go.
+    await p.locator('#space-name').fill(SPACE.name);
+    await p.getByRole('radio', { name: /Share with people/ }).check();
+    await p.locator('#space-emails').fill(B.email);
     const t0 = Date.now();
-    await p.getByRole('button', { name: 'Create', exact: true }).click();
-    await p.waitForFunction(() => /#\/spaces\/[^/]+\/access/.test(location.hash), null, { timeout: 20_000 });
+    await p.getByRole('button', { name: 'Create space', exact: true }).click();
+    await p.waitForFunction(() => /#\/spaces\/[^/]+$/.test(location.hash), null, { timeout: 20_000 });
     await a.settle();
     spaceId = a.route().split('/')[2];
     const made = (await a.requests(t0)).find((r) => r.method === 'POST' && r.path === '/v1/projects');
     const remote = await api(tokenA, 'GET', `/v1/projects/${spaceId}`);
-    rec.finding({ screen: 'Spaces · new space', item: remote.status === 200 ? `"${remote.data?.name}" created on the server and opened at its Access panel` : 'the space the app shows does not exist on the server', cls: remote.status === 200 ? 'REAL' : 'BROKEN', severity: remote.status === 200 ? 'ok' : 'blocker', evidence: await a.shot('space-created'), note: `POST /v1/projects → ${made?.status ?? 'not sent'}; GET /v1/projects/${spaceId.slice(0, 8)}… → ${remote.status}` });
+    rec.finding({ screen: 'Spaces · new space', item: remote.status === 200 ? `"${remote.data?.name}" created on the server and opened on its page` : 'the space the app shows does not exist on the server', cls: remote.status === 200 ? 'REAL' : 'BROKEN', severity: remote.status === 200 ? 'ok' : 'blocker', evidence: await a.shot('space-created'), note: `POST /v1/projects → ${made?.status ?? 'not sent'}; GET /v1/projects/${spaceId.slice(0, 8)}… → ${remote.status}` });
 
-    await p.locator('#invite').fill(B.email);
-    await p.getByRole('button', { name: 'Invite', exact: true }).click();
-    await p.locator('#invite-hint').waitFor({ timeout: 20_000 });
+    // The owner and the teammate: two rows under People once the share has gone out.
+    await p.waitForFunction(() => document.querySelectorAll('[aria-label="People in this space"] li').length >= 2, null, { timeout: 20_000 }).catch(() => undefined);
     await a.settle();
     row.shot = await a.shot('space-shared');
     const grants = await api(tokenA, 'GET', `/v1/projects/${spaceId}/grants`);
     const shared = (grants.data ?? []).some((g) => g.subject?.email === B.email);
-    rec.finding({ screen: 'Space · access', item: shared ? `space shared with ${B.email}` : `sharing the space failed: "${await a.text('#invite-hint')}"`, cls: shared ? 'REAL' : 'BROKEN', severity: shared ? 'ok' : 'blocker', evidence: row.shot });
+    rec.finding({ screen: 'Space · people', item: shared ? `space shared with ${B.email}` : `sharing the space on the way in failed: "${(await a.text('.space__recent')).replace(/\s+/g, ' ').slice(0, 200)}"`, cls: shared ? 'REAL' : 'BROKEN', severity: shared ? 'ok' : 'blocker', evidence: row.shot });
 
     await p.getByRole('link', { name: 'New note' }).click();
     await a.settle();
@@ -555,11 +558,12 @@ try {
     const text = await a.text('main');
     await classifyMock(a, 'Spaces', row.shot, { selector: 'main' });
     rec.finding({ screen: 'Spaces', item: /Personal/.test(text) ? 'the personal space, from GET /v1/projects' : 'no spaces listed', cls: /Personal/.test(text) ? 'REAL' : 'BROKEN', severity: /Personal/.test(text) ? 'ok' : 'major', evidence: row.shot });
-    const newSpace = a.page.getByRole('button', { name: 'New space' });
+    const newSpace = a.page.getByRole('main').getByRole('button', { name: 'New space' });
     if ((await newSpace.count()) && (await newSpace.isDisabled())) rec.finding({ screen: 'Spaces', item: '"New space" is permanently disabled — a person can never create a space, so sharing a space with a team is impossible from the app', cls: 'BROKEN', severity: 'major', evidence: row.shot, note: 'src/screens/SpacesList.tsx · the server has POST /v1/projects' });
     if (spaceId && !text.includes(SPACE.name)) rec.finding({ screen: 'Spaces', item: `the space created in this run ("${SPACE.name}") is not listed`, cls: 'BROKEN', severity: 'major', evidence: row.shot });
-    const m = text.match(/(\d+) pages · (\d+) sessions/);
-    if (m && Number(m[2]) < 1) rec.finding({ screen: 'Spaces', item: `the personal space says "${m[0]}" after a note was filed in it`, cls: 'BROKEN', severity: 'minor', evidence: row.shot });
+    // The personal space's line: "N sessions · only you · changed …" (a page count only when there are pages).
+    const m = text.match(/(\d+) sessions? · only you/);
+    if (m && Number(m[1]) < 1) rec.finding({ screen: 'Spaces', item: `the personal space says "${m[0]}" after a note was filed in it`, cls: 'BROKEN', severity: 'minor', evidence: row.shot });
     await a.page.getByRole('link', { name: /Personal/ }).first().click();
     await a.settle();
     row.shot = await a.shot('space-personal');

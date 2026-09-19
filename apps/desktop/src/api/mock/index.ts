@@ -1,17 +1,21 @@
 import { NotFoundError, type OpenKTClient } from '../client';
 import { ApiError } from '../errors';
 import { filesProblem, parseFrontmatter, SKILL_MD, slugify, starterSkillMd, toSkillFile } from '../skillFiles';
+import { joinCodeFrom, nextFreeSlug, spaceSlug } from '../spaces';
 import type {
+  Capabilities,
   Connector,
   ContextItem,
   Grant,
   GrantSubject,
   Id,
+  JoinLink,
   ModelJob,
   ModelSettings,
   NewSkillInput,
   NewFactInput,
   NewSessionInput,
+  NewSpaceInput,
   RecallHit,
   ResourceRef,
   Role,
@@ -22,6 +26,9 @@ import type {
   SkillFile,
   SkillFileInput,
   SkillSummary,
+  Space,
+  SpaceMember,
+  SpaceMembers,
 } from '../types';
 import { sourceLabel } from '../format';
 import { createSeed, type SeedData } from './seed';
@@ -47,6 +54,9 @@ export class MockClient implements OpenKTClient {
   private db: SeedData;
   private listeners = new Set<() => void>();
   private seq = 0;
+  private joinLinks: (JoinLink & { spaceId: Id })[] = [];
+  /** Spaces made here count their people from their grants; the sample ones keep the canvas's numbers. */
+  private made = new Set<Id>();
 
   constructor(seed: SeedData = createSeed()) {
     this.db = seed;
@@ -82,22 +92,117 @@ export class MockClient implements OpenKTClient {
     return clone(this.db.workspace);
   }
 
+  async capabilities(): Promise<Capabilities> {
+    return { moveSession: true, joinLinks: true };
+  }
+
+  /** Sample spaces predate owners: the person using the sample owns them. */
+  private spaceView(s: Space): Space {
+    const view = { ...clone(s), ownerId: s.ownerId ?? this.db.workspace.me.id, myRole: s.myRole ?? 'owner' };
+    if (this.made.has(s.id)) {
+      const grants = this.db.grants.filter((g) => sameResource(g.resource, { type: 'space', id: s.id }) && !g.pending);
+      const teams = this.db.workspace.teams;
+      view.memberCount = grants.reduce((n, g) => n + (g.subject.type === 'team' ? (teams.find((t) => t.id === g.subject.id)?.memberCount ?? 0) : 1), 0);
+    }
+    return view;
+  }
+
+  private space(id: Id): Space {
+    const s = this.db.spaces.find((x) => x.id === id);
+    if (!s) throw new NotFoundError('space', id);
+    return s;
+  }
+
   async listSpaces() {
-    return clone(this.db.spaces);
+    return this.db.spaces.map((s) => this.spaceView(s));
   }
 
   async getSpace(id: Id) {
-    const s = this.db.spaces.find((x) => x.id === id);
-    if (!s) throw new NotFoundError('space', id);
-    return clone(s);
+    return this.spaceView(this.space(id));
   }
 
-  async createSpace(name: string) {
-    const title = name.trim();
-    const space = { id: this.nextId('sp'), name: title, slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), description: '', memberCount: 1, pageCount: 0, sessionCount: 0, updatedAt: new Date().toISOString() };
+  async createSpace(input: NewSpaceInput): Promise<Space> {
+    const name = input.name.trim();
+    if (!name) throw new ApiError('invalid', 'Give the space a name.', 400, 'validation_error', '/projects');
+    const me = this.db.workspace.me;
+    const { slug } = nextFreeSlug(spaceSlug(name), new Set(this.db.spaces.map((s) => s.slug)));
+    const space: Space = {
+      id: this.nextId('sp'),
+      name,
+      slug,
+      description: input.description?.trim() ?? '',
+      personal: false,
+      memberCount: 1,
+      pageCount: 0,
+      sessionCount: 0,
+      updatedAt: new Date().toISOString(),
+      ownerId: me.id,
+      myRole: 'owner',
+    };
     this.db.spaces.push(space);
+    this.made.add(space.id);
+    this.db.grants.push({
+      id: this.nextId('g'),
+      resource: { type: 'space', id: space.id },
+      subject: { type: 'user', id: me.id, name: me.name, initials: me.initials, email: me.email },
+      role: 'owner',
+      note: 'you · created this space',
+    });
     this.changed();
-    return clone(space);
+    return this.spaceView(space);
+  }
+
+  async listSpaceMembers(spaceId: Id): Promise<SpaceMembers> {
+    const space = this.spaceView(this.space(spaceId));
+    const me = this.db.workspace.me;
+    const members: SpaceMember[] = this.db.grants
+      .filter((g) => sameResource(g.resource, { type: 'space', id: spaceId }))
+      .map((g) => ({
+        id: g.subject.id,
+        name: g.subject.name,
+        initials: g.subject.initials,
+        email: g.subject.email,
+        role: g.role,
+        pending: g.pending || undefined,
+        team: g.subject.type === 'team' || undefined,
+        you: g.subject.id === me.id || undefined,
+      }));
+    if (space.ownerId === me.id && !members.some((m) => m.you)) members.unshift({ id: me.id, name: me.name, initials: me.initials, email: me.email, role: 'owner', you: true });
+    return { members, complete: true };
+  }
+
+  async listSpaceContext(spaceId: Id, opts?: { limit?: number }): Promise<ContextItem[]> {
+    this.space(spaceId);
+    return clone(
+      this.db.context
+        .filter((c) => c.spaceId === spaceId && !c.supersededBy)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, opts?.limit ?? 20),
+    );
+  }
+
+  async createJoinLink(spaceId: Id, role: Role): Promise<JoinLink> {
+    const space = this.spaceView(this.space(spaceId));
+    if (space.myRole !== 'owner') throw new ApiError('forbidden', 'only the space owner can invite', 403, 'forbidden', `/projects/${spaceId}/join-links`);
+    const code = `${this.nextId('join').replace(/[^a-z0-9]/g, '')}${Math.random().toString(36).slice(2, 8)}`;
+    const link = { code, url: `https://openkt.ai/join/${code}`, role, spaceId };
+    this.joinLinks.push(link);
+    return { code, url: link.url, role };
+  }
+
+  async joinSpace(linkOrCode: string): Promise<Space> {
+    const code = joinCodeFrom(linkOrCode);
+    const link = this.joinLinks.find((l) => l.code === code);
+    if (!link) throw new ApiError('not-found', 'That invite link is not valid, or it has expired.', 404, 'not_found', '/join');
+    const space = this.space(link.spaceId);
+    const me = this.db.workspace.me;
+    const mine = this.db.grants.find((g) => sameResource(g.resource, { type: 'space', id: space.id }) && g.subject.id === me.id);
+    if (!mine) {
+      this.db.grants.push({ id: this.nextId('g'), resource: { type: 'space', id: space.id }, subject: { type: 'user', id: me.id, name: me.name, initials: me.initials, email: me.email }, role: link.role, note: 'joined with a link' });
+      space.memberCount += 1;
+    }
+    this.changed();
+    return this.spaceView(space);
   }
 
   async listPages(spaceId: Id) {
@@ -112,19 +217,39 @@ export class MockClient implements OpenKTClient {
     return clone(p);
   }
 
-  async listSessions(filter?: { spaceId?: Id; mine?: boolean }) {
+  private personName(id: Id): string {
+    return this.db.workspace.people.find((p) => p.id === id)?.name ?? '';
+  }
+
+  async listSessions(filter?: { spaceId?: Id; mine?: boolean }): Promise<SessionListItem[]> {
     const me = this.db.workspace.me.id;
     return this.db.sessions
       .filter((s) => (filter?.spaceId ? s.spaceId === filter.spaceId : true))
       .filter((s) => (filter?.mine ? s.authorId === me : true))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((s) => clone(stripTurns(s)));
+      .map((s) => ({ ...clone(stripTurns(s)), authorName: this.personName(s.authorId) }));
   }
 
-  async getSession(id: Id) {
+  async getSession(id: Id): Promise<Session> {
     const s = this.db.sessions.find((x) => x.id === id);
     if (!s) throw new NotFoundError('session', id);
-    return clone(s);
+    return { ...clone(s), authorName: this.personName(s.authorId) };
+  }
+
+  async moveSession(id: Id, spaceId: Id): Promise<Session> {
+    const s = this.db.sessions.find((x) => x.id === id);
+    if (!s) throw new NotFoundError('session', id);
+    const to = this.space(spaceId);
+    if (s.authorId !== this.db.workspace.me.id) throw new ApiError('forbidden', 'only the person who saved it can move it', 403, 'forbidden', `/sessions/${id}`);
+    if (s.spaceId !== to.id) {
+      const from = this.db.spaces.find((x) => x.id === s.spaceId);
+      if (from) from.sessionCount = Math.max(0, from.sessionCount - 1);
+      to.sessionCount += 1;
+      s.spaceId = to.id;
+      for (const c of this.db.context) if (c.sessionId === id) c.spaceId = to.id;
+    }
+    this.changed();
+    return { ...clone(s), authorName: this.personName(s.authorId) };
   }
 
   async createSession(input: NewSessionInput) {
@@ -141,6 +266,7 @@ export class MockClient implements OpenKTClient {
       status: 'open',
       spaceId: input.spaceId,
       authorId: me.id,
+      authorName: me.name,
       createdAt: new Date().toISOString(),
       extractedOn: input.extractedOn ?? 'device',
       turns: parts.map((t, i) => ({ id: `t${i + 1}`, speaker, at: 0, text: t })),
@@ -179,6 +305,7 @@ export class MockClient implements OpenKTClient {
       kind: input.kind ?? 'fact',
       statement: input.statement.trim(),
       author: this.db.workspace.me.name,
+      authorId: this.db.workspace.me.id,
       sessionId: input.sessionId,
       spaceId: input.spaceId,
       tags: [],
@@ -467,6 +594,8 @@ export class MockClient implements OpenKTClient {
           title: s.title,
           meta: `${sourceLabel(s.source)} · ${spaceName(s.spaceId)}`,
           source: s.source,
+          author: this.personName(s.authorId),
+          spaceName: spaceName(s.spaceId),
           href: `/sessions/${s.id}`,
         });
       }
@@ -475,7 +604,7 @@ export class MockClient implements OpenKTClient {
       for (const p of this.db.pages) {
         if (!inSpace(p.spaceId)) continue;
         if (`${p.title} ${p.summary}`.toLowerCase().includes(q)) {
-          hits.push({ id: p.id, type: 'page', title: p.title, meta: `page · ${spaceName(p.spaceId)}`, href: `/pages/${p.id}` });
+          hits.push({ id: p.id, type: 'page', title: p.title, meta: `page · ${spaceName(p.spaceId)}`, spaceName: spaceName(p.spaceId), href: `/pages/${p.id}` });
         }
       }
       for (const c of this.db.context) {
@@ -488,6 +617,8 @@ export class MockClient implements OpenKTClient {
             kind: c.kind,
             title: c.statement,
             meta: `${c.author} · ${session?.title ?? 'session'}`,
+            author: c.author,
+            spaceName: spaceName(c.spaceId),
             href: `/sessions/${c.sessionId}/context`,
           });
         }

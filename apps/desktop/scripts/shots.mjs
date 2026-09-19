@@ -7,6 +7,7 @@
  * actually loaded and that nothing overflows horizontally.
  *
  * CHROMIUM_PATH overrides the browser binary (no browser is downloaded).
+ * SHOTS_PORT serves on another port (another checkout's preview may hold 4173).
  * `--only=<text>` shoots just the shots whose name contains it.
  */
 import { spawn } from 'node:child_process';
@@ -21,7 +22,8 @@ const out = join(root, 'shots');
 const dev = process.argv.includes('--dev');
 /** `--only=skill` shoots just the matching names (and keeps the other PNGs). */
 const only = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length) ?? '';
-const port = dev ? 5173 : 4173;
+// SHOTS_PORT: another checkout's preview may already hold 4173; strictPort would then shoot ITS build.
+const port = Number(process.env.SHOTS_PORT) || (dev ? 5173 : 4173);
 const base = `http://localhost:${port}`;
 const executablePath =
   process.env.CHROMIUM_PATH ?? join(homedir(), '.cache/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-linux64/chrome-headless-shell');
@@ -257,6 +259,17 @@ const SHOTS = [
   ['05-session-context', `${S}/context`, APP, null, null],
   ['06-session-transcript', `${S}/transcript`, APP, null, null],
   ['07-session-access', `${S}/access`, APP, null, 'Access.dc.html'],
+  [
+    '07b-session-move',
+    S,
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'More' }).click();
+      await p.getByRole('menuitem', { name: 'Move to another space…' }).click();
+      await p.getByRole('dialog', { name: 'Move to another space' }).waitFor();
+    },
+    null,
+  ],
   ['08-session-access-role-menu', `${S}/access`, APP, async (p) => p.getByRole('button', { name: /Role for Ana Reyes/ }).click(), null],
   [
     '08b-access-share-by-email',
@@ -276,6 +289,17 @@ const SHOTS = [
   ],
   ['09-new-note', '/new', APP, null, null],
   [
+    '09c-new-note-space-picker',
+    '/new',
+    APP,
+    async (p) => {
+      await p.getByLabel('Note', { exact: true }).fill('Kickoff with the launch team: ship the pilot to ten stores in March.');
+      await p.getByRole('button', { name: /^Save to space:/ }).click();
+      await p.getByRole('listbox', { name: 'Save to space' }).waitFor();
+    },
+    null,
+  ],
+  [
     '09b-new-note-confirm',
     '/new',
     APP,
@@ -288,7 +312,66 @@ const SHOTS = [
     fakeLocalAi,
   ],
   ['10-spaces', '/spaces', APP, null, null],
-  ['11-space', '/spaces/sp-northgate', APP, null, 'Space.dc.html'],
+  [
+    '10b-new-space-dialog',
+    '/spaces',
+    APP,
+    async (p) => {
+      await p.getByRole('main').getByRole('button', { name: 'New space' }).click();
+      await p.getByLabel('Name').fill('Q4 launch');
+      await p.getByLabel(/What goes in it/).fill('Decisions, calls and notes for the launch');
+      await p.getByRole('radio', { name: /Share with people/ }).check();
+      await p.getByLabel('Emails').fill('ana@example.com, dana@northgate.com');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  [
+    '10c-join-a-team',
+    '/spaces',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Join a team' }).click();
+      await p.getByLabel('Invite link or code').fill('https://openkt.ai/join/k3xq9a2m');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  ['11-space', '/spaces/sp-northgate', APP, async (p) => p.getByRole('list', { name: 'Context in this space' }).getByRole('listitem').first().waitFor(), 'Space.dc.html'],
+  [
+    '11b-space-new-empty',
+    '/spaces',
+    APP,
+    async (p) => {
+      await p.getByRole('main').getByRole('button', { name: 'New space' }).click();
+      await p.getByLabel('Name').fill('Q4 launch');
+      await p.getByRole('button', { name: 'Create space' }).click();
+      await p.getByRole('heading', { level: 1, name: 'Q4 launch' }).waitFor();
+      await p.getByText(/Nothing saved here yet/).waitFor();
+    },
+    null,
+  ],
+  [
+    '11c-space-invite',
+    '/spaces/sp-northgate',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Invite', exact: true }).click();
+      await p.getByLabel('Invite by email').fill('dana@northgate.com');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  [
+    '11d-space-invite-link',
+    '/spaces/sp-northgate',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Copy invite link' }).click();
+      await p.getByRole('status').waitFor();
+    },
+    null,
+  ],
   ['12-space-access', '/spaces/sp-northgate/access', APP, null, null],
   ['13-page', '/pages/p-northgate-pricing', APP, null, 'Page.dc.html'],
   ['14-skills', '/skills', APP, null, 'Skills.dc.html'],
@@ -343,7 +426,8 @@ const SHOTS = [
     null,
   ],
   ['15-settings-connectors', '/settings/connectors', APP, null, 'Connectors.dc.html'],
-  ['16-settings-connectors-menu', '/settings/connectors', APP, async (p) => p.getByRole('button', { name: /New ChatGPT sessions/ }).click(), null],
+  // The per-tool "shared with" menu moved to Access defaults with the connectors rework (#90).
+  ['16-settings-connectors-menu', '/settings/access', APP, async (p) => p.getByRole('button', { name: /New ChatGPT sessions/ }).click(), null],
   ['17-settings-access-defaults', '/settings/access', APP, null, null],
   ['18-settings-models', '/settings/models', APP, null, 'Models.dc.html'],
   ['19-settings-hotkeys', '/settings/hotkeys', APP, null, null],
@@ -485,7 +569,11 @@ async function main() {
   const server = spawn(bin, dev ? ['--port', String(port), '--strictPort'] : ['preview', '--port', String(port), '--strictPort'], { cwd: root, stdio: 'ignore' });
   let failed = false;
   try {
+    let exited = null;
+    server.on('exit', (code) => (exited = code));
     await waitForServer(base);
+    await new Promise((r) => setTimeout(r, 500));
+    if (exited !== null) throw new Error(`the preview server exited (${exited}): port ${port} is probably taken by another checkout. Set SHOTS_PORT.`);
     const browser = await chromium.launch({ executablePath, args: ['--autoplay-policy=no-user-gesture-required'] });
     const report = [];
     for (const [name, route, viewport, steps, artboard, init] of SHOTS.filter(([name]) => !only || name.includes(only))) {

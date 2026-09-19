@@ -1,14 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { describeError, type ContextKind } from '../api';
 import { localAi } from '../api/bridge';
 import { useHotkeys, voiceKeys } from '../api/hotkeys';
 import { asWritten, localAiReady } from '../capture/save';
-import { useClient, useQuery } from '../api/hooks';
+import { useClient } from '../api/hooks';
 import { Key, KindChip } from '../components/bits';
 import { Icon } from '../components/Icon';
 import { ModelsOffer } from '../components/ModelsOffer';
 import { Select } from '../components/Select';
+import { useSaveSpace } from '../components/useSaveSpace';
 
 interface Draft {
   title: string;
@@ -32,20 +33,16 @@ type Phase = { step: 'write' } | { step: 'extracting' } | { step: 'confirm'; dra
 export function NewNote() {
   const client = useClient();
   const navigate = useNavigate();
-  const spaces = useQuery((c) => c.listSpaces(), []);
+  const [params] = useSearchParams();
+  // The space saved into last (else Personal: nothing is ever dropped for lack of somewhere to put it); a space page's "New note" names its own.
+  const { spaceId, setSpaceId, space, options, remember } = useSaveSpace(params.get('space') ?? undefined);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
-  const [spaceId, setSpaceId] = useState('');
   const [phase, setPhase] = useState<Phase>({ step: 'write' });
   const [error, setError] = useState('');
   const [aiReady, setAiReady] = useState(false);
   const voice = voiceKeys(useHotkeys());
   useEffect(() => void localAiReady().then(setAiReady, () => setAiReady(false)), []);
-
-  // Default to the personal space once the list arrives: nothing is ever dropped for lack of somewhere to put it.
-  useEffect(() => {
-    if (!spaceId && spaces.data?.length) setSpaceId((spaces.data.find((s) => s.personal) ?? spaces.data[0]!).id);
-  }, [spaceId, spaces.data]);
 
   const firstLine = text.trim().split('\n')[0]?.slice(0, 60) ?? '';
   const empty = !title.trim() && !text.trim();
@@ -74,6 +71,7 @@ export function NewNote() {
       // teammate it is shared with and every connected tool can recall it. A refusal keeps the session.
       if (kept.length === 0) await client.saveFact(asWritten(session.id, spaceId, title.trim() || draft?.title.trim() || '', text)).catch(() => undefined);
       await client.closeSession(session.id, draft?.summary.trim() || text.trim().slice(0, 600));
+      remember();
       navigate(`/sessions/${session.id}${kept.length ? '/context' : ''}`);
     } catch (e) {
       setError(describeError(e));
@@ -100,7 +98,6 @@ export function NewNote() {
     if (!title.trim() && got.title) setTitle(got.title);
   };
 
-  const space = spaces.data?.find((s) => s.id === spaceId);
   const draft = phase.step === 'confirm' ? phase.draft : null;
   const patchDraft = (p: Partial<Draft>) => draft && setPhase({ step: 'confirm', draft: { ...draft, ...p } });
   const busy = phase.step === 'extracting' || phase.step === 'saving';
@@ -120,7 +117,7 @@ export function NewNote() {
           </span>
           <span className="with-icon">
             <Icon name="lock" size={13} />
-            {space?.personal ? 'only you' : `filed in ${space?.name ?? ''}`}
+            {space?.personal ? 'only you' : space ? `filed in ${space.name}${space.memberCount > 1 ? ` · ${space.memberCount} people` : space.myRole && space.myRole !== 'owner' ? ' · shared' : ''}` : ''}
           </span>
         </div>
         <div className="rule" />
@@ -194,10 +191,8 @@ export function NewNote() {
               up
               value={spaceId}
               onChange={setSpaceId}
-              options={(spaces.data ?? []).map((s) => ({
-                value: s.id,
-                label: s.name,
-              }))}
+              options={options}
+              display={space ? (space.personal ? 'Personal' : space.name) : undefined}
               leading={<Icon name="folder" size={13} />}
             />
             {draft ? (

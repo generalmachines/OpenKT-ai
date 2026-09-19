@@ -22,8 +22,8 @@ const ACCESS_NOTE: Record<string, string> = {
   'sp-personal': 'private',
 };
 
-function SpacePicker({ value, onChange, options = SPACE_OPTIONS }: { value: string; onChange: (v: string) => void; options?: SelectOption<string>[] }) {
-  return <Select label="Save to" variant="pill" align="left" up value={value} options={options} onChange={onChange} leading={<Icon name="folder" size={13} />} />;
+function SpacePicker({ value, onChange, options = SPACE_OPTIONS, display }: { value: string; onChange: (v: string) => void; options?: SelectOption<string>[]; display?: string }) {
+  return <Select label="Save to" variant="pill" align="left" up value={value} options={options} onChange={onChange} display={display} leading={<Icon name="folder" size={13} />} />;
 }
 
 /** `setup`: the speech model is still downloading — the pill says how far along, instead of failing. */
@@ -55,6 +55,8 @@ export interface VoiceProps {
   levels?: number[];
   /** Real spaces; the artboard's list otherwise. */
   spaces?: SelectOption<string>[];
+  /** Short name on the picker button when the menu's labels are longer. */
+  spaceLabel?: string;
   accessNote?: string;
   /** One calm line under the text: why there are no facts yet, or what went wrong. */
   notice?: string;
@@ -66,7 +68,7 @@ export interface VoiceProps {
 const VOICE_HINT: Partial<Record<VoiceState, string>> = { transcribing: 'one moment', review: 'esc to discard', saving: '', saved: 'filed', empty: '', permission: 'esc to close', failed: 'esc to close', setup: 'esc to close' };
 
 /** Capture-Voice.dc.html */
-export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, accessNote, notice, onSave, action }: VoiceProps) {
+export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, spaceLabel, accessNote, notice, onSave, action }: VoiceProps) {
   const listening = state === 'listening';
   return (
     <div className="sheet sheet--voice" role="status" aria-label="Voice capture">
@@ -104,7 +106,7 @@ export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpac
       {state !== 'empty' && state !== 'permission' && state !== 'failed' && state !== 'setup' && (
         <div className="sheet__row">
           <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Save to</span>
-          <SpacePicker value={spaceId} onChange={onSpace} options={spaces} />
+          <SpacePicker value={spaceId} onChange={onSpace} options={spaces} display={spaceLabel} />
           <span className="mono small-meta" style={onSave ? { flexGrow: 1 } : undefined}>
             {accessNote ?? ACCESS_NOTE[spaceId] ?? ''}
           </span>
@@ -176,6 +178,7 @@ export interface ScreenshotProps {
   /** file:// or data: URL of the capture; the artboard's placeholder lines otherwise. */
   image?: string;
   spaces?: SelectOption<string>[];
+  spaceLabel?: string;
   /** Replaces the "text read on this Mac" line: progress, or why nothing was saved. */
   note?: string;
   saving?: boolean;
@@ -184,7 +187,7 @@ export interface ScreenshotProps {
 }
 
 /** Capture-Screenshot.dc.html */
-export function ScreenshotSheet({ description, spaceId, onSpace, onSave, reading, onDescription, image, spaces, note, saving, nothing }: ScreenshotProps) {
+export function ScreenshotSheet({ description, spaceId, onSpace, onSave, reading, onDescription, image, spaces, spaceLabel, note, saving, nothing }: ScreenshotProps) {
   const [broken, setBroken] = useState(false);
   return (
     <div className="sheet sheet--shot" role="dialog" aria-label="Screenshot captured">
@@ -208,7 +211,7 @@ export function ScreenshotSheet({ description, spaceId, onSpace, onSave, reading
           <span style={{ fontSize: 14.5 }}>{description}</span>
         )}
         <div className="sheet__row" style={{ paddingTop: 0 }}>
-          {!nothing && <SpacePicker value={spaceId} onChange={onSpace} options={spaces} />}
+          {!nothing && <SpacePicker value={spaceId} onChange={onSpace} options={spaces} display={spaceLabel} />}
           <span className="mono small-meta" style={{ flexGrow: 1 }}>
             {note ?? 'text read on this Mac'}
           </span>
