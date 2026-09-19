@@ -27,6 +27,8 @@ import { registerCardTools } from "./mcp-card-tools";
 import { registerTeamTools } from "../../teams/mcp/team-tools";
 import { TeamsService } from "../../teams/services/teams.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
+import { PagesApplicationService } from "../../pages/services/pages-application.service";
+import { registerPageTools } from "./mcp-page-tools";
 
 // The contract every connected tool should follow — kept here (not
 // inline in `new McpServer(...)`) so its size is easy to eyeball.
@@ -88,6 +90,8 @@ export class McpServerFactoryService {
     // Optional so a factory built by hand (the proof test) still works; Nest
     // always injects it.
     @Optional() private readonly teams?: TeamsService,
+    // Pages and the space brief (living context). Optional for the same reason.
+    @Optional() private readonly pagesApp?: PagesApplicationService,
   ) {}
 
   async sdk(): Promise<SdkExports> {
@@ -339,10 +343,21 @@ export class McpServerFactoryService {
           title: input.title ?? null,
           metadata: {},
         });
-        const brief = await this.briefing
-          .getBriefing(context, session.project_id)
-          .catch(() => null);
-        return jsonResult({ session, brief });
+        const [brief, briefMd] = await Promise.all([
+          this.briefing.getBriefing(context, session.project_id).catch(() => null),
+          // The space brief (T3), kept current from the space's pages by members' Macs.
+          this.pagesApp ? this.pagesApp.briefFor(session.project_id) : Promise.resolve(null),
+        ]);
+        const lead = briefMd
+          ? `${briefMd}\n\n---\n`
+          : "No brief for this space yet: it appears once sessions here have been processed into pages.\n\n";
+        // content[0] stays the JSON clients already parse; content[1] is the brief to read.
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ session, brief_md: briefMd, brief }, null, 2) },
+            { type: "text" as const, text: `${lead}Your session id is ${session.id}. Pass it to kt_recall / kt_save_memory / kt_session_end.` },
+          ],
+        };
       },
     );
 
@@ -371,6 +386,9 @@ export class McpServerFactoryService {
         return jsonResult({ session });
       },
     );
+
+    // ── kt_page ───────────────────────────────────────────────────
+    if (this.pagesApp) registerPageTools(server as never, this.pagesApp, context);
 
     // ── kt_list_skills ────────────────────────────────────────────
     // Skills: the team's written procedures — a SKILL.md plus optional

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
 import { NotFoundDomainError } from "@openkt/core-errors";
@@ -18,11 +18,17 @@ import { MemoryRepository } from "../../memory/repositories/memory.repository";
 import type { MemoryRecord } from "../../memory/contracts/memory.contract";
 import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { GrantRepository } from "../../grants/repositories/grant.repository";
+import { JobQueueRepository } from "../../jobs/repositories/job-queue.repository";
 
 export type SessionRole = "owner" | "editor" | "reader";
 
+/** Spec 02 §2: a session with less user + assistant text than this is not processed at all. */
+export const MIN_SESSION_CHARS = 200;
+
 @Injectable()
 export class SessionsApplicationService {
+  private readonly logger = new Logger(SessionsApplicationService.name);
+
   constructor(
     private readonly sessionRepository: SessionRepository,
     private readonly projectScopeService: ProjectScopeService,
@@ -33,6 +39,7 @@ export class SessionsApplicationService {
     // SessionRepository for save-time session stamping).
     private readonly memoryRepository: MemoryRepository,
     private readonly grantRepository: GrantRepository,
+    private readonly jobQueue: JobQueueRepository,
   ) {}
 
   async start(context: ActorContext, input: CreateSessionInput): Promise<SessionRecord> {
@@ -66,7 +73,13 @@ export class SessionsApplicationService {
   ): Promise<SessionRecord> {
     refuseSecrets("summary", input.summary);
     await this.requireWritable(context, sessionId);
-    return this.sessionRepository.close(sessionId, input.summary ?? null);
+    const closed = await this.sessionRepository.close(sessionId, input.summary ?? null);
+    // Living context: a member's Mac with the on-device model picks this up, extracts the facts
+    // and folds them into the space's pages (modules/jobs). Once per session. Never fails a close.
+    await this.jobQueue.enqueueSessionOnce(closed.id, MIN_SESSION_CHARS).catch((err: unknown) => {
+      this.logger.warn(`[sessions] could not queue processing for ${closed.id}: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    return closed;
   }
 
   async list(

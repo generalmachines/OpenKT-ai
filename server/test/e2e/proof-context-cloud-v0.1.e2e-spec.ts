@@ -58,6 +58,9 @@ import { SessionRepository } from "../../apps/server/src/modules/sessions/reposi
 import { SessionsApplicationService } from "../../apps/server/src/modules/sessions/services/sessions-application.service";
 import { GrantRepository } from "../../apps/server/src/modules/grants/repositories/grant.repository";
 import { GrantsApplicationService } from "../../apps/server/src/modules/grants/services/grants-application.service";
+import { JobQueueRepository } from "../../apps/server/src/modules/jobs/repositories/job-queue.repository";
+import { PageRepository } from "../../apps/server/src/modules/pages/repositories/page.repository";
+import { PagesApplicationService } from "../../apps/server/src/modules/pages/services/pages-application.service";
 import { AccessScopeService } from "../../apps/server/src/modules/access/services/access-scope.service";
 import { McpServerFactoryService } from "../../apps/server/src/modules/mcp/services/mcp-server-factory.service";
 import { McpUiRendererService } from "../../apps/server/src/modules/mcp/services/mcp-ui-renderer.service";
@@ -179,12 +182,14 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
       memoryRepository,
       sessionRepository,
       accessScopeService,
+      new PageRepository(db as never),
     );
     sessionsApp = new SessionsApplicationService(
       sessionRepository,
       projectScopeService,
       memoryRepository,
       grantRepository,
+      new JobQueueRepository(db as never),
     );
     grantsApp = new GrantsApplicationService(grantRepository);
     mcpFactory = new McpServerFactoryService(
@@ -202,6 +207,8 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
         accessScopeService,
         grantRepository,
       ),
+      undefined, // teams: not part of this proof
+      new PagesApplicationService(db as never, new PageRepository(db as never), new JobQueueRepository(db as never), projectScopeService),
     );
 
     // Fixture profiles — memories.owner_user_id FKs to profiles.

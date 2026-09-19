@@ -10,6 +10,7 @@ import { SessionsModule } from "../sessions/sessions.module";
 import { GrantsModule } from "../grants/grants.module";
 import { SkillsModule } from "../skills/skills.module";
 import { TeamsModule } from "../teams/teams.module";
+import { PagesModule } from "../pages/pages.module";
 import { McpController } from "./controllers/mcp.controller";
 import { McpServerFactoryService } from "./services/mcp-server-factory.service";
 import { McpUiRendererService } from "./services/mcp-ui-renderer.service";
@@ -33,6 +34,7 @@ import { McpUiRendererService } from "./services/mcp-ui-renderer.service";
     GrantsModule,
     SkillsModule,
     TeamsModule,
+    PagesModule,
   ],
   controllers: [McpController],
   providers: [McpServerFactoryService, McpUiRendererService, BearerAuthGuard],
