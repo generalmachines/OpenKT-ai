@@ -20,8 +20,8 @@ const pages = [
   {
     id: "page-1",
     sections: [
-      { heading: "Overview", locked: false },
-      { heading: "Pricing", locked: true },
+      { title: "Overview", locked: false },
+      { title: "Pricing", locked: true },
     ],
   },
 ];
@@ -43,34 +43,60 @@ describe("guardRoutes", () => {
   });
 
   it("confidence < 0.4 → low_confidence", () => {
-    const out = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_heading: "Overview" }], [fact("f1", { confidence: 0.39 })]);
+    const out = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_title: "Overview" }], [fact("f1", { confidence: 0.39 })]);
     expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "low_confidence" }]);
   });
 
   it("action or question older than 30 days → stale", () => {
-    const out = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_heading: "Overview" }], [fact("f1", { kind: "action", age_days: 31 })]);
+    const out = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_title: "Overview" }], [fact("f1", { kind: "action", age_days: 31 })]);
     expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "stale" }]);
-    const ok = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_heading: "Overview" }], [fact("f1", { kind: "question", age_days: 30 })]);
+    const ok = run([{ fact_id: "f1", action: "append", page_id: "page-1", section_title: "Overview" }], [fact("f1", { kind: "question", age_days: 30 })]);
     expect(ok.unrouted).toEqual([]);
   });
 
   it("unknown page_id → unknown_page", () => {
-    const out = run([{ fact_id: "f1", action: "append", page_id: "nope", section_heading: "Overview" }]);
+    const out = run([{ fact_id: "f1", action: "append", page_id: "nope", section_title: "Overview" }]);
     expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "unknown_page" }]);
   });
 
   it("an unknown section on a known page becomes append with that heading", () => {
-    const out = run([{ fact_id: "f1", action: "rewrite_section", page_id: "page-1", section_heading: "Fresh" }]);
+    const out = run([{ fact_id: "f1", action: "rewrite_section", page_id: "page-1", section_title: "Fresh" }]);
     expect(out.routes).toEqual([
-      { fact_id: "f1", action: "append", page_id: "page-1", section_heading: "Fresh" },
+      { fact_id: "f1", action: "append", page_id: "page-1", section_title: "Fresh" },
     ]);
   });
 
   it("a locked target becomes append on Updates with the flag set", () => {
-    const out = run([{ fact_id: "f1", action: "rewrite_section", page_id: "page-1", section_heading: "Pricing" }]);
+    const out = run([{ fact_id: "f1", action: "rewrite_section", page_id: "page-1", section_title: "Pricing" }]);
     expect(out.routes).toEqual([
-      { fact_id: "f1", action: "append", page_id: "page-1", section_heading: "Updates", redirected_from_locked: true },
+      { fact_id: "f1", action: "append", page_id: "page-1", section_title: "Updates", redirected_from_locked: true },
     ]);
+  });
+
+  it("a locked Updates section → unrouted, reason locked", () => {
+    const lockedPages = [
+      {
+        id: "page-1",
+        sections: [
+          { title: "Pricing", locked: true },
+          { title: "Updates", locked: true },
+        ],
+      },
+    ];
+    const out = guardRoutes({
+      facts: [fact("f1")],
+      proposals: [{ fact_id: "f1", action: "rewrite_section", page_id: "page-1", section_title: "Pricing" }],
+      pages: lockedPages,
+      unroutedTitles: [],
+      titleSimilarity: (a, b) => (a.toLowerCase() === b.toLowerCase() ? 1 : 0),
+    });
+    expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "locked" }]);
+    expect(out.routes).toEqual([]);
+  });
+
+  it("null proposal fields are treated the same as absent", () => {
+    const out = run([{ fact_id: "f1", action: "noop", page_id: null, section_title: null, new_page_title: null }]);
+    expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "noop" }]);
   });
 
   it("bad titles → bad_title", () => {

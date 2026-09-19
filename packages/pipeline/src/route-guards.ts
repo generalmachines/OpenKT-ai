@@ -1,21 +1,23 @@
 // Routing facts to pages (Spec 02 §5 step 3): the route agent proposes where
-// each fact goes; code enforces the rules.
+// each fact goes; code enforces the rules. Field names are `section_title` and
+// `new_page_title`, exactly as in packages/agents/schemas/route.json; absent
+// and null proposal fields are treated the same.
 
 import type { FactRef } from "./types.js";
 
 export interface Proposal {
   fact_id: string;
   action: "append" | "rewrite_section" | "new_page" | "noop";
-  page_id?: string;
-  section_heading?: string;
-  new_page_title?: string;
+  page_id?: string | null;
+  section_title?: string | null;
+  new_page_title?: string | null;
 }
 
 export interface Route {
   fact_id: string;
   action: "append" | "rewrite_section" | "new_page";
   page_id?: string;
-  section_heading?: string;
+  section_title?: string;
   new_page_title?: string;
   redirected_from_locked?: boolean;
 }
@@ -23,7 +25,7 @@ export interface Route {
 export interface GuardRoutesInput {
   facts: (FactRef & { age_days: number })[];
   proposals: Proposal[];
-  pages: { id: string; sections: { heading: string; locked: boolean }[] }[];
+  pages: { id: string; sections: { title: string; locked: boolean }[] }[];
   unroutedTitles: string[];
   titleSimilarity: (a: string, b: string) => number;
 }
@@ -86,26 +88,31 @@ export function guardRoutes(input: GuardRoutesInput): {
     }
 
     let action = proposal.action;
-    let heading = proposal.section_heading ?? "";
+    let title = proposal.section_title ?? "";
     let redirected = false;
 
-    if (!page.sections.some((s) => s.heading === heading)) {
-      // Unknown section on a known page → append to a new section with that heading.
-      action = "append";
-    }
-
-    const target = page.sections.find((s) => s.heading === heading);
+    const target = page.sections.find((s) => s.title === title);
     if (target?.locked) {
+      // Locked target → redirect to the page's `Updates` section. If `Updates`
+      // is itself locked, the fact stays unrouted (Spec 02 §5).
+      const updates = page.sections.find((s) => s.title === "Updates");
+      if (updates?.locked) {
+        unrouted.push({ fact_id: fact.id, reason: "locked" });
+        continue;
+      }
       action = "append";
-      heading = "Updates";
+      title = "Updates";
       redirected = true;
+    } else if (!target) {
+      // Unknown section on a known page → append to a new section with that title.
+      action = "append";
     }
 
     routes.push({
       fact_id: fact.id,
       action,
       page_id: page.id,
-      section_heading: heading,
+      section_title: title,
       ...(redirected ? { redirected_from_locked: true } : {}),
     });
   }
