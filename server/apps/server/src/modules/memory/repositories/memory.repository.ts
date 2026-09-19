@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, count, desc, eq, gte, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
@@ -224,10 +224,14 @@ export class MemoryRepository {
   // check in assertProjectMember would wrongly refuse a teammate's save. A
   // duplicate is only ever one the caller may see: never someone else's
   // `personal` memory.
+  // The same statement already saved in this space AND this session (or,
+  // with no session, outside any session). Another session's copy is not a
+  // duplicate: each session keeps what was said in it.
   async findDuplicate(
     context: ActorContext,
     projectId: string,
     content: string,
+    sessionId: string | null = null,
   ): Promise<MemoryRecord | null> {
     const userId = context.principal.userId;
     if (!userId) throw new ValidationDomainError("user principal required");
@@ -240,6 +244,7 @@ export class MemoryRepository {
           eq(memories.content, content),
           eq(memories.archived, false),
           or(eq(memories.ownerUserId, userId), sql`${memories.visibility} <> 'personal'`),
+          sessionId ? eq(memories.sessionId, sessionId) : isNull(memories.sessionId),
         ),
       )
       .limit(1);

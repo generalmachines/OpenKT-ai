@@ -92,7 +92,12 @@ export class MemoryCommandsApplicationService {
       return synthesisResult.merged;
     }
 
-    const duplicate = await this.memoryRepository.findDuplicate(context, projectId, input.content);
+    const duplicate = await this.memoryRepository.findDuplicate(
+      context,
+      projectId,
+      input.content,
+      sessionStamp?.sessionId ?? null,
+    );
     if (duplicate) {
       throw new ValidationDomainError("duplicate memory", duplicate);
     }

@@ -23,10 +23,12 @@ export class HttpApp {
   private readonly run = randomUUID().slice(0, 8);
   private counter = 0;
 
-  async start(): Promise<void> {
-    for (const key of [...SUPABASE_KEYS, "OPENKT_MEMORY_ENGINE"]) this.savedEnv[key] = process.env[key];
+  // `env` is set before the app module loads (some modules read it at import).
+  async start(env: Record<string, string> = {}): Promise<void> {
+    for (const key of [...SUPABASE_KEYS, "OPENKT_MEMORY_ENGINE", ...Object.keys(env)]) this.savedEnv[key] = process.env[key];
     for (const key of SUPABASE_KEYS) delete process.env[key];
     process.env.OPENKT_MEMORY_ENGINE = "local";
+    Object.assign(process.env, env);
     const { AppModule } = await import("../../../apps/server/src/app.module");
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     this.app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
