@@ -303,17 +303,18 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
         name: "kt_recall",
         arguments: { project_id: projectP, query: "Redis port" },
       });
+      // Spec 04: a text block a model can use on its own, plus structuredContent.
       const textBlock = (result.content as Array<{ type: string; text?: string }>).find(
         (block) => block.type === "text",
       );
-      expect(textBlock).toBeDefined();
-      const payload = JSON.parse(textBlock!.text!) as {
-        data: Array<{ content: string; owner: { user_id: string } }>;
-      };
-      expect(payload.data.length).toBeGreaterThan(0);
-      const hit = payload.data.find((row) => row.content.includes("Redis"));
+      expect(textBlock?.text).toContain("Redis");
+      const items = (result.structuredContent as {
+        items: Array<{ text: string; author: { id: string } }>;
+      }).items;
+      expect(items.length).toBeGreaterThan(0);
+      const hit = items.find((row) => row.text.includes("Redis"));
       expect(hit).toBeDefined();
-      expect(hit!.owner.user_id).toBe(userA);
+      expect(hit!.author.id).toBe(userA);
     } finally {
       await client.close();
       await server.close();

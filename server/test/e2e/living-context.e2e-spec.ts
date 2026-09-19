@@ -410,9 +410,12 @@ describeIfDb("Living context: jobs, pages, briefs (e2e)", () => {
       const [c2, s2] = InMemoryTransport.createLinkedPair();
       const clientAna = new Client({ name: "living-e2e-ana", version: "0.0.1" });
       await Promise.all([serverAna.connect(s2), clientAna.connect(c2)]);
-      const content = (await clientAna.callTool({ name: "kt_session_start", arguments: { project: spaceId, title: "next" } })).content as { text: string }[];
-      expect(JSON.parse(content[0]!.text).brief_md).toBe("## What matters now\n- Offline sync opens the demo (Hackathon — demo plan)");
-      expect(content[1]!.text.startsWith("## What matters now\n- Offline sync opens the demo (Hackathon — demo plan)\n\n---\nYour session id is ")).toBe(true);
+      // Spec 04: the brief as text, then the session id; the same as structuredContent.
+      const started = await clientAna.callTool({ name: "kt_session_start", arguments: { project: spaceId, title: "next" } });
+      const content = started.content as { text: string }[];
+      expect((started.structuredContent as { brief_md: string }).brief_md).toBe("## What matters now\n- Offline sync opens the demo (Hackathon — demo plan)");
+      expect(content[0]!.text.startsWith("## What matters now\n- Offline sync opens the demo (Hackathon — demo plan)\n\nSession open in ")).toBe(true);
+      expect(content[0]!.text).toContain("Your session id is ");
       await clientAna.close();
       await serverAna.close();
 
