@@ -22,7 +22,7 @@ export function SpaceView() {
   if (space.error) {
     return (
       <main className="main main--space">
-        <ErrorNote error={space.error} />
+        <ErrorNote error={space.error} onRetry={space.reload} />
       </main>
     );
   }

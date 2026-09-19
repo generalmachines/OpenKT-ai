@@ -1,0 +1,41 @@
+# The desktop journey (apps/desktop/e2e): launches the real Electron app under xvfb and drives it like a
+# person against the live server. It writes a note, finds it with ⌘K and shares it, then a teammate in a
+# second copy of the app finds and recalls what was shared. It also covers Spaces, Settings, the server
+# going away, and a relaunch. It exits 1 on any blocker. The artifacts are screenshots, summary.json,
+# request and console logs.
+#
+# PREPARED, NOT CONNECTED: create a CodeBuild project (image aws/codebuild/standard:7.0, Ubuntu) that runs
+# this buildspec on pull requests touching apps/desktop/**. Report-only at first: blockers owned by other
+# areas are open.
+#
+# OPENKT_E2E_ACCOUNTS=<id> signs in as the existing pair e2e-<id>-a / e2e-<id>-b (password in
+# journey.mjs), or OPENKT_E2E_TOKENS=<a>,<b> starts both copies signed in. Unset, every run creates two
+# accounts on production, and the sign-up limit refuses that from a shared IP.
+version: 0.2
+env:
+  shell: bash
+  variables:
+    OPENKT_E2E_SERVER: https://api.openkt.ai
+phases:
+  install:
+    commands:
+      - export PATH="/usr/local/n/versions/node/$(ls /usr/local/n/versions/node | grep '^22\.' | sort -V | tail -1)/bin:${PATH}"
+      # xvfb, plus the libraries Electron needs on a bare Ubuntu image.
+      - apt-get update -qq && apt-get install -y -qq xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1 libxss1 >/dev/null || apt-get install -y -qq xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libxss1 >/dev/null
+  build:
+    commands:
+      - npm ci --no-audit --no-fund
+      - npm run build -w @openkt/agents
+      # Builds the app, runs the journey under xvfb; exit 1 on any blocker (see e2e/artifacts/summary.json).
+      - npm run e2e -w @openkt/desktop
+  post_build:
+    commands:
+      - test -f apps/desktop/e2e/artifacts/summary.json && node -e "const s=require('./apps/desktop/e2e/artifacts/summary.json');console.log(JSON.stringify(s.totals));for(const f of s.findings.filter(f=>f.severity==='blocker'))console.log('BLOCKER',f.owner,'·',f.screen,'—',f.item)" || true
+artifacts:
+  base-directory: apps/desktop/e2e/artifacts
+  files:
+    - '**/*'
+  name: desktop-e2e-$CODEBUILD_BUILD_NUMBER
+cache:
+  paths:
+    - /root/.npm/**/*

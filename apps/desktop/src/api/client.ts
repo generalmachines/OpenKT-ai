@@ -52,6 +52,8 @@ export interface OpenKTClient {
 
   listSpaces(): Promise<Space[]>;
   getSpace(id: Id): Promise<Space>;
+  /** A new space owned by the signed-in person, private until shared from its Access panel. */
+  createSpace(name: string): Promise<Space>;
   listPages(spaceId: Id): Promise<PageListItem[]>;
   getPage(id: Id): Promise<Page>;
 

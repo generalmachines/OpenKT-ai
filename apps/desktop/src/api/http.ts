@@ -9,7 +9,8 @@
  *
  *   GET    /v1/me                          profile {user_id, display_name, email, …}
  *   GET    /v1/projects/personal           get-or-create the personal space
- *   GET    /v1/projects · /v1/projects/:id {id, slug, name, visibility, org_id, owner_user_id, …}
+ *   GET    /v1/projects · /v1/projects/:id {id, slug, name, visibility, org_id, owner_user_id, …} — owned and granted
+ *   POST   /v1/projects                    {slug, name} → a new private space (shared through its grants)
  *   GET    /v1/orgs · /v1/orgs/slug/:slug/members   people for the invite field
  *   GET    /v1/sessions?project_id=        one project per call; none → the personal space
  *   POST   /v1/sessions                    {project_id, source, client, title}
@@ -18,7 +19,9 @@
  *   GET    /v1/sessions/:id                {session, turns, memories}
  *   POST   /v1/memories                    {content, kind, project_id, session_id}
  *   DELETE /v1/memories/:id
- *   POST   /v1/memories/recall             {query, project_id?, limit} → data: Memory[]
+ *   POST   /v1/memories/recall             {query, project_id?, limit} → data: Memory[] (with `similarity`);
+ *                                           none → personal + the caller's other private spaces, so a shared
+ *                                           space is asked by name and the answers are merged
  *   GET    /v1/{sessions|projects}/:id/grants          owner only → rows with `subject:{id,email,display_name}` or `{pending:true,email}`
  *   PUT    /v1/{sessions|projects}/:id/grants          {email, role} → the grant, or `{pending:true}` when that person has no account yet
  *   DELETE /v1/{sessions|projects}/:id/grants/:userId  (or the pending share's own id)
@@ -41,6 +44,7 @@ import type { NetRequest, NetResponse } from '../shared/ipc';
 import { netRequest } from './bridge';
 import { NotFoundError, type OpenKTClient } from './client';
 import { ApiError, kindForStatus } from './errors';
+import { relativeDay, sourceLabel } from './format';
 import { MockClient } from './mock';
 import { byteLength } from './skillFiles';
 import type {
@@ -67,6 +71,11 @@ import type {
   Space,
   Workspace,
 } from './types';
+
+/** Transport failures that say "try again", not "the server is not there". */
+const TRANSIENT = /ERR_NETWORK_CHANGED|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_EMPTY_RESPONSE|ERR_HTTP2_|ECONNRESET/;
+/** Back-off before each retry of a read, in ms. */
+const RETRIES = [250, 750];
 
 export interface HttpClientOptions {
   baseUrl: string;
@@ -206,6 +215,7 @@ export class HttpClient implements OpenKTClient {
   }
 
   private changed(): void {
+    this.searchCache = undefined;
     for (const l of [...this.listeners]) l();
   }
 
@@ -221,20 +231,29 @@ export class HttpClient implements OpenKTClient {
 
   /** Returns the whole envelope; most callers want `.data`. */
   private async call(method: NetRequest['method'], path: string, body?: unknown): Promise<{ data: unknown; meta: Json }> {
-    let res: NetResponse;
-    try {
-      res = await this.send({
-        url: `${this.baseUrl}/v1${path}`,
-        method,
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${this.token}`,
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-    } catch (e) {
-      throw new ApiError('network', e instanceof Error ? e.message : String(e), 0, '', path);
+    let res: NetResponse | undefined;
+    for (let attempt = 0; !res; attempt++) {
+      try {
+        res = await this.send({
+          url: `${this.baseUrl}/v1${path}`,
+          method,
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${this.token}`,
+            ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        // Chromium drops requests in flight when the network flips (wake from sleep, Wi-Fi/VPN change, and
+        // on some machines right at launch). A read is safe to send again; a write is not, it may have landed.
+        if (method === 'GET' && attempt < RETRIES.length && TRANSIENT.test(message)) {
+          await new Promise((r) => setTimeout(r, RETRIES[attempt]));
+          continue;
+        }
+        throw new ApiError('network', message, 0, '', path);
+      }
     }
     let parsed: Json = {};
     try {
@@ -310,8 +329,21 @@ export class HttpClient implements OpenKTClient {
 
   // ── spaces ────────────────────────────────────────────────────────────
 
+  /**
+   * The personal space. `GET /v1/projects/personal` creates it on first use, but once the person owns a
+   * second private project (every space made with "New space") the server answers with whichever of them
+   * Postgres returns first (project-scope.service.ts resolvePersonalProjectId: `.limit(1)`, no ORDER BY) —
+   * notes were filed into a shared space that way. So it is the oldest owned project with the slug
+   * `personal`, and the server's answer only when there is none.
+   */
   private personal(): Promise<Id> {
-    this.personalId ??= this.data('GET', '/projects/personal').then((d) => str(obj(d)['id']));
+    this.personalId ??= (async () => {
+      const [fromServer, me, projects] = await Promise.all([this.data('GET', '/projects/personal'), this.getMe(), this.data('GET', '/projects').then(arr)]);
+      const own = projects
+        .filter((p) => str(p['slug']) === 'personal' && str(pick(p, 'owner_user_id')) === me.id && !pick(p, 'org_id'))
+        .sort((a, b) => str(pick(a, 'created_at')).localeCompare(str(pick(b, 'created_at'))));
+      return str(own[0]?.['id']) || str(obj(fromServer)['id']);
+    })();
     this.personalId.catch(() => (this.personalId = undefined));
     return this.personalId;
   }
@@ -354,6 +386,24 @@ export class HttpClient implements OpenKTClient {
       this.call('GET', `/sessions?project_id=${encodeURIComponent(id)}&limit=1`).catch(() => null),
     ]);
     return this.toSpace(obj(project), personalId, Number(sessions?.meta['total'] ?? 0));
+  }
+
+  /** SPEC-04: a space is a project; the server wants a slug, derived here from the name (a clash gets a short suffix). */
+  async createSpace(name: string): Promise<Space> {
+    const title = name.trim().slice(0, 120);
+    const slugged = title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 34) || 'space';
+    const base = slugged === 'personal' ? 'personal-space' : slugged; // `personal` is how the personal space is found
+    const slug = (s: string) => (s.length < 2 ? `${s}-space` : s);
+    const create = (s: string) => this.data('POST', '/projects', { slug: slug(s), name: title });
+    let j: unknown;
+    try {
+      j = await create(base);
+    } catch (e) {
+      if (!(e instanceof ApiError) || (e.kind !== 'conflict' && e.kind !== 'invalid')) throw e;
+      j = await create(`${base.slice(0, 34)}-${Math.random().toString(36).slice(2, 6)}`);
+    }
+    this.changed();
+    return this.toSpace(obj(j), await this.personal());
   }
 
   // ── sessions ──────────────────────────────────────────────────────────
@@ -405,7 +455,7 @@ export class HttpClient implements OpenKTClient {
   async createSession(input: NewSessionInput): Promise<Session> {
     const j = obj(
       await this.data('POST', '/sessions', {
-        project_id: input.spaceId || undefined,
+        project_id: input.spaceId || (await this.personal()),
         source: fromSource(input.source),
         client: 'openkt-desktop',
         title: input.title.trim().slice(0, 200) || null,
@@ -442,7 +492,7 @@ export class HttpClient implements OpenKTClient {
         content: input.statement.trim(),
         kind: fromKind(kind),
         category: kind,
-        project_id: input.spaceId || undefined,
+        project_id: input.spaceId || (await this.personal()),
         session_id: input.sessionId,
         visibility: 'project',
       }),
@@ -680,15 +730,24 @@ export class HttpClient implements OpenKTClient {
    * no `project_id` that project is the personal space.
    */
   async recall(query: string, opts?: { spaceId?: Id; limit?: number }): Promise<RecallHit[]> {
-    if (!query.trim()) return [];
-    const rows = arr(
-      await this.data('POST', '/memories/recall', {
-        query: query.trim().slice(0, 2000),
-        project_id: opts?.spaceId,
-        limit: Math.min(50, opts?.limit ?? 12),
-      }),
-    );
-    return rows.map((m) => {
+    const q = query.trim();
+    if (!q) return [];
+    const limit = Math.min(50, opts?.limit ?? 12);
+    const ask = (projectId: Id) => this.data('POST', '/memories/recall', { query: q.slice(0, 2000), project_id: projectId, limit }).then(arr);
+    // Recall with no project_id covers the personal space and the caller's other private spaces.
+    // A space shared with the caller (or an org space) is only searched when named, so "everything
+    // you can read" asks each of those too. The first call's failure is the palette's error.
+    const [first, ...rest] = await Promise.all([
+      ask(opts?.spaceId || (await this.personal())),
+      ...(opts?.spaceId ? [] : (await this.sharedSpaceIds().catch(() => [] as Id[])).map((id) => ask(id).catch(() => [] as Json[]))),
+    ]);
+    const seen = new Set<string>();
+    const rows = [first ?? [], ...rest]
+      .flat()
+      .filter((m) => !seen.has(str(m['id'])) && seen.add(str(m['id'])))
+      .sort((a, b) => Number(b['similarity'] ?? 0) - Number(a['similarity'] ?? 0))
+      .slice(0, limit);
+    const context = rows.map((m) => {
       const c = toContext(m);
       const project = obj(m['project']);
       return {
@@ -700,12 +759,43 @@ export class HttpClient implements OpenKTClient {
         href: c.sessionId ? `/sessions/${c.sessionId}/context` : `/spaces/${c.spaceId}`,
       };
     });
+    // The server searches context, not titles; a session is also found by its name (as the sample adapter does).
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const sessions = (await this.sessionsForSearch(opts?.spaceId).catch(() => [] as SessionListItem[]))
+      .filter((s) => words.every((w) => s.title.toLowerCase().includes(w)))
+      .slice(0, 5)
+      .map((s) => ({ id: s.id, type: 'session' as const, title: s.title, meta: `${sourceLabel(s.source)} · ${relativeDay(s.createdAt)}`, source: s.source, href: `/sessions/${s.id}` }));
+    return [...sessions, ...context];
+  }
+
+  /** Spaces the caller can read that a plain recall does not cover: anything not their own private space. */
+  private async sharedSpaceIds(): Promise<Id[]> {
+    const [me, projects] = await Promise.all([this.getMe(), this.data('GET', '/projects').then(arr)]);
+    return projects
+      .filter((p) => !(str(pick(p, 'owner_user_id')) === me.id && str(p['visibility']) === 'personal' && !pick(p, 'org_id')))
+      .map((p) => str(p['id']))
+      .filter(Boolean);
+  }
+
+  /** Session titles for ⌘K, kept for a few seconds so typing does not re-list every space per keystroke. */
+  private searchCache?: { key: string; at: number; rows: Promise<SessionListItem[]> };
+  private sessionsForSearch(spaceId?: Id): Promise<SessionListItem[]> {
+    const key = spaceId ?? '*';
+    if (!this.searchCache || this.searchCache.key !== key || Date.now() - this.searchCache.at > 15_000) {
+      const rows = this.listSessions(spaceId ? { spaceId } : undefined);
+      rows.catch(() => (this.searchCache = undefined));
+      this.searchCache = { key, at: Date.now(), rows };
+    }
+    return this.searchCache.rows;
   }
 
   // ── no endpoint yet: sample data, flagged in `preview` ────────────────
 
   listPages = async () => []; // a real space has no sample pages to show
-  getPage = (id: Id) => this.fallback.getPage(id);
+  // No pages endpoint yet, and listPages is empty: a page URL must not open a sample page for a signed-in person.
+  getPage = async (id: Id): Promise<never> => {
+    throw new NotFoundError('page', id);
+  };
   listAccessDefaults = () => this.fallback.listAccessDefaults();
   listConnectors = () => this.fallback.listConnectors();
   updateConnector: OpenKTClient['updateConnector'] = (id, patch) => this.fallback.updateConnector(id, patch);

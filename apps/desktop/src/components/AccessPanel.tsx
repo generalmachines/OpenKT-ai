@@ -123,7 +123,7 @@ export function AccessPanel({ resource, noun, layout = 'page' }: { resource: Res
           </p>
         )}
         {grants.loading && !grants.data && <Loading />}
-        {grants.error && <ErrorNote error={grants.error} />}
+        {grants.error && <ErrorNote error={grants.error} onRetry={grants.reload} />}
         <ul className="plain" aria-label="People and teams with access">
           {(grants.data ?? []).map((g) => (
             <li key={g.id} className={`person${g.pending ? ' person--pending' : ''}`}>

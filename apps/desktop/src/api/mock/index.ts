@@ -92,6 +92,14 @@ export class MockClient implements OpenKTClient {
     return clone(s);
   }
 
+  async createSpace(name: string) {
+    const title = name.trim();
+    const space = { id: this.nextId('sp'), name: title, slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), description: '', memberCount: 1, pageCount: 0, sessionCount: 0, updatedAt: new Date().toISOString() };
+    this.db.spaces.push(space);
+    this.changed();
+    return clone(space);
+  }
+
   async listPages(spaceId: Id) {
     return this.db.pages
       .filter((p) => p.spaceId === spaceId)

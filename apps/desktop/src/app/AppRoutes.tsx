@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { onboarding } from '../api';
 import { useQuery } from '../api/hooks';
 import { permissions } from '../api/setup-bridge';
+import { ErrorNote } from '../components/bits';
 import { Shell } from '../components/Shell';
 import { CaptureOverlay, CapturePreview } from '../screens/capture/CaptureRoutes';
 import { NewNote } from '../screens/NewNote';
@@ -26,6 +27,13 @@ function Home() {
   if (resume !== null) return <Navigate to={`/onboarding/${resume}`} replace />;
   // ── first run (end) ──
   if (sessions.loading) return <main className="main" aria-busy="true" />;
+  // A failed list is not an empty account: say so, rather than opening a blank note that cannot be saved.
+  if (sessions.error)
+    return (
+      <main className="main">
+        <ErrorNote error={sessions.error} onRetry={sessions.reload} />
+      </main>
+    );
   const first = sessions.data?.[0];
   return <Navigate to={first ? `/sessions/${first.id}` : '/new'} replace />;
 }
