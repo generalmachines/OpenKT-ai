@@ -62,6 +62,12 @@ const bridge: OpenKTBridge = {
   net: {
     request: (req: NetRequest) => ipcRenderer.invoke(ch('net:request'), req) as Promise<NetResponse>,
   },
+  auth: {
+    google: {
+      start: (input) => ipcRenderer.invoke(ch('auth:google:start'), { clientId: String(input?.clientId ?? ''), clientSecret: typeof input?.clientSecret === 'string' ? input.clientSecret : undefined }),
+      cancel: () => ipcRenderer.invoke(ch('auth:google:cancel')),
+    },
+  },
   secureStore: {
     get: (key: string) => ipcRenderer.invoke(ch('secure:get'), key) as Promise<string | null>,
     set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,

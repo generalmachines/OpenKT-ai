@@ -1,5 +1,6 @@
 import { app, ipcMain, session } from 'electron';
 import type { CaptureEvent, IpcChannel, OverlayKind } from '../shared/ipc';
+import { registerAuthIpc } from './auth/ipc';
 import { createCaptureService, type MeetingDetected } from './capture';
 import { getVoice, installPermissionPolicy, registerCaptureIpc } from './capture/ipc';
 import { StubEngine } from './engine/stub';
@@ -95,6 +96,7 @@ if (!app.requestSingleInstanceLock()) {
     registerCaptureIpc();
     if (isSmoke()) return void runSmoke(() => openMainWindow());
     registerNetIpc();
+    registerAuthIpc(() => void openMainWindow());
     capture.onEvent(broadcast);
     capture.onMeetingDetected((meeting) => {
       pendingMeeting = meeting;

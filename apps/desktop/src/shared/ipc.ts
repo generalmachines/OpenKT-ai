@@ -51,7 +51,12 @@ export type IpcChannel =
   | 'voice:end'
   | 'voice:to-session'
   | 'voice:cancel'
-  | 'screenshot:capture';
+  | 'screenshot:capture'
+  | 'auth:google:start'
+  | 'auth:google:cancel';
+
+/** Google sign-in in the system browser (main: src/main/auth). Errors cross IPC as a tagged value, never a throw. */
+export type GoogleAuthResultDto = { id_token: string } | { error: 'cancelled' | 'timeout' | 'failed'; message: string };
 
 /** A server request made by main for the renderer (file:// origins fail the server's CORS allowlist). */
 export interface NetRequest {
@@ -235,6 +240,13 @@ export interface OpenKTBridge {
   };
   net: {
     request(req: NetRequest): Promise<NetResponse>;
+  };
+  auth: {
+    google: {
+      /** Opens the system browser; resolves once Google redirects back, the person cancels, or three minutes pass. */
+      start(input: { clientId: string; clientSecret?: string }): Promise<GoogleAuthResultDto>;
+      cancel(): Promise<void>;
+    };
   };
   /** OS-keychain-encrypted strings (the access token). */
   secureStore: {
