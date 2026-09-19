@@ -1,0 +1,19 @@
+{
+  "name": "@openkt/providers",
+  "version": "0.1.0",
+  "description": "Tool provider plugins for OpenKT (Spec 05 section 2): the ToolProvider interface, the registry, and the local-filesystem provider.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/OpenKT-ai.git", "directory": "packages/providers" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }, "./package.json": "./package.json" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.0", "vitest": "^3.0.0" }
+}
