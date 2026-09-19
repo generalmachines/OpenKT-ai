@@ -1,0 +1,46 @@
+{
+  "name": "@openkt/agents",
+  "version": "0.1.0",
+  "description": "Single-purpose LLM agents for the OpenKT write path: one prompt, one JSON Schema, one narrow input each.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./eval": {
+      "types": "./dist/eval.d.ts",
+      "default": "./dist/eval.js"
+    },
+    "./schemas/*.json": "./schemas/*.json",
+    "./prompts/*.md": "./prompts/*.md",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "prompts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "gen": "node scripts/gen-contract.mjs",
+    "build": "npm run gen && tsc -p tsconfig.build.json",
+    "typecheck": "npm run gen && tsc -p tsconfig.json --noEmit",
+    "test": "npm run gen && vitest run",
+    "eval": "npm run build && node scripts/eval.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

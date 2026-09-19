@@ -1,0 +1,53 @@
+{
+  "name": "hindi-staging-deploy",
+  "description": "Hindi coding session: a migration times out on staging; the fix and a team rule follow. The scripted reply is wrapped in a <think> block and a code fence, and one quote is a translation rather than verbatim.",
+  "input": {
+    "chunk": [
+      {
+        "role": "user",
+        "speaker": "Ojas",
+        "text": "स्टेजिंग पर डिप्लॉय फिर से फेल हो गया। लॉग में दिख रहा है कि माइग्रेशन 0042 टाइमआउट हो रहा है।"
+      },
+      {
+        "role": "assistant",
+        "text": "माइग्रेशन 0042 एक बड़ी टेबल पर इंडेक्स बना रहा है। इसे CREATE INDEX CONCURRENTLY से चलाने पर टेबल लॉक नहीं होगी और टाइमआउट नहीं आएगा।"
+      },
+      {
+        "role": "user",
+        "speaker": "Ojas",
+        "text": "ठीक है, वही करते हैं। और आगे से हम तय कर लेते हैं कि हर बड़ा इंडेक्स CONCURRENTLY से ही बनेगा। मैं कल टीम को बता दूँगा।"
+      }
+    ],
+    "session": {
+      "date": "2026-09-14",
+      "source": "claude-code",
+      "author": "Ojas",
+      "participants": [
+        "Ojas",
+        "assistant"
+      ],
+      "space": "openkt-server"
+    }
+  },
+  "expect": {
+    "count": {
+      "key": "facts",
+      "min": 2,
+      "max": 6
+    },
+    "require_all": [
+      "CONCURRENTLY"
+    ],
+    "require_any": [
+      "0042"
+    ]
+  },
+  "mock_replies": [
+    "<think>\nThe user wants facts. Let me look at the Hindi session…\n</think>\n```json\n{\"facts\": [{\"statement\": \"स्टेजिंग पर डिप्लॉय इसलिए फेल हुआ क्योंकि माइग्रेशन 0042 टाइमआउट हो रहा था।\", \"quote\": \"माइग्रेशन 0042 टाइमआउट हो रहा है\", \"kind\": \"issue\"}, {\"statement\": \"माइग्रेशन 0042 को CREATE INDEX CONCURRENTLY से चलाने पर टेबल लॉक नहीं होती और टाइमआउट नहीं आता।\", \"quote\": \"इसे CREATE INDEX CONCURRENTLY से चलाने पर टेबल लॉक नहीं होगी और टाइमआउट नहीं आएगा\", \"kind\": \"how-to\"}, {\"statement\": \"Ojas ने तय किया कि आगे से हर बड़ा इंडेक्स CONCURRENTLY से ही बनेगा।\", \"quote\": \"हर बड़ा इंडेक्स CONCURRENTLY से ही बनेगा\", \"kind\": \"decision\"}, {\"statement\": \"Ojas 2026-09-15 को टीम को यह नियम बताएँगे।\", \"quote\": \"I will tell the team tomorrow\", \"kind\": \"action\"}]}\n```"
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 1
+  }
+}

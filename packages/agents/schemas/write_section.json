@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["section_md"],
+  "properties": {
+    "section_md": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The full new body of the section in markdown, without its heading. Every sentence ends with one or more [^f:<id>] citations."
+    }
+  }
+}

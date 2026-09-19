@@ -1,0 +1,38 @@
+{
+  "name": "idea-empty-vocabulary",
+  "description": "No vocabulary yet, so new tags are allowed.",
+  "input": {
+    "fact": {
+      "statement": "Pratham's idea: the session-start brief could be personalised, weighted by what each person worked on in the previous week.",
+      "kind": "idea"
+    },
+    "vocabulary": []
+  },
+  "expect": {
+    "require_any": [
+      "brief"
+    ],
+    "forbid": [
+      "idea\"",
+      "misc"
+    ],
+    "count": {
+      "key": "tags",
+      "min": 1,
+      "max": 4
+    }
+  },
+  "mock_replies": [
+    {
+      "tags": [
+        "briefs",
+        "personalisation"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

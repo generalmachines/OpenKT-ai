@@ -1,0 +1,49 @@
+{
+  "name": "newer-value-supersedes",
+  "description": "A newer value replaces an older one. The scripted reply also names an id that was never given.",
+  "input": {
+    "fact": {
+      "statement": "Ojas decided to cap the client at 500 requests per minute to leave headroom under the vendor's limit.",
+      "created_at": "2026-09-17"
+    },
+    "neighbours": [
+      {
+        "id": "f_310",
+        "statement": "The vendor API client is capped at 300 requests per minute.",
+        "created_at": "2026-06-03"
+      },
+      {
+        "id": "f_311",
+        "statement": "The vendor API allows 600 requests per minute per API key.",
+        "created_at": "2026-06-03"
+      },
+      {
+        "id": "f_312",
+        "statement": "Vendor webhooks are verified with an HMAC signature.",
+        "created_at": "2026-05-20"
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "duplicate_of": null,
+      "supersedes": [
+        "f_310"
+      ]
+    }
+  },
+  "mock_replies": [
+    {
+      "duplicate_of": null,
+      "supersedes": [
+        "f_310",
+        "f_999"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 1
+  }
+}

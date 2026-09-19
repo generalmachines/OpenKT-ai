@@ -1,0 +1,74 @@
+{
+  "name": "pricing-append-existing-page",
+  "description": "A customer request lands on the customer's pricing page, not the auth page.",
+  "input": {
+    "facts": [
+      {
+        "id": "f_130",
+        "statement": "Daniel of Northgate Market wants per-store pricing with a lower rate for express formats.",
+        "kind": "fact"
+      }
+    ],
+    "pages": [
+      {
+        "id": "p_auth",
+        "title": "Auth — token refresh",
+        "summary": "How sessions are refreshed in the dashboard, token lifetimes, and known problems.",
+        "section_titles": [
+          "Overview",
+          "Known issues",
+          "Decisions"
+        ]
+      },
+      {
+        "id": "p_ng_pricing",
+        "title": "Northgate — pricing",
+        "summary": "What Northgate Market has been quoted and what they asked for.",
+        "section_titles": [
+          "Current quote",
+          "Requests"
+        ]
+      },
+      {
+        "id": "p_deploy",
+        "title": "Deploy — staging",
+        "summary": "How staging deploys run and what has gone wrong.",
+        "section_titles": [
+          "Pipeline",
+          "Incidents"
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "decisions": [
+        {
+          "fact_id": "f_130",
+          "page_id": "p_ng_pricing"
+        }
+      ]
+    },
+    "forbid": [
+      "new_page\""
+    ]
+  },
+  "mock_replies": [
+    {
+      "decisions": [
+        {
+          "fact_id": "f_130",
+          "action": "append",
+          "page_id": "p_ng_pricing",
+          "section_title": "Requests",
+          "new_page_title": null
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

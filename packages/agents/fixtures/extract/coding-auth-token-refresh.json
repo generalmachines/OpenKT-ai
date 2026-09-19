@@ -1,0 +1,123 @@
+{
+  "name": "coding-auth-token-refresh",
+  "description": "Coding session: dashboard logouts traced to a refresh-token race between tabs. The scripted reply includes one fabricated quote, which the quote gate must drop.",
+  "input": {
+    "chunk": [
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "the dashboard keeps logging people out after about an hour. I think it's the token refresh. can you look at apps/web/lib/auth/refresh.ts"
+      },
+      {
+        "role": "assistant",
+        "text": "I read refresh.ts. Two tabs can call refreshSession() at the same time. The first call rotates the refresh token, so the second call sends a token that is already revoked and the API answers 401 invalid_grant. That 401 is what triggers the logout."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "yes that matches, it only happens to people with multiple tabs open. what's the fix"
+      },
+      {
+        "role": "assistant",
+        "text": "Two options: (a) a BroadcastChannel lock so only one tab refreshes and the others wait for the new token, or (b) have the server accept the previous refresh token for a short grace window. (a) needs no backend change."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "let's do both. go with the BroadcastChannel lock now, and I'll ask Ojas to add a 10 second grace window on the server by Friday. also access tokens stay at 1 hour, we're not changing that"
+      },
+      {
+        "role": "assistant",
+        "text": "Done. Added a lock in refresh.ts using BroadcastChannel('auth-refresh'); tabs that lose the lock wait up to 5 seconds for the new token. Tests pass: npm test -- refresh (14 passed)."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "nice. one thing I don't know - does Safari private mode even support BroadcastChannel? we should check"
+      },
+      {
+        "role": "assistant",
+        "text": "I am not certain. I'd verify it in Safari before relying on it."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "ok thanks, shipping it"
+      }
+    ],
+    "session": {
+      "date": "2026-09-17",
+      "title": "dashboard logout bug",
+      "source": "claude-code",
+      "author": "Pratham",
+      "participants": [
+        "Pratham",
+        "assistant"
+      ],
+      "space": "openkt-server"
+    }
+  },
+  "expect": {
+    "count": {
+      "key": "facts",
+      "min": 3,
+      "max": 10
+    },
+    "require_all": [
+      "BroadcastChannel"
+    ],
+    "require_any": [
+      "2026-09-18",
+      "grace"
+    ],
+    "forbid": [
+      "cookies instead"
+    ]
+  },
+  "mock_replies": [
+    {
+      "facts": [
+        {
+          "statement": "Dashboard users were logged out after about an hour because two tabs could call refreshSession() at the same time; the second call sent an already revoked refresh token and the API answered 401 invalid_grant.",
+          "quote": "the second call sends a token that is already revoked and the API answers 401 invalid_grant",
+          "kind": "issue"
+        },
+        {
+          "statement": "Pratham decided to fix the refresh race with a BroadcastChannel lock in the web client and, in addition, a grace window on the server.",
+          "quote": "let's do both. go with the BroadcastChannel lock now",
+          "kind": "decision"
+        },
+        {
+          "statement": "Pratham will ask Ojas to add a 10 second refresh-token grace window on the server by 2026-09-18.",
+          "quote": "I'll ask Ojas to add a 10 second grace window on the server by Friday",
+          "kind": "action"
+        },
+        {
+          "statement": "Access tokens stay at a lifetime of 1 hour.",
+          "quote": "access tokens stay at 1 hour, we're not changing that",
+          "kind": "decision"
+        },
+        {
+          "statement": "refresh.ts now takes a lock using BroadcastChannel('auth-refresh'); tabs that lose the lock wait up to 5 seconds for the new token.",
+          "quote": "Added a lock in refresh.ts using BroadcastChannel(‘auth-refresh’); tabs that lose the lock wait up to 5 seconds for the new token",
+          "kind": "how-to"
+        },
+        {
+          "statement": "It is unknown whether Safari private mode supports BroadcastChannel.",
+          "quote": "does Safari private mode even support BroadcastChannel?",
+          "kind": "question"
+        },
+        {
+          "statement": "The team plans to move from tokens to cookies.",
+          "quote": "We should move to cookies instead of tokens",
+          "kind": "idea"
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 1
+  }
+}

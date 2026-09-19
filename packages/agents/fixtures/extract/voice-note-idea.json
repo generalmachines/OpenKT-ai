@@ -1,0 +1,52 @@
+{
+  "name": "voice-note-idea",
+  "description": "Rambling voice note: one product idea with an implementation hunch, plus an unrelated reminder.",
+  "input": {
+    "chunk": "okay so, um, idea while I'm walking. you know how every session gets a summary at the end, right. what if the brief, the thing tools get at session start, what if it wasn't the same for everyone. like, it could be weighted by what that person touched last week. so if I've been in the auth stuff all week, my brief leads with auth. um. not sure how expensive that is, probably we just re-rank the page summaries per user, no extra model call. anyway. also remind me, I need to renew the domain, openkt dot ai, it expires end of the month. okay that's it.",
+    "session": {
+      "date": "2026-09-18",
+      "source": "voice-note",
+      "author": "Pratham",
+      "space": "ideas"
+    }
+  },
+  "expect": {
+    "count": {
+      "key": "facts",
+      "min": 1,
+      "max": 5
+    },
+    "require_any": [
+      "brief"
+    ],
+    "forbid": [
+      "okay that's it"
+    ]
+  },
+  "mock_replies": [
+    {
+      "facts": [
+        {
+          "statement": "Pratham's idea: the session-start brief could be personalised, weighted by what each person worked on in the previous week.",
+          "quote": "it could be weighted by what that person touched last week",
+          "kind": "idea"
+        },
+        {
+          "statement": "Pratham thinks a personalised brief could be done by re-ranking the page summaries per user, with no extra model call.",
+          "quote": "probably we just re-rank the page summaries per user, no extra model call",
+          "kind": "idea"
+        },
+        {
+          "statement": "Pratham needs to renew the openkt.ai domain, which expires at the end of September 2026.",
+          "quote": "I need to renew the domain, openkt dot ai, it expires end of the month",
+          "kind": "action"
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "whiteboard-rollout",
+  "description": "A whiteboard photo stand-in with a rollout plan. With a caption.",
+  "image_file": "whiteboard-rollout.png",
+  "input": {
+    "caption": "whiteboard from the Northgate planning meeting"
+  },
+  "expect": {
+    "require_all": [
+      "Northgate"
+    ],
+    "require_any": [
+      "25",
+      "Singapore",
+      "Mira"
+    ]
+  },
+  "mock_replies": [
+    {
+      "description": "A whiteboard titled \"Northgate rollout\" listing a three-step rollout plan: a finished three-store pilot, 25 full-size stores in Q4, and 17 express stores in 2027. A line in red names Mira as owner and Singapore as the hosting location.",
+      "visible_text": "Northgate rollout\n1. Pilot: 3 stores (done)\n2. Phase 1: 25 full-size stores - Q4\n3. Phase 2: 17 express stores - 2027\nOwner: Mira Hosting: Singapore",
+      "entities": [
+        "Northgate",
+        "Mira",
+        "Singapore",
+        "northgate"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 1
+  }
+}
