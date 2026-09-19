@@ -1,0 +1,55 @@
+# PREPARED, NOT CONNECTED: builds the macOS app and publishes it to the S3 update feed. It needs a macOS
+# build machine, which costs money the owner has not approved yet (docs/ci/README.md has the options and
+# prices). Nothing creates a Mac host or fleet for it; the project that would run it does not exist yet.
+#
+# Where it would run: a CodeBuild project on a macOS reserved-capacity fleet (us-east-1, reserved.arm.m2.medium),
+# or the same commands on an EC2 Mac host. Publishing needs apps/desktop/scripts/stamp-version.mjs and
+# release-publish.sh from the in-app update work (feat/auto-update); until that is on main, the build stops
+# after the DMG is made and says so.
+#
+# Output: s3://$DOWNLOADS_BUCKET/desktop/releases/<version>/OpenKT-<version>-arm64.{zip,dmg},
+#         s3://$DOWNLOADS_BUCKET/desktop/OpenKT-latest-arm64.dmg, then desktop/latest.json LAST.
+version: 0.2
+env:
+  shell: bash
+  variables:
+    DOWNLOADS_BUCKET: openkt-downloads-724772068721
+    DOWNLOADS_BASE_URL: https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop
+    AWS_REGION: ap-south-1
+    # 0.4.x: builds from CodeBuild. The GitHub Actions builds were 0.3.<run number>; the feed never goes backwards.
+    VERSION_PREFIX: "0.4"
+phases:
+  install:
+    commands:
+      - sw_vers && uname -m
+      - node --version 2>/dev/null | grep -q '^v22' || { brew install node@22 && brew link --overwrite --force node@22; }
+      - node --version && npm --version && xcrun --version
+  pre_build:
+    commands:
+      - export VERSION="${VERSION_PREFIX}.${CODEBUILD_BUILD_NUMBER}"
+      - echo "Building OpenKT ${VERSION} from ${CODEBUILD_RESOLVED_SOURCE_VERSION}"
+      - npm ci --no-audit --no-fund
+      - npm run build -w @openkt/agents
+      - cd apps/desktop
+      - npx tsc -p tsconfig.main.json --noEmit
+      - npm run test:main
+      - if [ -f scripts/stamp-version.mjs ]; then node scripts/stamp-version.mjs "${VERSION}"; fi
+  build:
+    commands:
+      - npm run build
+      - node scripts/fetch-llama.mjs && ./resources/llama/llama-server --version
+      - bash scripts/build-whisper.sh
+      - bash scripts/build-ocr.sh
+      # Unsigned (ad-hoc) until an Apple Developer ID exists; the app's updater handles ad-hoc builds.
+      - CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/dist-mac.mjs
+      - APP="release/mac-arm64/OpenKT.app" && test -x "$APP/Contents/Resources/whisper/whisper-cli" && test -x "$APP/Contents/Resources/ocr/openkt-ocr"
+      - codesign --verify --deep --strict "release/mac-arm64/OpenKT.app"
+      - ls -la release
+  post_build:
+    commands:
+      - cd "${CODEBUILD_SRC_DIR}/apps/desktop"
+      - |
+        if [ "${CODEBUILD_BUILD_SUCCEEDING}" != "1" ]; then echo "build failed; nothing published"; exit 1; fi
+        if [ ! -f scripts/release-publish.sh ]; then echo "release-publish.sh is not on this commit yet; DMG built, not published"; exit 0; fi
+        VERSION="${VERSION}" BUCKET="${DOWNLOADS_BUCKET}" BASE_URL="${DOWNLOADS_BASE_URL}" COMMIT="${CODEBUILD_RESOLVED_SOURCE_VERSION}" \
+          ZIP="$(ls release/*.zip | head -1)" DMG="$(ls release/*.dmg | head -1)" bash scripts/release-publish.sh
