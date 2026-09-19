@@ -1,0 +1,23 @@
+# OpenKT API (NestJS). Built by Dokku from the repository root:
+#   dokku builder-dockerfile:set openkt-next-api dockerfile-path docker/Dockerfile.api
+FROM public.ecr.aws/docker/library/node:22-slim AS build
+WORKDIR /app/server
+# Lockfile first so the npm ci layer caches.
+COPY server/package.json server/package-lock.json ./
+RUN npm ci
+COPY server/ ./
+RUN npm run build:api
+
+FROM public.ecr.aws/docker/library/node:22-slim AS runtime
+WORKDIR /app/server
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/server/dist ./dist
+COPY --from=build /app/server/node_modules ./node_modules
+COPY --from=build /app/server/package.json ./package.json
+# The migration runner reads the SQL files from this relative path.
+COPY --from=build /app/server/apps/server/src/db/migrations ./apps/server/src/db/migrations
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=4100
+EXPOSE 4100
+USER node
+CMD ["npm", "run", "start:api"]

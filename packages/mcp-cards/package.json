@@ -1,0 +1,32 @@
+{
+  "name": "@openkt/mcp-cards",
+  "version": "0.1.0",
+  "description": "OpenKT MCP Apps UI bundle: one self-contained ui:// HTML resource with save, search-results and session-summary cards.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "packages/mcp-cards" },
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./openkt-cards.html": "./dist/openkt-cards.html",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/openkt-cards.html",
+    "index.js",
+    "server-integration.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test test/model.test.mjs",
+    "preview": "npm run build && node scripts/serve.mjs",
+    "shots": "npm run build && node scripts/shots.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "esbuild": "^0.28.0"
+  }
+}

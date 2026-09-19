@@ -1,0 +1,303 @@
+.app {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── sidebar (design/gen.py `sidebar`) ────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--side);
+  border-right: 1px solid var(--line);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+.sidebar__drag {
+  display: none;
+}
+/* macOS hiddenInset: leave room for the traffic lights and let the strip drag the window. */
+[data-platform='darwin'] .sidebar,
+[data-platform='darwin'] .onb__rail {
+  padding-top: 46px;
+}
+[data-platform='darwin'] .sidebar__drag {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40px;
+  -webkit-app-region: drag;
+}
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 12px;
+  flex-shrink: 0;
+}
+.sidebar__name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sidebar__status {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok-dot);
+  display: inline-block;
+}
+.searchbtn {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 13.5px;
+  color: var(--ink-3);
+  text-align: left;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.searchbtn:hover {
+  border-color: var(--line-strong);
+}
+.searchbtn__label {
+  flex-grow: 1;
+}
+.searchbtn__key {
+  font-size: 11px;
+}
+.navrow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.navrow:hover,
+.srow:hover,
+.setnav__item:hover {
+  color: var(--ink);
+  background: #f0efeb;
+}
+.navrow.is-active,
+.srow.is-active,
+.setnav__item.is-active {
+  background: var(--active);
+  font-weight: 500;
+}
+.navrow__icon {
+  color: var(--ink-2);
+  display: flex;
+}
+.sidebar__sessions {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -10px;
+  padding: 0 10px;
+  scrollbar-width: thin;
+}
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar__label {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 14px 10px 6px;
+}
+.srow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.srow__icon {
+  color: var(--ink-3);
+  padding-top: 2px;
+  display: flex;
+}
+.srow__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.srow__title {
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.srow.is-active .srow__title {
+  font-weight: 500;
+}
+.srow__sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── main column variants ─────────────────────────────────────────────── */
+.main {
+  flex-grow: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.main > *,
+.page > * {
+  flex-shrink: 0;
+}
+.main--session {
+  padding: 36px 56px 0;
+  gap: 22px;
+}
+.main--list {
+  padding: 40px 56px 0;
+  gap: 10px;
+}
+.main--settings {
+  padding: 40px 48px 24px;
+  gap: 8px;
+}
+.main--space {
+  padding: 36px 48px 0 56px;
+  gap: 18px;
+}
+.main--page {
+  padding: 36px 48px 0 56px;
+  flex-direction: row;
+  gap: 48px;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.titlebar__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-grow: 1;
+  min-width: 0;
+}
+.crumb {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* ── ⌘K palette ───────────────────────────────────────────────────────── */
+.palette__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(26, 26, 24, 0.16);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 112px 24px 24px;
+}
+.palette {
+  width: 600px;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.palette__input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  height: 56px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.palette__input input {
+  flex-grow: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--ink);
+}
+.palette__esc {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.palette__results {
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.palette__results .sidebar__label {
+  padding-top: 12px;
+}
+.palette__empty {
+  padding: 22px 10px 14px;
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+.palette__foot {
+  display: flex;
+  gap: 16px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.palette__dot {
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

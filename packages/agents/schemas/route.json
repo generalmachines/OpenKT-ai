@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decisions"],
+  "properties": {
+    "decisions": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Exactly one decision per input fact.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fact_id", "action", "page_id", "section_title", "new_page_title"],
+        "properties": {
+          "fact_id": { "type": "string", "minLength": 1 },
+          "action": {
+            "type": "string",
+            "enum": ["append", "rewrite_section", "new_page", "noop"]
+          },
+          "page_id": {
+            "type": ["string", "null"],
+            "description": "Target page id for append and rewrite_section, otherwise null."
+          },
+          "section_title": {
+            "type": ["string", "null"],
+            "maxLength": 80,
+            "description": "Existing section for rewrite_section; existing or new section for append; otherwise null."
+          },
+          "new_page_title": {
+            "type": ["string", "null"],
+            "maxLength": 80,
+            "description": "Title for new_page, otherwise null."
+          }
+        }
+      }
+    }
+  }
+}

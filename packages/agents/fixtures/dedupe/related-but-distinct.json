@@ -1,0 +1,39 @@
+{
+  "name": "related-but-distinct",
+  "description": "Same topic, different claims: keep both.",
+  "input": {
+    "fact": {
+      "statement": "Northgate Market requires all data to be hosted in Singapore.",
+      "created_at": "2026-09-15"
+    },
+    "neighbours": [
+      {
+        "id": "f_401",
+        "statement": "Northgate Market has 42 stores, of which 17 are express format.",
+        "created_at": "2026-09-15"
+      },
+      {
+        "id": "f_402",
+        "statement": "Northgate Market's pilot ran in three stores.",
+        "created_at": "2026-08-11"
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "duplicate_of": null,
+      "supersedes": []
+    }
+  },
+  "mock_replies": [
+    {
+      "duplicate_of": null,
+      "supersedes": []
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

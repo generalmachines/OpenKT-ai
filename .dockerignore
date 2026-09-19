@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+.git
+apps/desktop
+design
+docs
+*.log
+.env
+.env.*
