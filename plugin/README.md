@@ -2,7 +2,7 @@
 
 OpenKT is a remote MCP server. Everything works with only that connection; each layer on top makes it work better and asks less of you. Pick the level that fits the tool.
 
-> **Status.** The plugin, the skill and the setup prompt are complete and pass `claude plugin validate --strict`. They have been checked against each tool's documentation, not yet tested end to end inside claude.ai or ChatGPT. There is no hosted OpenKT service yet: wherever this folder says `https://mcp.openkt.ai/mcp`, use the `/mcp` URL of your own server (see [`../server/WHERE_THINGS_LIVE.md`](../server/WHERE_THINGS_LIVE.md)).
+> **Status.** The plugin, the skill and the setup prompt are complete and pass `claude plugin validate --strict`. They have been checked against each tool's documentation, not yet tested end to end inside claude.ai or ChatGPT. `https://mcp.openkt.ai/mcp` is the hosted service; if you run your own server, use its `/mcp` URL wherever this folder says that address (see [`../server/README.md`](../server/README.md)).
 
 | Level | What you add | What you get | Where it works |
 |---|---|---|---|
@@ -80,5 +80,5 @@ So `hooks/hooks.json` uses one dependency-free Node script, `hooks/openkt-hook.m
 ## Placeholders to settle before the first release
 
 - `masti-ai/openkt` stands for the public repository name; it appears in this file, `SETUP_PROMPT.md` and `skills/openkt/references/claude-code.md`. Until the name is final, install from a local checkout: `claude plugin marketplace add ./plugin`.
-- `https://mcp.openkt.ai/mcp` stands for the hosted server, which does not exist yet. In the plugin it is one `userConfig` default; in the skill and the setup prompt it is named once as the default, and both tell the model to ask about self-hosting.
+- `https://mcp.openkt.ai/mcp` is the hosted server. In the plugin it is one `userConfig` default; in the skill and the setup prompt it is named once as the default, and both tell the model to ask about self-hosting.
 - Validate with `claude plugin validate plugin --strict` and `claude plugin validate . --strict` (the root marketplace). Continuous integration runs both.

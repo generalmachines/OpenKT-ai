@@ -1,105 +1,107 @@
 # OpenKT
 
-OpenKT is an open-source shared context engine for teams: it captures sessions from any AI tool, distils them into a team knowledge base, and hands the right context back to any teammate's tool over MCP — within the access its owner allowed.
+OpenKT is an open-source shared context engine for teams and their AI agents.
+Sessions from every AI tool you use flow into one place, and a knowledge base maintains itself from them.
+Any teammate's tool gets the right context back over MCP, limited to what its owner has been granted.
 
-## Why
+Apache-2.0. Self-hostable, and no feature is limited to the hosted service.
 
-People spend a real part of their day explaining things to AI tools: how the team deploys, what the customer asked for, which approach was already tried and dropped. That explanation is thrown away three times over — between sessions, between tools, and between people. Wikis do not fix it because nobody writes them; personal memory features do not fix it because they stop at one person and one vendor.
+## Use it in 1 minute
 
-OpenKT keeps that context in one place a team controls. One server and one Postgres database, any OpenAI-compatible model endpoint, access that works like a code host (grants on workspaces, spaces and single sessions), and retrieval that only ever returns what the asking person holds a grant for. Self-hostable, Apache-2.0, no hosted-only features.
+Add the hosted MCP server to any MCP client, then sign in through your browser. There is no token to paste.
 
-The full picture is in [`docs/product.md`](docs/product.md).
+```
+https://mcp.openkt.ai/mcp
+```
 
-## Status
+- **Any AI tool:** paste [`plugin/SETUP_PROMPT.md`](plugin/SETUP_PROMPT.md) into it. The prompt works out which client it is running in, adds the server, walks you through sign-in and checks that a save and a recall both work. It asks before it changes any file.
+- **Claude Code:** install the plugin, which adds the server, the skill and the `/openkt:kt-*` commands:
 
-OpenKT is pre-release. Nothing has been published or versioned yet, and there is no hosted service. This table is the honest state of the repository today.
+  ```
+  /plugin marketplace add masti-ai/openkt
+  /plugin install openkt@openkt
+  ```
 
-| | What | State |
-|---|---|---|
-| Works now | **Server** (`server/`): sessions, grants, access-scoped hybrid recall (keyword and vector), MCP tools (`kt_session_start`, `kt_recall`, `kt_save_memory`, `kt_session_end` and others) | Runs against Postgres with pgvector. An end-to-end proof test shows context saved by one person reaching a teammate and staying invisible to a stranger. The imported codebase is still being cleaned up. |
-| In progress | **Agents** (`packages/agents`): the eight single-purpose LLM agents of the write path, with prompts, JSON Schemas, fixtures and an evaluation script | Unit-tested against scripted model replies. Not yet run against a real model. |
-| In progress | **Desktop app** (`apps/desktop`): Electron shell with every screen from the design canvas | Renders and navigates on mock data. The capture engine is a stub; the HTTP adapter has not been run against a live server. |
-| In progress | **Plugin, skill and setup prompt** (`plugin/`), **MCP Apps cards** (`packages/mcp-cards`) | Built and validated locally (`claude plugin validate`, unit tests, a fake host). Not yet tested inside claude.ai or ChatGPT. |
-| In progress | **Recall and pipeline functions** (`packages/recall`, `packages/pipeline`) | Package skeletons with types and errors. The functions are open contributor tasks. |
-| Planned | Living pages and briefs, built-in sign-in, `docker compose up`, local voice and screenshot capture, meetings without a bot, connectors to other products | Specified in [`docs/specs/`](docs/specs/), scheduled in [`PLAN.md`](PLAN.md). Not built. |
+- **By hand:** [`plugin/README.md`](plugin/README.md) has the steps for Claude Code, claude.ai, ChatGPT, Cursor, Codex, VS Code and Gemini CLI.
 
-![A session in the desktop app, rendered from mock data](docs/images/desktop-session.png)
+## Desktop app (macOS)
 
-*The desktop app showing a session, on mock data.*
+Use the Mac app for notes, voice notes and screenshots. Speech and vision both run on your Mac, and the app sends only the text to your team's context.
+
+- Download: [`OpenKT-latest-arm64.dmg`](https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg). It needs Apple Silicon and macOS 13.3 or later.
+- The build is **not signed or notarised yet**, so macOS blocks it the first time you open it. [`apps/desktop/INSTALL-UNSIGNED.md`](apps/desktop/INSTALL-UNSIGNED.md) shows how to allow it (one setting, or one Terminal line).
+- On first launch the app downloads its local models (3 to 5 GB).
+
+![A session in the desktop app, shown with sample data](docs/images/desktop-session.png)
+
+## Self-hosting
+
+A single `docker compose up` is [coming](../../issues/15). Until then, run the server yourself. You need Node 20 or later and Postgres 16 with pgvector, and the setup takes a few commands: see [`server/README.md`](server/README.md). Then point your AI tools at `https://<your-host>/mcp`, and choose your own server on the desktop app's sign-in screen.
+
+## Architecture
+
+![OpenKT system architecture](docs/architecture/system.svg)
+
+Context moves up through four tiers, and each tier points back to the one below. Anything a model tells you can therefore be traced to a person and a moment.
+
+1. **Session.** The raw record of a conversation, meeting, note or screenshot, with its author, source tool and space. Append-only.
+2. **Facts.** Single statements extracted from a session, each with a verbatim quote from its source, a kind (decision, how-to, question, …) and tags. Facts are never edited. A newer fact supersedes an older one instead.
+3. **Living pages.** One page per topic inside a space. Pages are rewritten as new facts arrive, and every sentence cites its facts. This is the knowledge base that maintains itself.
+4. **Brief.** A short digest of a space covering what matters now, what changed and what is still open. It is the first thing an AI tool receives when a session starts.
+
+**Grants** decide who sees what. You grant a person a role (reader, editor, owner) on a workspace, a space, a single session or a skill; teams as grantees are coming. Facts and pages inherit access from their session or space, and pages never merge across spaces.
+
+**Hybrid recall** answers every question with one SQL query. The query first limits itself to what the asking person holds a grant for, and only then ranks. It runs vector search and keyword search over facts (and later over pages), then fuses the two result lists with reciprocal-rank fusion. If nothing relevant comes back, it returns an explicit "nothing found".
+
+To go deeper, read [`docs/architecture.md`](docs/architecture.md) for the full design and [`docs/specs/`](docs/specs/) for the binding decisions.
 
 ## Repository map
 
 | Path | What |
 |---|---|
-| [`server/`](server/) | The API and worker: NestJS, Drizzle, Postgres with pgvector, the MCP endpoint. Has its own `package.json` and lockfile. Start with [`server/WHERE_THINGS_LIVE.md`](server/WHERE_THINGS_LIVE.md). |
-| [`apps/desktop/`](apps/desktop/) | The desktop app: Electron, React, Vite. |
-| [`packages/agents/`](packages/agents/) | Single-purpose LLM agents: one prompt, one JSON Schema, one narrow input each. |
-| [`packages/recall/`](packages/recall/) | Pure ranking functions for recall: fusion, weights, abstain, diversity, budget. |
-| [`packages/pipeline/`](packages/pipeline/) | Pure decision functions for the write path: chunking, duplicate rules, tag normalising, guards. |
-| [`packages/mcp-cards/`](packages/mcp-cards/) | One self-contained MCP Apps UI bundle: save, search results and session summary cards. |
-| [`plugin/`](plugin/) | The Claude plugin, the portable `SKILL.md`, per-tool setup guides and a paste-able setup prompt. |
-| [`design/`](design/) | The design canvas: approved screens as HTML artboards, and the scripts that generate them. |
-| [`docs/`](docs/) | Product, architecture, specs, research, the task list. Index: [`docs/README.md`](docs/README.md). |
+| [`apps/desktop/`](apps/desktop/) | The macOS app: Electron, React and Vite, with bundled whisper.cpp, llama.cpp and an Apple Vision OCR helper. |
+| [`server/`](server/) | The API, the MCP endpoint and OAuth: NestJS, Drizzle, Postgres and pgvector. It is a standalone npm project, not part of the workspace. |
+| [`packages/agents/`](packages/agents/) | Single-purpose LLM agents for the write path. Each has one prompt, one JSON Schema and fixtures. |
+| [`packages/recall/`](packages/recall/) | Pure ranking functions: fusion, weights, abstain, diversity and budget. |
+| [`packages/pipeline/`](packages/pipeline/) | Pure write-path decisions: chunking, duplicates, tags, guards and the secrets filter. |
+| [`packages/mcp-cards/`](packages/mcp-cards/) | The MCP Apps UI cards for save, search results and session summary. |
+| [`plugin/`](plugin/) | The Claude plugin, the portable `SKILL.md`, per-tool setup guides and the setup prompt. |
+| [`docs/specs/`](docs/specs/) | The decisions that code is written against: memory model, agents, vision and speech, API contract, providers and agent interface. |
+| [`docs/`](docs/) | Product, architecture, research, plan and the task list. The index is [`docs/README.md`](docs/README.md). |
+| [`design/`](design/) | The design canvas: the approved screens as HTML artboards, plus the scripts that generate them. |
+| [`deploy/`](deploy/), [`docker/`](docker/) | How the hosted service is built and deployed (see [`docs/DEPLOY.md`](docs/DEPLOY.md)). |
 
-The root is an npm workspace over `packages/*` and `apps/*`. Node 22.
-
-## Quick start
-
-Packages and the desktop app, from the repository root:
+To develop from the repository root (Node 22):
 
 ```
 npm ci
 npm run typecheck --workspaces --if-present
 npm test --workspaces --if-present
-npm run build --workspaces --if-present
+npm run dev -w @openkt/desktop      # the app's UI in a browser, with sample data
 ```
 
-See the desktop app on mock data — no server needed:
+## Status
 
-```
-npm run dev -w @openkt/desktop      # http://localhost:5173
-```
+OpenKT is early software, and nothing has a version number yet. This is where things stand today.
 
-See the MCP cards in a fake host:
+| Area | Works now | Coming |
+|---|---|---|
+| Hosted service | `api.openkt.ai` and `mcp.openkt.ai` run `main`. Sign-in with email and password; OAuth for MCP clients. | Google sign-in on the hosted service (built, not yet switched on). |
+| Sessions and recall | Sessions, saved facts, hybrid recall (vector and keyword with RRF), access enforced inside the query. | The Qwen3 reranker; a recall evaluation set that runs in CI. |
+| Sharing | Spaces; grants on workspaces, spaces, sessions and skills; sharing by email; shared skills with versioned files. | Teams as grantees. |
+| Knowledge base | Agent prompts and schemas (`packages/agents`), and the first pipeline functions. | Automatic fact extraction, living pages and the space brief. |
+| AI tools | MCP tools (`kt_*`), MCP Apps cards, the Claude plugin, the skill and the setup prompt. | End-to-end checks in every client; a JSON-first `kt` CLI ([spec 06](docs/specs/06-agent-interface.md)). |
+| Desktop app | Unsigned test builds for Apple Silicon, against the hosted service or your own server: notes, voice notes and screenshots processed on the Mac. | Signed and notarised builds, in-app updates, meeting capture without a bot. |
+| Self-hosting | Running the server by hand ([`server/README.md`](server/README.md)). | `docker compose up` ([#15](../../issues/15)). |
+| Connectors | — | Notion, Gmail, Google Drive, Obsidian and Linear ([spec 05](docs/specs/05-tool-providers.md)). |
 
-```
-npm run preview -w @openkt/mcp-cards   # http://127.0.0.1:4180/preview.html
-```
-
-Run the server. It needs a Postgres with the pgvector extension; [`server/WHERE_THINGS_LIVE.md`](server/WHERE_THINGS_LIVE.md) has the details and a map of the code:
-
-```
-cd server
-npm ci
-cp .env.example .env        # point DATABASE_URL at your Postgres
-npm run db:migrate
-npm run typecheck
-npm run test:unit
-DATABASE_URL=postgres://… npm run test:e2e
-```
-
-There is no `docker compose up` yet; it is a task in the 0.1 milestone.
-
-## Connect an AI tool
-
-OpenKT is a remote MCP server, so any MCP client can use it with nothing but your server's `/mcp` URL. A skill file teaches the model when to start a session, recall, save and end; the Claude plugin bundles the server connection, the skill, slash commands and optional hooks. [`plugin/README.md`](plugin/README.md) explains the three levels and has setup steps for Claude Code, claude.ai, ChatGPT, Cursor, Codex, VS Code and Gemini CLI.
-
-The hosted address in those guides, `https://mcp.openkt.ai/mcp`, is a placeholder: there is no hosted service yet. Use your own server's URL.
-
-## Documentation
-
-- [`docs/product.md`](docs/product.md) — what OpenKT is, who it is for, the vocabulary.
-- [`docs/architecture.md`](docs/architecture.md) — the four memory tiers, the agent pipeline, access, MCP, the desktop app.
-- [`docs/specs/`](docs/specs/) — the binding decisions that code is written against.
-- [`docs/research/`](docs/research/) — the research behind the choices.
-- [`PLAN.md`](PLAN.md) — the versions from 0.1 to 1.0, each one a working product.
-- [`docs/tasks/JUNIOR_TASKS.md`](docs/tasks/JUNIOR_TASKS.md) — every task, fully specified, mirrored as GitHub issues.
+[`PLAN.md`](PLAN.md) lists the versions from 0.1 to 1.0.
 
 ## Contributing
 
-Contributions from people and from AI agents are welcome. The work is cut into small, fully specified tasks so that anyone can pick one up without knowing the whole system. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the flow and [`AGENTS.md`](AGENTS.md) for the task rules. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+People and AI agents are both welcome to contribute. The work is cut into small tasks, each specified completely, so you can pick one up without knowing the whole system. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first, then [`AGENTS.md`](AGENTS.md). Everyone follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-Report security problems privately: see [`SECURITY.md`](SECURITY.md).
+Report security problems privately, as described in [`SECURITY.md`](SECURITY.md).
 
 ## Licence
 
