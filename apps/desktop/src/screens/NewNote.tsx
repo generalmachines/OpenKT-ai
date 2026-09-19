@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { describeError, type ContextKind } from '../api';
 import { localAi } from '../api/bridge';
+import { useHotkeys, voiceKeys } from '../api/hotkeys';
 import { asWritten, localAiReady } from '../capture/save';
 import { useClient, useQuery } from '../api/hooks';
 import { Key, KindChip } from '../components/bits';
@@ -37,6 +38,7 @@ export function NewNote() {
   const [phase, setPhase] = useState<Phase>({ step: 'write' });
   const [error, setError] = useState('');
   const [aiReady, setAiReady] = useState(false);
+  const voice = voiceKeys(useHotkeys());
   useEffect(() => void localAiReady().then(setAiReady, () => setAiReady(false)), []);
 
   // Default to the personal space once the list arrives: nothing is ever dropped for lack of somewhere to put it.
@@ -209,7 +211,11 @@ export function NewNote() {
                   'filing…'
                 ) : (
                   <>
-                    or hold <Key>fn</Key> and say it
+                    {voice ? (
+                      <>
+                        or press <Key>{voice[0]}</Key> and say it
+                      </>
+                    ) : null}
                   </>
                 )}
               </span>

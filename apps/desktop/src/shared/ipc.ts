@@ -24,6 +24,10 @@ export interface HotkeyInfo {
   /** Electron accelerator used until the Swift engine owns the fn key. */
   fallbackAccelerator: string | null;
   registered: boolean;
+  /** Every accelerator that registered (voice has two). */
+  accelerators?: string[];
+  /** Why it may not work, in words for Settings › Hotkeys: held by another app, or kept by macOS. */
+  problem?: string | null;
 }
 
 export type IpcChannel =

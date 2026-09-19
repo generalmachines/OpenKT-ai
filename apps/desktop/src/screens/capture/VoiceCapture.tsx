@@ -213,7 +213,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
         tentative=""
         elapsedSec={elapsed}
         state={state}
-        hint="⌃⌥space to stop"
+        hint="⌃⌥Space or ⌃⌥N again to stop"
         levels={state === 'listening' ? levels : undefined}
         spaceId={spaceId}
         onSpace={setSpaceId}

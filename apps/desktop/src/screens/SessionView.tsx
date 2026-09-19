@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { accessSummary, duration, offset, relativeDayTime, sourceLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
+import { useHotkeys, voiceKeys } from '../api/hotkeys';
 import type { ContextItem, Session } from '../api/types';
 import { AccessPanel } from '../components/AccessPanel';
 import { ErrorNote, Key, KindChip, Loading } from '../components/bits';
@@ -86,6 +87,7 @@ export function SessionView() {
   const grants = useQuery((c) => c.listGrants({ type: 'session', id }), [id]);
   const spaces = useQuery((c) => c.listSpaces(), []);
   const connectors = useQuery((c) => c.listConnectors(), []);
+  const voice = voiceKeys(useHotkeys());
 
   if (tab && !(TABS as readonly string[]).includes(tab)) return <Navigate to={`/sessions/${id}`} replace />;
   if (session.error) {
@@ -190,7 +192,13 @@ export function SessionView() {
           <Icon name="mic" size={16} />
         </span>
         <span className="sfoot__text">
-          Hold <Key>fn</Key> to add to this session
+          {voice ? (
+            <>
+              Press <Key>{voice[0]}</Key> for a voice note
+            </>
+          ) : (
+            'Voice notes: OpenKT for Mac'
+          )}
         </span>
         <span className="mono small-meta">
           retrievable from {tools} connected {tools === 1 ? 'tool' : 'tools'}
