@@ -28,6 +28,9 @@ export function assignConfidence(input: ConfidenceInput): number {
 
   if (input.quoteFrom === "image_description" || input.quoteFrom === "ocr") return LOW_SIGNAL;
 
+  // Meeting speech with an unknown speaker is 0.50 whatever the turn role.
+  if (input.speakerKnown === false) return LOW_SIGNAL;
+
   if (input.quoteTurnRole === "user") return EXTRACTED_USER;
 
   if (input.quoteTurnRole === "assistant") {

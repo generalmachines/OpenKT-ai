@@ -44,6 +44,20 @@ describe("assignConfidence", () => {
     // anything not covered
     expect(assignConfidence({ origin: "extracted", source: "note" })).toBe(0.5);
   });
+
+  it("an unknown meeting speaker is 0.50 whatever the turn role", () => {
+    for (const quoteTurnRole of ["speaker", "user", "assistant"] as const) {
+      expect(
+        assignConfidence({
+          origin: "extracted",
+          source: "meeting",
+          quoteFrom: "transcript",
+          quoteTurnRole,
+          speakerKnown: false,
+        }),
+      ).toBe(0.5);
+    }
+  });
 });
 
 describe("bumpOnConfirmation", () => {
