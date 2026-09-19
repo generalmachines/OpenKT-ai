@@ -1,6 +1,10 @@
+Add this MCP server: https://mcp.openkt.ai/mcp — it signs you in by itself.
+
 > **For people:** copy everything below the line and paste it into the AI tool you use: Claude (web, desktop, Cowork), ChatGPT, Codex, Claude Code, Cursor or a browser agent. It connects OpenKT for you. You sign in in your browser; nobody pastes a password or token into the chat.
 
 ---
+
+Add this MCP server: https://mcp.openkt.ai/mcp — it signs you in by itself.
 
 Connect **OpenKT** to the tool you are running in right now. OpenKT is my team's shared context: a remote MCP server at `https://mcp.openkt.ai/mcp` that lets you recall what my team already knows and save what we decide, so it reaches my teammates' tools too. Sign-in is OAuth in my browser (email and password, or "Create an account"). There is no API key.
 
@@ -13,7 +17,7 @@ Rules: never ask me for a password or token in the chat. Before you create or ed
    - **Codex (CLI, IDE or app):** run `codex mcp add openkt --url https://mcp.openkt.ai/mcp`, then `codex mcp login openkt`. This is the same as adding `[mcp_servers.openkt]` with `url = "https://mcp.openkt.ai/mcp"` to `~/.codex/config.toml`.
    - **Claude Code:** run `claude mcp add --transport http --scope user openkt https://mcp.openkt.ai/mcp`, then `/mcp` → openkt → sign in. Or install the plugin, which adds the OpenKT skill and commands too: `/plugin marketplace add masti-ai/OpenKT-ai`, then `/plugin install openkt@openkt`.
    - **Cursor:** in `~/.cursor/mcp.json`, add `"openkt": { "url": "https://mcp.openkt.ai/mcp" }` inside `mcpServers` (merge; do not overwrite the file), then enable openkt in Cursor's MCP settings and sign in.
-   - **A browser agent or any other MCP client:** add a remote MCP server (Streamable HTTP) named `openkt`, URL `https://mcp.openkt.ai/mcp`, authentication OAuth. Leave client ID and secret empty; the server registers the client itself.
+   - **A browser agent or any other MCP client:** add a remote MCP server (Streamable HTTP) named `openkt`, URL `https://mcp.openkt.ai/mcp`, authentication OAuth. Leave client ID and secret empty; the server registers the client itself. If this client cannot open a browser to sign in, follow "Without a browser" at `https://mcp.openkt.ai/connect`.
    Some clients show new tools only in a new chat or after a restart. If so, tell me, and continue from step 3 when I paste this again.
 3. From now on, whenever you work with me, follow this contract:
    - **Start:** at the beginning of real work, call `kt_session_start` (pass the space if I name a project, customer or team) and keep the `session_id` for every later call.

@@ -13,11 +13,12 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { RequestMethod } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { Test } from "@nestjs/testing";
 import { Pool } from "pg";
 import request from "supertest";
+
+import { enableCorsFromEnv } from "@openkt/platform-cors";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const describeIfDb = DATABASE_URL ? describe : describe.skip;
@@ -43,14 +44,10 @@ async function bootApp(): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   app.set("trust proxy", true);
-  // Same exclusions as main.ts.
-  app.setGlobalPrefix("v1", {
-    exclude: [
-      { path: "mcp", method: RequestMethod.ALL },
-      { path: ".well-known/(.*)", method: RequestMethod.ALL },
-      { path: "oauth/(.*)", method: RequestMethod.ALL },
-    ],
-  });
+  // Same prefix exclusions and CORS as main.ts.
+  const { UNPREFIXED_ROUTES } = await import("../../apps/server/src/app.module");
+  app.setGlobalPrefix("v1", { exclude: [...UNPREFIXED_ROUTES] });
+  enableCorsFromEnv(app, { env: { CORS_ALLOWED_ORIGINS: "https://app.example.test" } });
   await app.init();
   return app;
 }
@@ -354,6 +351,127 @@ describeIfDb("OAuth sign-in page for MCP clients (e2e, no Supabase configured)",
     const page = await openPage(authorizeQuery(clientId, pkce().challenge));
     expect(page.html).not.toContain("<script>alert(1)</script>");
     expect(page.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+
+  describe("what real connectors send (claude.ai, ChatGPT, Codex, browser clients)", () => {
+    it("RFC 9728 path-suffixed metadata, OIDC discovery path, Basic auth advertised", async () => {
+      const suffixed = await http().get("/.well-known/oauth-protected-resource/mcp").expect(200);
+      expect(suffixed.body.resource).toMatch(/\/mcp$/);
+      const legacy = await http().get("/.well-known/oauth-protected-resource/v1/mcp").expect(200);
+      expect(legacy.body.resource).toMatch(/\/v1\/mcp$/);
+      await http().get("/.well-known/oauth-protected-resource/other").expect(404);
+      const oidc = await http().get("/.well-known/openid-configuration").expect(200);
+      const as = await http().get("/.well-known/oauth-authorization-server").expect(200);
+      expect(Object.keys(oidc.body).sort()).toEqual(Object.keys(as.body).sort());
+      expect(oidc.body.token_endpoint).toMatch(/\/oauth\/token$/);
+      expect(as.body.token_endpoint_auth_methods_supported).toEqual(["none", "client_secret_post", "client_secret_basic"]);
+    });
+
+    it("DCR: claude.ai's confidential body gets client_secret_expires_at; unknown methods are invalid_client_metadata", async () => {
+      const claude = await http()
+        .post("/oauth/register")
+        .set("X-Forwarded-For", freshIp())
+        .send({
+          client_name: "Claude",
+          redirect_uris: [CLAUDE_CALLBACK, "https://claude.com/api/mcp/auth_callback"],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "client_secret_post",
+          scope: "read write",
+        })
+        .expect(201);
+      expect(claude.body).toMatchObject({ client_secret: expect.any(String), client_secret_expires_at: 0, scope: "read write" });
+      const bad = await http()
+        .post("/oauth/register")
+        .set("X-Forwarded-For", freshIp())
+        .send({ redirect_uris: [CLAUDE_CALLBACK], token_endpoint_auth_method: "private_key_jwt" })
+        .expect(400);
+      expect(bad.body.error).toBe("invalid_client_metadata");
+    });
+
+    it("client_secret_basic: register, sign in, exchange with Authorization: Basic; no-store on the token response", async () => {
+      const reg = await http()
+        .post("/oauth/register")
+        .set("X-Forwarded-For", freshIp())
+        .send({ client_name: "Basic", redirect_uris: [CLAUDE_CALLBACK], token_endpoint_auth_method: "client_secret_basic" })
+        .expect(201);
+      expect(reg.body.token_endpoint_auth_method).toBe("client_secret_basic");
+      const email = freshEmail("basic");
+      await http().post("/v1/auth/signup").set("X-Forwarded-For", freshIp()).send({ email, password: PASSWORD, display_name: "B" }).expect(201);
+      const { verifier, challenge } = pkce();
+      const page = await openPage(authorizeQuery(reg.body.client_id, challenge));
+      const res = await submit({ ...page.fields, email, password: PASSWORD }, page.cookie).expect(302);
+      const code = new URL(res.headers.location as string).searchParams.get("code")!;
+      const basic = Buffer.from(`${encodeURIComponent(reg.body.client_id)}:${encodeURIComponent(reg.body.client_secret)}`).toString("base64");
+      // Without the secret: refused.
+      await http().post("/oauth/token").type("form")
+        .send({ grant_type: "authorization_code", code, redirect_uri: CLAUDE_CALLBACK, client_id: reg.body.client_id, code_verifier: verifier })
+        .expect(401);
+      const token = await http()
+        .post("/oauth/token")
+        .set("Authorization", `Basic ${basic}`)
+        .type("form")
+        .send({ grant_type: "authorization_code", code, redirect_uri: CLAUDE_CALLBACK, code_verifier: verifier, resource: "http://127.0.0.1/mcp" })
+        .expect(200);
+      expect(token.headers["cache-control"]).toBe("no-store");
+      expect(token.body.access_token).toMatch(/^okt_pat_/);
+      const refreshed = await http()
+        .post("/oauth/token")
+        .set("Authorization", `Basic ${basic}`)
+        .type("form")
+        .send({ grant_type: "refresh_token", refresh_token: token.body.refresh_token })
+        .expect(200);
+      expect(refreshed.body.access_token).toMatch(/^okt_pat_/);
+    });
+
+    it("GET /mcp is 405 (no SSE stream); DELETE ends nothing and succeeds; /v1/mcp is an alias", async () => {
+      const email = freshEmail("transport");
+      const session = await http().post("/v1/auth/signup").set("X-Forwarded-For", freshIp()).send({ email, password: PASSWORD, display_name: "T" }).expect(201);
+      const token = session.body.data.token as string;
+      const get = await http().get("/mcp").set("Authorization", `Bearer ${token}`).set("Accept", "text/event-stream").expect(405);
+      expect(get.headers.allow).toBe("POST, DELETE");
+      await http().delete("/mcp").set("Authorization", `Bearer ${token}`).expect(200);
+      const alias = await mcp(token, { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }).expect(200);
+      expect(alias.body.result.tools.length).toBeGreaterThan(5);
+      const v1 = await http()
+        .post("/v1/mcp")
+        .set("Authorization", `Bearer ${token}`)
+        .set("Accept", "application/json, text/event-stream")
+        .send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} })
+        .expect(200);
+      expect(v1.body.result.tools.length).toBe(alias.body.result.tools.length);
+      const unauth = await http().post("/v1/mcp").send({}).expect(401);
+      expect(unauth.headers["www-authenticate"]).toMatch(/oauth-protected-resource\/v1\/mcp"/);
+    });
+
+    it("CORS: any origin may call /mcp and the OAuth endpoints (no credentials); MCP headers allowed and exposed", async () => {
+      const pre = await http()
+        .options("/mcp")
+        .set("Origin", "https://claude.ai")
+        .set("Access-Control-Request-Method", "POST")
+        .set("Access-Control-Request-Headers", "authorization, content-type, mcp-protocol-version, mcp-session-id")
+        .expect(204);
+      expect(pre.headers["access-control-allow-origin"]).toBe("*");
+      expect(pre.headers["access-control-allow-credentials"]).toBeUndefined();
+      for (const h of ["authorization", "content-type", "mcp-protocol-version", "mcp-session-id"]) {
+        expect(pre.headers["access-control-allow-headers"].toLowerCase()).toContain(h);
+      }
+      const unauth = await http().post("/mcp").set("Origin", "https://chatgpt.com").send({}).expect(401);
+      expect(unauth.headers["access-control-allow-origin"]).toBe("*");
+      expect(unauth.headers["access-control-expose-headers"]).toMatch(/WWW-Authenticate/);
+      expect(unauth.headers["access-control-expose-headers"]).toMatch(/Mcp-Session-Id/);
+      for (const path of ["/oauth/token", "/oauth/register", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"]) {
+        const res = await http().options(path).set("Origin", "https://claude.ai").set("Access-Control-Request-Method", "POST").expect(204);
+        expect(res.headers["access-control-allow-origin"]).toBe("*");
+      }
+      // The REST API keeps its allow-list with credentials; the sign-in page gets no CORS at all.
+      const rest = await http().options("/v1/me").set("Origin", "https://claude.ai").set("Access-Control-Request-Method", "GET");
+      expect(rest.headers["access-control-allow-origin"]).toBeUndefined();
+      const ok = await http().options("/v1/me").set("Origin", "https://app.example.test").set("Access-Control-Request-Method", "GET").expect(204);
+      expect(ok.headers["access-control-allow-credentials"]).toBe("true");
+      const page = await http().options("/oauth/authorize").set("Origin", "https://claude.ai").set("Access-Control-Request-Method", "POST");
+      expect(page.headers["access-control-allow-origin"]).toBeUndefined();
+    });
   });
 
   it("/oauth/consent accepts an okt_pat_ session token (the optional dashboard path)", async () => {

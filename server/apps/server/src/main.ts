@@ -1,6 +1,5 @@
 import "./instrument";
 
-import { RequestMethod } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -8,7 +7,7 @@ import { Logger } from "nestjs-pino";
 
 import { enableCorsFromEnv } from "@openkt/platform-cors";
 
-import { AppModule } from "./app.module";
+import { AppModule, UNPREFIXED_ROUTES } from "./app.module";
 
 async function bootstrap(): Promise<void> {
   // rawBody: true tells NestJS's express adapter to configure the global
@@ -50,20 +49,7 @@ async function bootstrap(): Promise<void> {
   // 8414); Claude.ai hits `${origin}/.well-known/…` before the user
   // even types the server URL. Keeping the OAuth endpoints unprefixed
   // mirrors the discovery doc.
-  app.setGlobalPrefix("v1", {
-    exclude: [
-      { path: "mcp", method: RequestMethod.ALL },
-      // The zero-install pages (modules/web): / → /connect, /join/<code>, /connect/*.
-      // `join/:code` exactly — /v1/join and /v1/join/:code/preview stay under /v1.
-      { path: "/", method: RequestMethod.GET },
-      { path: "join/:code", method: RequestMethod.GET },
-      { path: "join/:code", method: RequestMethod.POST },
-      { path: "connect", method: RequestMethod.GET },
-      { path: "connect/(.*)", method: RequestMethod.POST },
-      { path: ".well-known/(.*)", method: RequestMethod.ALL },
-      { path: "oauth/(.*)", method: RequestMethod.ALL },
-    ],
-  });
+  app.setGlobalPrefix("v1", { exclude: [...UNPREFIXED_ROUTES] });
   enableCorsFromEnv(app);
   app.enableShutdownHooks();
 

@@ -716,6 +716,8 @@ export function setupGuidance(client?: string, serverUrl: string = HOSTED_MCP_UR
   const first = wanted ? SETUP_STEPS.find((s) => s.match.test(wanted)) : undefined;
   const ordered = first ? [first, ...SETUP_STEPS.filter((s) => s !== first)] : SETUP_STEPS;
   return [
+    `Add this MCP server: ${serverUrl} — it signs you in by itself.`,
+    "",
     `Connect ${wanted || "your AI tool"} to OpenKT — server ${serverUrl}. Sign-in is OAuth in the browser ` +
       "(email and password, or Create an account). Nobody pastes a password, token or API key into a chat or a config file.",
     "",
@@ -728,7 +730,7 @@ export function setupGuidance(client?: string, serverUrl: string = HOSTED_MCP_UR
       "durable is settled, one short self-contained statement, never secrets · kt_list_skills / kt_get_skill for " +
       '"the way we do it" · kt_session_end with a 2–3 sentence summary.',
     "Check the connection: call kt_session_start and kt_list_projects.",
-    "The same steps as a prompt anyone can paste into their AI tool: https://github.com/masti-ai/OpenKT-ai/blob/main/plugin/SETUP-PROMPT.md",
+    `The same steps as text an agent can follow: ${serverUrl.replace(/\/mcp$/, "")}/connect — and as a prompt anyone can paste: https://github.com/masti-ai/OpenKT-ai/blob/main/plugin/SETUP-PROMPT.md`,
   ].join("\n");
 }
 

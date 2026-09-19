@@ -43,16 +43,8 @@ async function bootApp(): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   app.set("trust proxy", true);
-  app.setGlobalPrefix("v1", {
-    exclude: [
-      { path: "mcp", method: RequestMethod.ALL },
-      { path: "/", method: RequestMethod.GET },
-      { path: "join/:code", method: RequestMethod.GET },
-      { path: "join/:code", method: RequestMethod.POST },
-      { path: "connect", method: RequestMethod.GET },
-      { path: "connect/(.*)", method: RequestMethod.POST },
-    ],
-  });
+  const { UNPREFIXED_ROUTES } = await import("../../apps/server/src/app.module");
+  app.setGlobalPrefix("v1", { exclude: [...UNPREFIXED_ROUTES] });
   await app.init();
   return app;
 }
@@ -400,10 +392,21 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
   });
 
   describe("pages", () => {
-    it("GET / goes to /connect; /connect signed out is a sign-in form with CSP and no-store", async () => {
+    it("/connect and /llms.txt are text for agents; / sends a browser to /connect.html, a sign-in form with CSP and no-store", async () => {
       const root = await http().get("/").expect(302);
       expect(root.headers.location).toBe("/connect");
-      const page = await http().get("/connect").expect(200);
+      const browserRoot = await http().get("/").set("Accept", "text/html,application/xhtml+xml").expect(302);
+      expect(browserRoot.headers.location).toBe("/connect.html");
+      for (const path of ["/connect", "/llms.txt"]) {
+        const text = await http().get(path).expect(200);
+        expect(text.headers["content-type"]).toMatch(/^text\/markdown/);
+        expect(text.text.split("\n")[0]).toBe(`Add this MCP server: ${MCP_URL} — it signs you in by itself.`);
+        expect(text.text).toContain(`codex mcp add openkt --url ${MCP_URL} && codex mcp login openkt`);
+        expect(text.text).toContain("/v1/auth/login");
+        expect(text.text).toContain("kt_session_start");
+        expect(text.text).not.toMatch(/<html|<form/i);
+      }
+      const page = await http().get("/connect.html").expect(200);
       expect(page.headers["content-type"]).toMatch(/text\/html/);
       expect(page.headers["cache-control"]).toBe("no-store");
       const csp = page.headers["content-security-policy"] as string;
@@ -458,10 +461,10 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .type("form")
         .send({ csrf, mode: "signup", email, password: PASSWORD, display_name: "Wally Walkin" })
         .expect(303);
-      expect(joined.headers.location).toBe(`/connect?joined=${spaceId}`);
+      expect(joined.headers.location).toBe(`/connect.html?joined=${spaceId}`);
       jar.take(joined);
       const sessionCookies = (joined.headers["set-cookie"] as unknown as string[]).filter((c) => c.startsWith("okt_web_session="));
-      expect(sessionCookies.map((c) => /Path=([^;]+)/.exec(c)?.[1]).sort()).toEqual(["/connect", "/join"]);
+      expect(sessionCookies.map((c) => /Path=([^;]+)/.exec(c)?.[1]).sort()).toEqual(["/connect", "/connect.html", "/join"]);
       for (const c of sessionCookies) {
         expect(c).toMatch(/HttpOnly/);
         expect(c).toMatch(/SameSite=Lax/);
@@ -474,8 +477,9 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
       expect(hours).toBeGreaterThan(23.9);
       expect(hours).toBeLessThan(24.1);
 
-      const landing = await http().get(joined.headers.location).set("Cookie", jar.header("/connect")).expect(200);
-      expect(landing.text).toContain("You joined <strong>Launch &amp; Learn</strong> as editor");
+      const landing = await http().get(joined.headers.location).set("Cookie", jar.header("/connect.html")).expect(200);
+      expect(landing.text).toContain("You joined <strong>Launch &amp; Learn</strong> as editor. Now paste this into your AI tool:");
+      expect(landing.text).toContain(`<code class="paste">Add this MCP server: ${MCP_URL} — it signs you in by itself.`);
       expect(landing.text).toContain(MCP_URL);
       expect(landing.text).toContain("[mcp_servers.openkt]");
       expect(landing.text).toContain("Bearer &lt;token&gt;");
@@ -508,7 +512,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .expect(200);
       expect((recalled.body.data as { content: string }[]).map((m) => m.content)).toContain("Standup is at 9:30 by the stage.");
       // Shown once: the next render has no token in it.
-      const later = await http().get("/connect").set("Cookie", jar.header("/connect")).expect(200);
+      const later = await http().get("/connect.html").set("Cookie", jar.header("/connect.html")).expect(200);
       expect(later.text).not.toContain(token!);
 
       // Token creation without the CSRF value is refused.
@@ -533,7 +537,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
       const jar = cookieJar();
 
       // Sign up on /connect.
-      const signin = await http().get("/connect").expect(200);
+      const signin = await http().get("/connect.html").expect(200);
       jar.take(signin);
       const email = freshEmail("clicker");
       const signedUp = await http()
@@ -544,7 +548,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .send({ csrf: csrfOf(signin.text), mode: "signup", email, password: PASSWORD, display_name: "Cleo Clicker" })
         .expect(303);
       jar.take(signedUp);
-      expect(signedUp.headers.location).toBe("/connect");
+      expect(signedUp.headers.location).toBe("/connect.html");
 
       const joinA = await http().get(`/join/${linkA.code}`).set("Cookie", jar.header(`/join/${linkA.code}`)).expect(200);
       expect(joinA.text).toContain("Join as Cleo Clicker");
@@ -554,7 +558,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .type("form")
         .send({ csrf: csrfOf(joinA.text), mode: "session" })
         .expect(303);
-      expect(done.headers.location).toBe(`/connect?joined=${spaceA}`);
+      expect(done.headers.location).toBe(`/connect.html?joined=${spaceA}`);
 
       // Existing account, signing in on the join page instead.
       const other = await signup("existing");
@@ -585,7 +589,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
 
     it("create a team on /connect: the page shows the link to share, and 'New invite link' makes another", async () => {
       const jar = cookieJar();
-      const signin = await http().get("/connect").expect(200);
+      const signin = await http().get("/connect.html").expect(200);
       jar.take(signin);
       const signedUp = await http()
         .post("/connect/signin")
@@ -595,7 +599,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .send({ csrf: csrfOf(signin.text), mode: "signup", email: freshEmail("maker"), password: PASSWORD, display_name: "Max Maker" })
         .expect(303);
       jar.take(signedUp);
-      const page = await http().get("/connect").set("Cookie", jar.header("/connect")).expect(200);
+      const page = await http().get("/connect.html").set("Cookie", jar.header("/connect.html")).expect(200);
       expect(page.text).toContain("You are not in any team yet");
 
       const made = await http()
@@ -606,7 +610,7 @@ describeIfDb("Teams: join links, team MCP tools, /join and /connect pages (e2e)"
         .expect(303);
       const spaceId = /created=([0-9a-f-]{36})/.exec(made.headers.location)?.[1];
       expect(spaceId).toBeDefined();
-      const shown = await http().get(made.headers.location).set("Cookie", jar.header("/connect")).expect(200);
+      const shown = await http().get(made.headers.location).set("Cookie", jar.header("/connect.html")).expect(200);
       const url = new RegExp(`Send this link to your team: <code>(${PUBLIC_URL}/join/[A-Za-z0-9]{10})</code>`).exec(shown.text)?.[1];
       expect(url).toBeDefined();
       const code = url!.split("/").pop()!;
