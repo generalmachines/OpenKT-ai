@@ -24,6 +24,10 @@ jobs:
     name: build (dmg + zip, arm64)
     runs-on: macos-14
     timeout-minutes: 30
+    # in-app updates: the release job publishes this version
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      next: ${{ steps.version.outputs.next }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -66,6 +70,18 @@ jobs:
       - name: Compile openkt-ocr (Swift, Apple Vision)
         working-directory: apps/desktop
         run: bash scripts/build-ocr.sh
+      # ── in-app updates: every build gets a unique, increasing version (written here, never committed) ──
+      - name: Stamp version 0.3.${{ github.run_number }}
+        id: version
+        working-directory: apps/desktop
+        env:
+          CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
+        run: |
+          node scripts/stamp-version.mjs "0.3.${GITHUB_RUN_NUMBER}"
+          echo "version=0.3.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "next=0.3.$((GITHUB_RUN_NUMBER + 1))" >> "$GITHUB_OUTPUT"
+          echo "version: 0.3.${GITHUB_RUN_NUMBER}" >> "$GITHUB_STEP_SUMMARY"
+      # ── end in-app updates ──
       - name: Package (signed when secrets exist, otherwise ad-hoc)
         working-directory: apps/desktop
         env:
@@ -113,6 +129,25 @@ jobs:
           echo "highest minos among bundled binaries: $MAX"
           test "$(printf '%s\n%s\n' "$MAX" "$WANT" | sort -V | tail -1)" = "$WANT"
           echo "minimum macOS: $WANT (bundled binaries need $MAX)" >> "$GITHUB_STEP_SUMMARY"
+      # ── in-app updates: the update-smoke payload — the same code packaged again with only the version bumped ──
+      - name: Package version N+1 (zip only, for update-smoke; never released)
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          cp package.json "$RUNNER_TEMP/package.json.N"
+          node scripts/stamp-version.mjs "${{ steps.version.outputs.next }}"
+          OPENKT_DIST_TARGETS=zip OPENKT_DIST_OUTPUT=release-next node scripts/dist-mac.mjs
+          cp "$RUNNER_TEMP/package.json.N" package.json
+          ls -la release-next
+          plutil -extract CFBundleShortVersionString raw release-next/mac-arm64/OpenKT.app/Contents/Info.plist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenKT-mac-arm64-next-zip
+          path: apps/desktop/release-next/*.zip
+          retention-days: 3
+          if-no-files-found: error
+      # ── end in-app updates ──
       - uses: actions/upload-artifact@v4
         with:
           name: OpenKT-mac-arm64-dmg
@@ -346,3 +381,127 @@ jobs:
             ${{ runner.temp }}/smoke-result.json
             ${{ runner.temp }}/app.log
           retention-days: 14
+
+  # ── in-app updates ──────────────────────────────────────────────────────────────────────────────────
+  update-smoke:
+    name: update-smoke (0.3.N updates itself to N+1 in place, relaunches, old copy gone)
+    needs: [build]
+    runs-on: macos-14
+    timeout-minutes: 20
+    env:
+      N: ${{ needs.build.outputs.version }}
+      NEXT: ${{ needs.build.outputs.next }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenKT-mac-arm64-dmg
+          path: dmg
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenKT-mac-arm64-next-zip
+          path: next
+      - name: Serve a local feed (latest.json + the N+1 zip on http://127.0.0.1:8765)
+        run: |
+          FEED="$RUNNER_TEMP/feed"
+          mkdir -p "$FEED/releases/$NEXT"
+          cp "$(ls next/*.zip | head -1)" "$FEED/releases/$NEXT/OpenKT-$NEXT-arm64.zip"
+          Z="$FEED/releases/$NEXT/OpenKT-$NEXT-arm64.zip"
+          jq -n --arg v "$NEXT" --arg sha "$(shasum -a 256 "$Z" | cut -d' ' -f1)" --argjson size "$(stat -f%z "$Z")" \
+            '{version:$v, channel:"stable", released_at:(now|todate), commit:"update-smoke", notes:["update-smoke payload"], min_os:"13.3",
+              files:{zip:{url:("http://127.0.0.1:8765/releases/"+$v+"/OpenKT-"+$v+"-arm64.zip"), sha256:$sha, size:$size}}}' > "$FEED/latest.json"
+          cat "$FEED/latest.json"
+          cd "$FEED" && nohup python3 -m http.server 8765 --bind 127.0.0.1 > "$RUNNER_TEMP/feed.log" 2>&1 &
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8765/latest.json > /dev/null && break; sleep 0.5; done
+          curl -fsSI "http://127.0.0.1:8765/releases/$NEXT/OpenKT-$NEXT-arm64.zip" | head -3
+      - name: Install version N from the DMG into a folder whose name has a space
+        run: |
+          DMG=$(ls dmg/*.dmg | head -1)
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint /Volumes/openkt-update-smoke
+          APPS="$RUNNER_TEMP/Smoke Apps"
+          mkdir -p "$APPS"
+          cp -R /Volumes/openkt-update-smoke/OpenKT.app "$APPS/"
+          hdiutil detach /Volumes/openkt-update-smoke
+          test "$(plutil -extract CFBundleShortVersionString raw "$APPS/OpenKT.app/Contents/Info.plist")" = "$N"
+          echo "APPS=$APPS" >> "$GITHUB_ENV"
+      - name: Launch N — it checks, downloads, verifies, installs N+1 and relaunches it
+        env:
+          OUT: ${{ runner.temp }}/update-smoke.json
+          APPLOG: ${{ runner.temp }}/update-app.log
+        run: |
+          rm -f "$OUT" "$OUT.n.json"
+          # `open` does not pass this shell's environment on: the smoke switches go through --env
+          # (the app hands the same switches to the relaunch of N+1).
+          open -n -a "$APPS/OpenKT.app" \
+            --env OPENKT_SMOKE=1 --env OPENKT_SMOKE_UPDATE=1 \
+            --env "OPENKT_UPDATE_FEED=http://127.0.0.1:8765/latest.json" \
+            --env "OPENKT_SMOKE_OUT=$OUT" --env "OPENKT_SMOKE_LOG=$APPLOG" \
+            --stdout "$APPLOG" --stderr "$APPLOG"
+          for i in $(seq 1 300); do [ -f "$OUT" ] && break; sleep 1; done
+          echo "── N ($N)"; cat "$OUT.n.json" || true
+          echo "── N+1 ($NEXT)"; cat "$OUT" || true
+          echo "── swap.log"; cat "$HOME/Library/Application Support/OpenKT/updates/swap.log" || true
+          echo "── app log"; tail -60 "$APPLOG" || true
+          echo "── $APPS"; ls -la "$APPS"
+          jq -e '.ok == true' "$OUT.n.json"
+          jq -e '.ok == true' "$OUT"
+          # The running bundle now reports N+1 — app.getVersion() and Info.plist — and the old copy is gone.
+          test "$(jq -r .version "$OUT")" = "$NEXT"
+          test "$(jq -r .plistVersion "$OUT")" = "$NEXT"
+          test "$(plutil -extract CFBundleShortVersionString raw "$APPS/OpenKT.app/Contents/Info.plist")" = "$NEXT"
+          test "$(ls -A "$APPS")" = "OpenKT.app"
+          codesign --verify --deep --strict "$APPS/OpenKT.app" && echo "codesign verify after update: ok"
+          grep -q "swap: installed" "$HOME/Library/Application Support/OpenKT/updates/swap.log"
+          echo "update-smoke: $N → $NEXT in place, relaunched, old copy removed" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: update-smoke-result
+          path: |
+            ${{ runner.temp }}/update-smoke.json
+            ${{ runner.temp }}/update-smoke.json.n.json
+            ${{ runner.temp }}/update-app.log
+            ${{ runner.temp }}/feed.log
+          retention-days: 14
+
+  release:
+    name: release (S3 feed — main only)
+    # Only after the build and EVERY smoke job is green; only from main (the environment is restricted to main too).
+    needs: [build, local-ai-smoke, capture-smoke, app-launch-smoke, update-smoke]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    concurrency:
+      group: desktop-release
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out full history (release notes)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: OpenKT-mac-arm64-dmg
+          path: dist
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: OpenKT-mac-arm64-zip
+          path: dist
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c
+        with:
+          role-to-assume: ${{ vars.DOWNLOADS_ROLE_ARN }}
+          role-session-name: openkt-desktop-release-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Publish ${{ needs.build.outputs.version }} (versioned files, stable DMG, then latest.json LAST)
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          BUCKET: ${{ vars.DOWNLOADS_BUCKET }}
+          BASE_URL: ${{ vars.DOWNLOADS_BASE_URL }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          ls -la dist
+          ZIP="$(ls dist/*.zip | head -1)" DMG="$(ls dist/*.dmg | head -1)" bash apps/desktop/scripts/release-publish.sh
+  # ── end in-app updates ──
