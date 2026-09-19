@@ -41,6 +41,8 @@ import { GrantsModule } from "./modules/grants/grants.module";
 import { AccessModule } from "./modules/access/access.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
 import { SkillsModule } from "./modules/skills/skills.module";
+import { JobsModule } from "./modules/jobs/jobs.module";
+import { PagesModule } from "./modules/pages/pages.module";
 import { TeamsModule } from "./modules/teams/teams.module";
 import { WebModule } from "./modules/web/web.module";
 
@@ -101,6 +103,8 @@ export const UNPREFIXED_ROUTES: RouteInfo[] = [
     SessionsModule,
     GrantsModule,
     SkillsModule,
+    PagesModule,
+    JobsModule,
     AccessModule,
     AccountsModule,
     TeamsModule,

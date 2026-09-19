@@ -50,6 +50,12 @@ export const memories = pgTable("memories", {
   // show "from Claude Code" on every result.
   sessionId: uuid("session_id"),
   source: text("source"),
+  // Verbatim evidence from the session (migration 0043, Spec 01 §5 quote
+  // gate): null for facts a person saved directly. valid_from / valid_to
+  // bound when the fact held; a superseded fact gets valid_to.
+  quote: text("quote"),
+  validFrom: timestamp("valid_from", { withTimezone: true }),
+  validTo: timestamp("valid_to", { withTimezone: true }),
   // Synthesis columns
   tier: text("tier"), // E1 | E2 | E3 (kept text to permit nulls + future tiers)
   subPoints: text("sub_points").array().notNull().default(sql`'{}'::text[]`),

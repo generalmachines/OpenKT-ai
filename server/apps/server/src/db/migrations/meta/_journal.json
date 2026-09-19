@@ -309,6 +309,13 @@
       "when": 1781250000000,
       "tag": "0043_personal_space_marker",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1781300000000,
+      "tag": "0044_living_pages",
+      "breakpoints": true
     }
   ]
 }

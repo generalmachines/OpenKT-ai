@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
 import { requireProjectAccess } from "@openkt/auth-authorization";
@@ -9,7 +9,11 @@ import type {
   MemoryWithSimilarityRecord,
   RecallMeta,
   RecallRequest,
+  RecallSection,
 } from "../contracts/memory.contract";
+import { stripCitations } from "../../jobs/rules/living-rules";
+import { PageRepository } from "../../pages/repositories/page.repository";
+import { embed } from "../repositories/embedding-bge";
 import { KnowledgeRepository } from "../repositories/knowledge.repository";
 import { MemoryRepository } from "../repositories/memory.repository";
 import { MEMORY_ENGINE, type MemoryEngine } from "./memory-engine";
@@ -22,6 +26,11 @@ import { AccessScopeService } from "../../access/services/access-scope.service";
 // topics in these results" — five is more than enough for any sane
 // recall (limit ≤ 50 raw memories) and keeps the response bounded.
 const KNOWLEDGE_LIMIT = 5;
+
+// Page sections returned alongside facts, and the vector floor below which a section is not
+// relevant enough to show (Spec 01 §4 step 6 abstains below cosine 0.30 without a reranker).
+const SECTION_LIMIT = 4;
+const SECTION_MIN_SIMILARITY = 0.3;
 
 /**
  * Single-responsibility service for the memory recall path.
@@ -54,6 +63,9 @@ export class MemoryRecallService {
     private readonly memoryRepository: MemoryRepository,
     private readonly sessionRepository: SessionRepository,
     private readonly accessScopeService: AccessScopeService,
+    // Optional so a module that wires recall without pages (a test module) still resolves;
+    // recall then returns no sections.
+    @Optional() private readonly pageRepository?: PageRepository,
   ) {}
 
   async recall(
@@ -144,6 +156,16 @@ export class MemoryRecallService {
         });
     }
 
+    // Page sections from the same spaces, grant-filtered the same way: someone who can read only
+    // some sessions of a space (onlySessionIds) cannot read its pages, so gets none.
+    const sections = onlySessionIds
+      ? []
+      : await this.recallSections([projectId, ...workspaceIds], input.query ?? "").catch((err) => {
+          this.logger.warn(`[memory.recall] section search failed: ${err instanceof Error ? err.message : String(err)}`);
+          return [] as RecallSection[];
+        });
+    recalled.meta = { ...recalled.meta, sections };
+
     if (!input.include_knowledge) {
       return recalled;
     }
@@ -160,6 +182,27 @@ export class MemoryRecallService {
       data: recalled.data,
       meta: { ...recalled.meta, knowledge },
     };
+  }
+
+  private async recallSections(projectIds: string[], query: string): Promise<RecallSection[]> {
+    const q = query.trim();
+    if (!q || !this.pageRepository) return [];
+    const vector = await embed(q).catch(() => null);
+    const hits = await this.pageRepository.searchSections([...new Set(projectIds)], q, vector, SECTION_LIMIT * 2);
+    return hits
+      .filter((h) => h.similarity === null || h.similarity >= SECTION_MIN_SIMILARITY)
+      .slice(0, SECTION_LIMIT)
+      .map((h) => ({
+        id: h.id,
+        type: "section" as const,
+        heading: h.heading,
+        text: stripCitations(h.body_md),
+        page: { id: h.page_id, title: h.page_title },
+        space: { id: h.project_id, name: h.project_name },
+        locked: h.locked,
+        updated_at: h.updated_at,
+        score: h.score,
+      }));
   }
 
   private async collectKnowledge(

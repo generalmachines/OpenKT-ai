@@ -29,3 +29,5 @@ export * from "./grants";
 export * from "./accounts";
 export * from "./skills";
 export * from "./join-links";
+export * from "./pages";
+export * from "./jobs";
