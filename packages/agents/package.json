@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Single-purpose LLM agents for the OpenKT write path: one prompt, one JSON Schema, one narrow input each.",
   "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "packages/agents" },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

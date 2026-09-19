@@ -1,6 +1,6 @@
 # Spec 02 — how the small agents decide
 
-> Owner: senior. Status: decided. The agents themselves (prompt + JSON schema + validation) live in `packages/agents`. This spec fixes **when** each one runs, **what it may see**, and **what code decides without a model**. Rule of thumb: if arithmetic or SQL can decide it, a model must not.
+> Owner: maintainers. Status: decided. The agents themselves (prompt + JSON schema + validation) live in `packages/agents`. This spec fixes **when** each one runs, **what it may see**, and **what code decides without a model**. Rule of thumb: if arithmetic or SQL can decide it, a model must not.
 
 One model serves every agent: **Qwen3.5-4B**, temperature 0, **thinking off**, output constrained to the agent's JSON Schema. "Reasoning" in OpenKT is not a long chain of thought inside one call — it is a chain of small calls, each making one decision that code can verify.
 
