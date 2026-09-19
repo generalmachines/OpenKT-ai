@@ -16,7 +16,7 @@ import type {
 } from "@openkt/data-repositories";
 
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
-import { orgMembers, orgs, projects } from "../../../db/schema";
+import { grants, orgMembers, orgs, projects } from "../../../db/schema";
 
 @Injectable()
 export class DrizzleProjectRepository implements ProjectRepository {
@@ -52,8 +52,8 @@ export class DrizzleProjectRepository implements ProjectRepository {
     const userId = context.principal.userId;
     if (!userId) return [];
 
-    // Visibility rules: caller sees a project if they own it OR they
-    // belong to its org. Implemented as a UNION-ish via two queries
+    // Visibility rules: caller sees a project if they own it, belong to
+    // its org, OR hold a grant on it (a space shared with them). Implemented as a UNION-ish via two queries
     // (cheap; both are sub-100-row reads in practice).
     const ownedConditions = [eq(projects.ownerUserId, userId)];
     if (filters.orgId) ownedConditions.push(eq(projects.orgId, filters.orgId));
@@ -76,9 +76,24 @@ export class DrizzleProjectRepository implements ProjectRepository {
       .where(and(...memberConditions))
       .orderBy(asc(projects.createdAt));
 
+    const grantedConditions = [
+      eq(grants.resourceType, "project"),
+      eq(grants.subjectType, "user"),
+      eq(grants.subjectId, userId),
+    ];
+    if (filters.orgId) grantedConditions.push(eq(projects.orgId, filters.orgId));
+    if (filters.visibility) grantedConditions.push(eq(projects.visibility, filters.visibility));
+
+    const granted = await this.db
+      .select({ p: projects })
+      .from(projects)
+      .innerJoin(grants, eq(grants.resourceId, projects.id))
+      .where(and(...grantedConditions))
+      .orderBy(asc(projects.createdAt));
+
     const seen = new Set<string>();
     const out: ProjectRecord[] = [];
-    for (const row of [...owned, ...memberOf.map((r) => r.p)]) {
+    for (const row of [...owned, ...memberOf.map((r) => r.p), ...granted.map((r) => r.p)]) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
       out.push(this.toRecord(row));
@@ -124,18 +139,31 @@ export class DrizzleProjectRepository implements ProjectRepository {
     if (!project) return null;
     if (project.ownerUserId === userId) return "owner";
 
-    // No project_members table in the schema (yet) — fall back to org
-    // role only. Future work: add per-project ACL when needed.
+    // A grant on the space: owner → admin, editor → member, reader → viewer.
+    const grant = await this.db.query.grants.findFirst({
+      where: and(
+        eq(grants.resourceType, "project"),
+        eq(grants.resourceId, projectId),
+        eq(grants.subjectType, "user"),
+        eq(grants.subjectId, userId),
+      ),
+    });
+    const fromGrant =
+      grant?.role === "owner" ? "admin" : grant?.role === "editor" ? "member" : grant?.role === "reader" ? "viewer" : null;
+
     if (project.orgId) {
       const member = await this.db.query.orgMembers.findFirst({
         where: and(eq(orgMembers.orgId, project.orgId), eq(orgMembers.userId, userId)),
       });
       const role = member?.role;
       if (role && ["owner", "admin", "member"].includes(role)) {
-        return role === "member" ? "viewer" : "admin";
+        const fromOrg = role === "member" ? "viewer" : "admin";
+        // The stronger of the two wins.
+        const rank = { admin: 3, member: 2, viewer: 1 } as const;
+        return fromGrant && rank[fromGrant] > rank[fromOrg] ? fromGrant : fromOrg;
       }
     }
-    return null;
+    return fromGrant;
   }
 
   private toRecord(row: typeof projects.$inferSelect): ProjectRecord {

@@ -39,6 +39,10 @@ r = await api("A", "GET", `/v1/sessions/${sid}`); check("Session shows its facts
 r = await api("B", "POST", "/v1/memories/recall", { query: "how do we price Northgate?", project_id: P }); check("Before a grant, teammate B cannot recall from the space", r.status === 404 || r.status === 403 || (r.data?.length ?? r.data?.items?.length ?? 0) === 0, `status ${r.status}`);
 r = await api("A", "PUT", `/v1/projects/${P}/grants/${T.B.user_id}`, { role: "reader" }); check("A grants B reader on the space", r.status < 300, `status ${r.status}`);
 
+r = await api("B", "GET", "/v1/projects"); const bSpace = (r.data ?? []).find((p) => p.id === P);
+check("B sees the shared space in their own list, as a viewer", !!bSpace && (bSpace.viewer_role ?? "viewer") === "viewer", `role=${bSpace?.viewer_role}`);
+r = await api("C", "GET", "/v1/projects"); check("Stranger C does not see the space in their list", !(r.data ?? []).some((p) => p.id === P));
+
 const q = "what pricing model does Northgate want?";   // paraphrase, few shared keywords
 r = await api("B", "POST", "/v1/memories/recall", { query: q, project_id: P, limit: 5 });
 const items = Array.isArray(r.data) ? r.data : (r.data?.items ?? r.data?.memories ?? []);
