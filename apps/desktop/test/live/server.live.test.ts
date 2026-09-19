@@ -35,7 +35,8 @@ const TOKEN = env['OPENKT_LIVE_TOKEN'];
 const TOKEN_B = env['OPENKT_LIVE_TOKEN_B'];
 const TOKEN_C = env['OPENKT_LIVE_TOKEN_C'];
 
-const client = (token: string) => new HttpClient({ baseUrl: URL_ ?? 'http://127.0.0.1:1', token })  // suites are skipped without env, but their bodies still run;
+// Suites are skipped without env, but their bodies still run at collection time.
+const client = (token: string) => new HttpClient({ baseUrl: URL_ ?? 'http://127.0.0.1:1', token });
 const stamp = Date.now().toString(36);
 const FACT_1 = `Live test ${stamp}: the Zanzibar warehouse ships on Thursdays only`;
 const FACT_2 = `Live test ${stamp}: invoices for Quillfeather Ltd go to accounts payable, never to the buyer`;
