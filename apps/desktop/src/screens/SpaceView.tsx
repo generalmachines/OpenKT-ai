@@ -5,9 +5,11 @@ import { firstName, relativeDay, roleLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
 import type { ContextItem, Space, SpaceMember } from '../api/types';
 import { AccessPanel } from '../components/AccessPanel';
+import { ContributorsPanel } from '../components/ContributorsPanel';
 import { Avatar, ErrorNote, KindChip, Loading } from '../components/bits';
 import { Icon, SOURCE_ICON } from '../components/Icon';
 import { Overlay } from '../components/Overlay';
+import { ReadOnlyNote } from '../components/ReadOnlyNote';
 import { useSearch } from '../components/Shell';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -169,6 +171,7 @@ export function SpaceView() {
         </p>
       )}
 
+      <ReadOnlyNote space={sp} />
       {showingAccess && owner ? (
         <AccessPanel resource={{ type: 'space', id }} noun="space" />
       ) : (
@@ -189,7 +192,15 @@ export function SpaceView() {
             <section className="space__pages">
               {(pages.data?.length ?? 0) > 0 && (
                 <>
-                  <h2 className="h-label">Pages · kept current for you</h2>
+                  <div className="space__head">
+                    <h2 className="h-label">Pages · kept current for you</h2>
+                    {client.getKnowledgeGraph && (
+                      <Link to={`/spaces/${id}/graph`} className="quiet-link mono space__graph">
+                        <Icon name="graph" size={13} />
+                        See how it connects
+                      </Link>
+                    )}
+                  </div>
                   <ul className="plain space__block">
                     {(pages.data ?? []).map((p) => (
                       <li key={p.id}>
@@ -237,6 +248,7 @@ export function SpaceView() {
                   )}
                 </>
               )}
+              <ContributorsPanel spaceId={id} />
               <h2 className="h-label">Recent sessions</h2>
               <ul className="plain">
                 {(sessions.data ?? []).slice(0, 6).map((s) => (

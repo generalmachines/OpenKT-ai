@@ -2,11 +2,13 @@ import type {
   AccessDefault,
   Capabilities,
   Connector,
+  Contributor,
   ContextItem,
   Grant,
   GrantSubject,
   Id,
   JoinLink,
+  KnowledgeGraph,
   Me,
   ModelJob,
   ModelSettings,
@@ -125,6 +127,14 @@ export interface OpenKTClient {
   setModelEndpoint(endpoint: string): Promise<ModelSettings>;
 
   recall(query: string, opts?: { spaceId?: Id; limit?: number }): Promise<RecallHit[]>;
+
+  /**
+   * Who has added what to a space, and which pages it feeds. Optional: only the
+   * sample workspace has it for now, and the screens hide the panel without it.
+   */
+  listContributors?(spaceId: Id): Promise<Contributor[]>;
+  /** A space's people, pages and facts and how they connect. Optional, like `listContributors`. */
+  getKnowledgeGraph?(spaceId: Id): Promise<KnowledgeGraph>;
 }
 
 export class NotFoundError extends Error {

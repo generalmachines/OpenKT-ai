@@ -38,13 +38,15 @@ describe('skills library', () => {
     const user = userEvent.setup();
     renderApp('/skills');
     const list = await screen.findByRole('list', { name: 'Skills' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+    // Five written by hand, six drawn from the sample teams' pages.
+    expect(within(list).getAllByRole('listitem')).toHaveLength(11);
     expect(within(list).getByText('v4 · used 31 times this month')).toBeInTheDocument();
+    expect(within(list).getByRole('link', { name: 'Run a sales discovery call' })).toBeInTheDocument();
     expect(screen.queryByText('Preview — sample data')).not.toBeInTheDocument();
 
     await user.type(screen.getByRole('searchbox', { name: 'Search skills' }), 'bug report');
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByRole('status')).toHaveTextContent('1 of 5');
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 11');
     await user.click(within(list).getByRole('button', { name: 'Run Triage a bug report' }));
     expect(await screen.findByRole('dialog', { name: 'Run “Triage a bug report”' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close' }));
@@ -393,16 +395,16 @@ describe('editing a skill', () => {
 
     await user.type(within(dialog).getByLabelText('Name'), 'Answer a pricing question');
     await user.click(within(dialog).getByRole('button', { name: 'Space: personal — only you' }));
-    await user.click(await within(dialog).findByRole('option', { name: 'sales / northgate' }));
+    await user.click(await within(dialog).findByRole('option', { name: 'sales' }));
     await user.click(within(dialog).getByRole('button', { name: 'Create and write' }));
 
     const editor = (await editorFor()) as HTMLTextAreaElement;
     expect(editor.value).toMatch(/^---\nname: answer-a-pricing-question\ndescription: .+\n---\n\n# Answer a pricing question\n/);
     expect(screen.getByRole('heading', { level: 1, name: 'Answer a pricing question' })).toBeInTheDocument();
     expect(screen.getByText('editing · your changes become v2')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('sales / northgate');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('sales');
     const listed = (await client.listSkills()).find((s) => s.title === 'Answer a pricing question');
-    expect(listed).toMatchObject({ spaceId: 'sp-northgate', currentVersion: 1, myRole: 'owner' });
+    expect(listed).toMatchObject({ spaceId: 'sp-sales', currentVersion: 1, myRole: 'owner' });
   });
 });
 

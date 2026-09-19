@@ -72,7 +72,7 @@ describe('onboarding progress on this Mac', () => {
     installFirstRun();
     localStorage.setItem('openkt.onboarded', '1');
     renderApp('/');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Pricing call with Northgate' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Acmeflow deal review' })).toBeInTheDocument();
   });
 });
 
