@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings, connectors</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1a1a18;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#b4532a}a:hover{color:#8f3f1e}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; background: #fff; overflow: hidden;">
+<nav aria-label="Sessions" style="width: 272px; flex-shrink: 0; box-sizing: border-box; height: 100%; background: #f7f7f5; border-right: 1px solid #e8e7e3; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 12px;">
+<span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em;">OpenKT</span>
+<span class="mono" style="font-size: 10.5px; color: #6b6a65; display: flex; align-items: center; gap: 6px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #4f7a4a; display: inline-block;"></span>local</span>
+</div>
+<button style="display: flex; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13.5px; color: #6b6a65; text-align: left; min-height: 44px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="flex-grow: 1;">Search all context</span><span class="mono" style="font-size: 11px;">⌘K</span></button>
+<div style="height: 6px;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>New note</a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Today</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pricing call with Northgate</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">meeting · 42 min</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fix auth refresh storm</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">claude code · openkt</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Idea: per-store onboarding kit</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">voice · ideas</span>
+</span></a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Yesterday</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Q4 launch messaging</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">chatgpt · marketing</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"></rect><path d="M12 8V4M9 13v1.5M15 13v1.5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Inbox triage</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">hermes · personal</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Competitor pricing page</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">screenshot · sales</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Hiring plan notes</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">note · founders</span>
+</span></a>
+<div style="flex-grow: 1;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>Spaces</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span>Skills</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: #ecebe7; font-weight: 500;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg></span>Settings</a>
+</nav>
+<div style="width: 190px; flex-shrink: 0; box-sizing: border-box; padding: 40px 12px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #e8e7e3;">
+<a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: #ecebe7; font-weight: 500;">Connectors</a><a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: transparent; font-weight: 400;">Access defaults</a><a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: transparent; font-weight: 400;">Models</a><a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: transparent; font-weight: 400;">Hotkeys</a><a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: transparent; font-weight: 400;">Workspace</a><a href="#" style="padding: 9px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #1a1a18; background: transparent; font-weight: 400;">Account</a>
+</div>
+<main style="flex-grow: 1; min-width: 0; padding: 40px 48px 0; display: flex; flex-direction: column; gap: 8px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;">Connectors</h1>
+<p style="margin: 0 0 14px; font-size: 14px; line-height: 1.55; color: #55544f; max-width: 560px;">Every conversation in a connected tool becomes a session here. Choose who can use what each tool produces — you can always change a single session later.</p>
+<div style="display: flex; gap: 16px; padding-bottom: 6px; border-bottom: 1px solid #e8e7e3;" class="mono">
+<span style="flex-grow: 1; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding-left: 52px;">tool</span>
+<span style="width: 218px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65;">new sessions are shared with</span>
+<span style="width: 96px;"></span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Claude Code</span><span class="mono" style="font-size: 11px; color: #6b6a65;">sessions follow the folder's space</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">The space's team · read<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">ChatGPT</span><span class="mono" style="font-size: 11px; color: #6b6a65;">remote MCP · signed in</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">Only me<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Claude</span><span class="mono" style="font-size: 11px; color: #6b6a65;">remote MCP · signed in</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">Only me<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"></rect><path d="M12 8V4M9 13v1.5M15 13v1.5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Hermes</span><span class="mono" style="font-size: 11px; color: #6b6a65;">personal agent · access token</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">Only me<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Meetings</span><span class="mono" style="font-size: 11px; color: #6b6a65;">Zoom, Meet, Teams · no bot joins</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">The space I file it in · read<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Voice and screenshots</span><span class="mono" style="font-size: 11px; color: #6b6a65;">hold fn · on this Mac</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #1a1a18;">Ideas · team can read<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span class="mono" style="font-size: 11px; color: #3f6a3b; display: flex; align-items: center; gap: 6px; width: 96px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e8e7e3;">
+<span style="width: 36px; height: 36px; border-radius: 9px; background: #f7f7f5; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; color: #55544f; flex-shrink: 0;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Cursor</span><span class="mono" style="font-size: 11px; color: #6b6a65;">not connected</span></span>
+<button style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 218px; justify-content: space-between; color: #6b6a65;">Only me<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<button style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px; width: 96px;">Connect</button>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

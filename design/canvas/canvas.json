@@ -1,0 +1,154 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "Access.dc.html": {
+   "h": 800,
+   "title": "3 \u00b7 Who can use it",
+   "w": 1280,
+   "x": 2720,
+   "y": 0
+  },
+  "Capture-Meeting.dc.html": {
+   "h": 460,
+   "title": "7 \u00b7 A meeting, no bot",
+   "w": 760,
+   "x": 840,
+   "y": 1220
+  },
+  "Capture-Screenshot.dc.html": {
+   "h": 460,
+   "title": "8 \u00b7 A screenshot, filed",
+   "w": 760,
+   "x": 1680,
+   "y": 1220
+  },
+  "Capture-Voice.dc.html": {
+   "h": 460,
+   "title": "6 \u00b7 Hold fn, think out loud",
+   "w": 760,
+   "x": 0,
+   "y": 1220
+  },
+  "Connectors.dc.html": {
+   "h": 800,
+   "title": "4 \u00b7 Connectors and defaults",
+   "w": 1280,
+   "x": 4080,
+   "y": 0
+  },
+  "Main.dc.html": {
+   "h": 800,
+   "title": "2 \u00b7 A session",
+   "w": 1280,
+   "x": 1360,
+   "y": 0
+  },
+  "Onboarding.dc.html": {
+   "h": 800,
+   "title": "1 \u00b7 First run",
+   "w": 1280,
+   "x": 0,
+   "y": 0
+  },
+  "Skills.dc.html": {
+   "h": 800,
+   "title": "5 \u00b7 Shared skills",
+   "w": 1280,
+   "x": 5440,
+   "y": 0
+  },
+  "Space.dc.html": {
+   "x": 0,
+   "y": 2100,
+   "w": 1280,
+   "h": 800,
+   "title": "9 \u00b7 A space"
+  },
+  "Page.dc.html": {
+   "x": 1360,
+   "y": 2100,
+   "w": 1280,
+   "h": 800,
+   "title": "10 \u00b7 A living page"
+  },
+  "Models.dc.html": {
+   "x": 2720,
+   "y": 2100,
+   "w": 1280,
+   "h": 800,
+   "title": "11 \u00b7 Local models"
+  },
+  "MCP-Save.dc.html": {
+   "x": 0,
+   "y": 3320,
+   "w": 760,
+   "h": 620,
+   "title": "12 \u00b7 Save, from any chat tool"
+  },
+  "MCP-Search.dc.html": {
+   "x": 840,
+   "y": 3320,
+   "w": 760,
+   "h": 620,
+   "title": "13 \u00b7 What your team knows"
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-09-19T06:18:31Z",
+  "v": 1
+ },
+ "designSystems": [],
+ "launch": {
+  "view": "canvas"
+ },
+ "notes": {
+  "t-app": {
+   "kind": "title1",
+   "maxW": 6720,
+   "text": "The app \u2014 a quiet control pane",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-cap": {
+   "kind": "title1",
+   "maxW": 2440,
+   "text": "Capture \u2014 a function key away",
+   "w": 240,
+   "x": 0,
+   "y": 920
+  },
+  "t-kb": {
+   "x": 0,
+   "y": 1800,
+   "text": "Knowledge \u2014 pages that keep themselves current",
+   "kind": "title1",
+   "maxW": 4000
+  },
+  "t-mcp": {
+   "x": 0,
+   "y": 3020,
+   "text": "In other tools \u2014 cards over MCP",
+   "kind": "title1",
+   "maxW": 1600
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Onboarding.dc.html",
+  "Access.dc.html",
+  "Connectors.dc.html",
+  "Skills.dc.html",
+  "Capture-Voice.dc.html",
+  "Capture-Meeting.dc.html",
+  "Capture-Screenshot.dc.html",
+  "Space.dc.html",
+  "Page.dc.html",
+  "Models.dc.html",
+  "MCP-Save.dc.html",
+  "MCP-Search.dc.html"
+ ],
+ "pages": [],
+ "title": "OpenKT desktop app mocks"
+}

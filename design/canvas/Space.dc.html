@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A space</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1a1a18;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#b4532a}a:hover{color:#8f3f1e}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; background: #fff; overflow: hidden;">
+<nav aria-label="Sessions" style="width: 272px; flex-shrink: 0; box-sizing: border-box; height: 100%; background: #f7f7f5; border-right: 1px solid #e8e7e3; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 12px;">
+<span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em;">OpenKT</span>
+<span class="mono" style="font-size: 10.5px; color: #6b6a65; display: flex; align-items: center; gap: 6px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #4f7a4a; display: inline-block;"></span>local</span>
+</div>
+<button style="display: flex; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13.5px; color: #6b6a65; text-align: left; min-height: 44px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="flex-grow: 1;">Search all context</span><span class="mono" style="font-size: 11px;">⌘K</span></button>
+<div style="height: 6px;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>New note</a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Today</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pricing call with Northgate</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">meeting · 42 min</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fix auth refresh storm</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">claude code · openkt</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Idea: per-store onboarding kit</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">voice · ideas</span>
+</span></a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Yesterday</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Q4 launch messaging</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">chatgpt · marketing</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"></rect><path d="M12 8V4M9 13v1.5M15 13v1.5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Inbox triage</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">hermes · personal</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Competitor pricing page</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">screenshot · sales</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Hiring plan notes</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">note · founders</span>
+</span></a>
+<div style="flex-grow: 1;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: #ecebe7; font-weight: 500;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>Spaces</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span>Skills</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg></span>Settings</a>
+</nav>
+<main style="flex-grow: 1; min-width: 0; padding: 36px 48px 0 56px; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;"><span class="mono" style="font-size: 11.5px; color: #6b6a65;">space</span><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">sales / northgate</h1></div>
+<span style="display: flex;"><span style="width: 30px; height: 30px; border-radius: 50%; background: #ecebe7; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #55544f;">PB</span><span style="width: 30px; height: 30px; border-radius: 50%; background: #e3e1db; border: 2px solid #fff; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #55544f;">AN</span><span style="width: 30px; height: 30px; border-radius: 50%; background: #ecebe7; border: 2px solid #fff; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #55544f;">+5</span></span>
+<button style="display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 36px; border-radius: 18px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"></circle><path d="M3 20a6 6 0 0 1 12 0M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6 6 0 0 0-2.5-4.9"></path></svg>Access</button>
+</div>
+<button style="display: flex; gap: 10px; align-items: center; padding: 0 16px; height: 48px; border-radius: 12px; border: 1px solid #e8e7e3; background: #f7f7f5; font-size: 14px; color: #6b6a65; text-align: left;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span>Ask this space anything</span></button>
+<div style="display: flex; gap: 48px; min-height: 0;">
+<section style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #6b6a65; padding-bottom: 2px;">Pages · kept current for you</h2>
+<a href="#" style="display: flex; flex-direction: column; gap: 5px; padding: 14px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="font-size: 15px; font-weight: 500;">Northgate — pricing</span><span style="font-size: 13.5px; line-height: 1.5; color: #55544f;">Per-store pricing requested; revised quote due Friday. Supersedes the per-seat proposal.</span><span class="mono" style="font-size: 11px; color: #6b6a65;">4 sessions · changed today</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 5px; padding: 14px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="font-size: 15px; font-weight: 500;">Northgate — people and process</span><span style="font-size: 13.5px; line-height: 1.5; color: #55544f;">Marcus leads operations; procurement signs off after a security review.</span><span class="mono" style="font-size: 11px; color: #6b6a65;">3 sessions · changed 4 Sep</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 5px; padding: 14px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="font-size: 15px; font-weight: 500;">Northgate — stores and systems</span><span style="font-size: 13.5px; line-height: 1.5; color: #55544f;">Fourteen stores, three on a legacy POS. Daily sales export still unconfirmed.</span><span class="mono" style="font-size: 11px; color: #6b6a65;">2 sessions · changed today</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 5px; padding: 14px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="font-size: 15px; font-weight: 500;">Retail pricing — what competitors charge</span><span style="font-size: 13.5px; line-height: 1.5; color: #55544f;">Three-tier pages are the norm; per-store billing appears only on top tiers.</span><span class="mono" style="font-size: 11px; color: #6b6a65;">1 session · changed yesterday</span></a>
+</section>
+<aside style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 500; color: #6b6a65; padding-bottom: 2px;">Recent sessions</h2>
+<a href="#" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="color: #6b6a65; display: flex; padding-top: 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13.5px;">Pricing call with Northgate</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Pratham · today</span></span></a>
+<a href="#" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="color: #6b6a65; display: flex; padding-top: 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13.5px;">Competitor pricing page</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Pratham · yesterday</span></span></a>
+<a href="#" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="color: #6b6a65; display: flex; padding-top: 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13.5px;">Draft proposal v1</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Ana · 11 Sep</span></span></a>
+<a href="#" style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span style="color: #6b6a65; display: flex; padding-top: 2px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 13.5px;">Intro call notes</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Ravi · 4 Sep</span></span></a>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

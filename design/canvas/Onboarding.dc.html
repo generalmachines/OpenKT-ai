@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>First run</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1a1a18;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#b4532a}a:hover{color:#8f3f1e}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; background: #fff; overflow: hidden;">
+<aside style="width: 420px; flex-shrink: 0; box-sizing: border-box; background: #f7f7f5; border-right: 1px solid #e8e7e3; padding: 56px 48px; display: flex; flex-direction: column; gap: 28px;">
+<span style="font-size: 15px; font-weight: 600;">OpenKT</span>
+<h1 style="margin: 0; font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.025em;">Three steps. No terminal.</h1>
+<div style="display: flex; flex-direction: column; gap: 22px; padding-top: 6px;">
+<div style="display: flex; gap: 14px; align-items: flex-start;"><span style="width: 26px; height: 26px; border-radius: 50%; background: #1a1a18; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span><span style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 15px; font-weight: 500; color: #1a1a18;">Sign in</span><span style="font-size: 13px; color: #6b6a65; line-height: 1.5;">Joined workspace Deepwork as Pratham.</span></span></div>
+<div style="display: flex; gap: 14px; align-items: flex-start;"><span class="mono" style="width: 26px; height: 26px; box-sizing: border-box; border-radius: 50%; border: 1px solid #1a1a18; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #1a1a18; flex-shrink: 0;">2</span><span style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 15px; font-weight: 500; color: #1a1a18;">Connect your tools</span><span style="font-size: 13px; color: #6b6a65; line-height: 1.5;">We found these on your Mac. Pick the ones to connect.</span></span></div>
+<div style="display: flex; gap: 14px; align-items: flex-start;"><span class="mono" style="width: 26px; height: 26px; box-sizing: border-box; border-radius: 50%; border: 1px solid #e8e7e3; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #6b6a65; flex-shrink: 0;">3</span><span style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 15px; font-weight: 400; color: #6b6a65;">Get the local models</span><span style="font-size: 13px; color: #6b6a65; line-height: 1.5;">About 3 GB. Transcription and extraction run on this Mac.</span></span></div>
+</div>
+</aside>
+<main style="flex-grow: 1; padding: 56px 72px; display: flex; flex-direction: column; gap: 12px;">
+<h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em;">Connect your tools</h2>
+<p style="margin: 0 0 10px; font-size: 14px; line-height: 1.55; color: #55544f; max-width: 520px;">Each conversation in a connected tool is saved as a session, private to you until you share it. Nothing to paste, nothing to restart.</p>
+<button style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid #e8e7e3; background: #fff; text-align: left;"><span style="color: #55544f; display: flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Claude Code</span><span class="mono" style="font-size: 11px; color: #6b6a65;">found · ~/.claude</span></span><span style="width: 22px; height: 22px; border-radius: 6px; background: #1a1a18; color: #fff; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></button>
+<button style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid #e8e7e3; background: #fff; text-align: left;"><span style="color: #55544f; display: flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Cursor</span><span class="mono" style="font-size: 11px; color: #6b6a65;">found · ~/.cursor</span></span><span style="width: 22px; height: 22px; border-radius: 6px; background: #1a1a18; color: #fff; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></button>
+<button style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid #e8e7e3; background: #fff; text-align: left;"><span style="color: #55544f; display: flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">ChatGPT</span><span class="mono" style="font-size: 11px; color: #6b6a65;">opens a sign-in page</span></span><span style="width: 22px; height: 22px; border-radius: 6px; background: #1a1a18; color: #fff; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></button>
+<button style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid #e8e7e3; background: #fff; text-align: left;"><span style="color: #55544f; display: flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Claude</span><span class="mono" style="font-size: 11px; color: #6b6a65;">opens a sign-in page</span></span><span style="width: 22px; height: 22px; box-sizing: border-box; border-radius: 6px; border: 1px solid #c9c8c3;"></span></button>
+<button style="display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 0 16px; border-radius: 12px; border: 1px solid #e8e7e3; background: #fff; text-align: left;"><span style="color: #55544f; display: flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span><span style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1;"><span style="font-size: 14.5px;">Meetings, voice and screenshots</span><span class="mono" style="font-size: 11px; color: #6b6a65;">asks for microphone and screen recording next</span></span><span style="width: 22px; height: 22px; border-radius: 6px; background: #1a1a18; color: #fff; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></button>
+<div style="flex-grow: 1;"></div>
+<div style="display: flex; align-items: center; gap: 14px;">
+<span style="flex-grow: 1; font-size: 13px; color: #6b6a65;">You can add or remove tools later in Settings.</span>
+<button style="height: 44px; padding: 0 22px; border-radius: 22px; border: none; background: #b4532a; color: #fff; font-size: 14px; font-weight: 500;">Connect 4 tools</button>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

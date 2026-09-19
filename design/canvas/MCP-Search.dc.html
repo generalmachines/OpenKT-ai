@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Search card in a chat tool</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1a1a18;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#b4532a}a:hover{color:#8f3f1e}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+</style>
+</helmet>
+<div style="width: 760px; height: 620px; box-sizing: border-box; background: #fff; padding: 28px 60px; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65;">inside any chat tool · rendered over MCP</div>
+<div style="align-self: flex-end; max-width: 440px; background: #f7f7f5; border-radius: 18px; padding: 11px 16px; font-size: 14.5px; line-height: 1.5;">Draft the Northgate proposal. What do we already know?</div>
+<div style="border: 1px solid #e8e7e3; border-radius: 16px; padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: center; gap: 10px; padding-bottom: 6px;"><span style="font-size: 13px; font-weight: 600;">OpenKT</span><span class="mono" style="font-size: 11px; color: #6b6a65; flex-grow: 1;">4 things your team knows</span><span class="mono" style="font-size: 11px; color: #6b6a65;">sales / northgate</span></div>
+<a href="#" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span class="mono" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #55544f; width: 78px; flex-shrink: 0;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #b4532a; display: inline-block;"></span>decision</span><span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1;"><span style="font-size: 14.5px; line-height: 1.45;">Quote Northgate per store, not per seat</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Pratham · pricing call · today</span></span></a>
+<a href="#" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span class="mono" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #55544f; width: 78px; flex-shrink: 0;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #4f6471; display: inline-block;"></span>fact</span><span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1;"><span style="font-size: 14.5px; line-height: 1.45;">14 stores, 3 still on the legacy POS</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Pratham · pricing call · today</span></span></a>
+<a href="#" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span class="mono" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #55544f; width: 78px; flex-shrink: 0;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #55544f; display: inline-block;"></span>how-to</span><span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1;"><span style="font-size: 14.5px; line-height: 1.45;">Procurement needs a security one-pager before any trial</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">Ravi · intro call notes · 4 Sep</span></span></a>
+<a href="#" style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e8e7e3; text-decoration: none; color: #1a1a18;"><span class="mono" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #55544f; width: 78px; flex-shrink: 0;"><span style="width: 7px; height: 7px; border-radius: 2px; background: #9b771a; display: inline-block;"></span>question</span><span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1;"><span style="font-size: 14.5px; line-height: 1.45;">Can the legacy POS export daily sales as CSV?</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">open · asked today</span></span></a>
+</div>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #1a1a18;">Here is a draft built on per-store pricing for all fourteen stores…</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":620}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
