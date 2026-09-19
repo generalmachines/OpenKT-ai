@@ -20,13 +20,11 @@
     "test:smoke:optional-auth": "bash test/smoke/optional-user-auth.sh",
     "test:smoke:user-settings": "bash test/smoke/user-settings-roundtrip.sh",
     "test:smoke:memory-read": "bash test/smoke/memory-read.sh",
-    "test:shakeout:memory-engine": "ts-node -r tsconfig-paths/register scripts/shakeout-memory-engine.ts",
     "lint": "npm run typecheck",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio --port 4983",
-    "db:migrate": "ts-node -r tsconfig-paths/register apps/server/src/db/migrate.ts",
-    "db:migrate-from-supabase": "node scripts/migrate-from-supabase.mjs"
+    "db:migrate": "ts-node -r tsconfig-paths/register apps/server/src/db/migrate.ts"
   },
   "engines": {
     "node": ">=20.0.0"
