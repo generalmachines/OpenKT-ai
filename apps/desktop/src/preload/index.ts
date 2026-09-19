@@ -5,6 +5,7 @@
  */
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind, PermissionsStatusDto } from '../shared/ipc';
+import type { UpdateStatusDto } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
 
@@ -95,6 +96,19 @@ const bridge: OpenKTBridge = {
     set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,
     delete: (key: string) => ipcRenderer.invoke(ch('secure:delete'), key) as Promise<void>,
   },
+  // ── in-app updates ──
+  update: {
+    status: () => ipcRenderer.invoke(ch('update:status')) as Promise<UpdateStatusDto>,
+    check: () => ipcRenderer.invoke(ch('update:check')) as Promise<UpdateStatusDto>,
+    download: () => ipcRenderer.invoke(ch('update:download')) as Promise<UpdateStatusDto>,
+    install: () => ipcRenderer.invoke(ch('update:install')) as Promise<UpdateStatusDto>,
+    setAuto: (on: boolean) => ipcRenderer.invoke(ch('update:set-auto'), on === true) as Promise<UpdateStatusDto>,
+    moveToApplications: () => ipcRenderer.invoke(ch('update:move-to-applications')) as Promise<UpdateStatusDto>,
+    rollback: () => ipcRenderer.invoke(ch('update:rollback')) as Promise<UpdateStatusDto>,
+    seen: () => ipcRenderer.invoke(ch('update:seen')) as Promise<UpdateStatusDto>,
+    onEvent: (listener) => listen<UpdateStatusDto>(ch('update:event'), listener),
+  },
+  // ── end in-app updates ──
 };
 
 contextBridge.exposeInMainWorld('openkt', bridge);
