@@ -371,7 +371,7 @@ try {
       : await api('', 'POST', '/v1/auth/signup', { email: B.email, password: PASSWORD, display_name: B.name, client: 'cli' });
     if (su.status !== (EXISTING ? 200 : 201)) throw new Error(`could not ${REUSE ? 'sign in to' : 'create'} the second account over the API: ${su.status} ${JSON.stringify(su.error)}`);
     tokenB = su.data.token;
-    if (!REUSE) created.emails.push(B.email);
+    if (!EXISTING) created.emails.push(B.email);
     const meB = (await api(tokenB, 'GET', '/v1/me')).data;
     Object.assign(B, { email: meB?.email || B.email, name: meB?.display_name || B.name });
     const p = a.page;
