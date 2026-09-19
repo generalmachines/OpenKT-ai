@@ -230,6 +230,10 @@ export class ProjectScopeService {
     if (!primary) return [];
 
     if (primary.visibility === "org" && primary.orgId) {
+      // Only siblings the caller can read on their own — the same rule as
+      // requireProjectAccess(…, "read"): owner, member of the org, or a grant
+      // on that project or on its org. A grant on ONE org space must never
+      // pull the org's other spaces into that person's recall.
       const siblings = await this.db
         .select({ id: projects.id })
         .from(projects)
@@ -237,6 +241,25 @@ export class ProjectScopeService {
           and(
             eq(projects.orgId, primary.orgId),
             eq(projects.visibility, "org"),
+            sql`(
+              ${projects.ownerUserId} = ${userId}::uuid
+              or exists (
+                select 1 from ${orgMembers}
+                 where ${orgMembers.orgId} = ${projects.orgId}
+                   and ${orgMembers.userId} = ${userId}::uuid
+                   and ${orgMembers.role} in ('owner', 'admin', 'member')
+              )
+              or exists (
+                select 1 from ${grants}
+                 where ${grants.subjectType} = 'user'
+                   and ${grants.subjectId} = ${userId}::uuid
+                   and ${grants.role} in ('reader', 'editor', 'owner')
+                   and (
+                     (${grants.resourceType} = 'project' and ${grants.resourceId} = ${projects.id})
+                     or (${grants.resourceType} = 'org' and ${grants.resourceId} = ${projects.orgId})
+                   )
+              )
+            )`,
           ),
         );
       return siblings.map((row) => row.id).filter((id) => id !== primaryProjectId);
