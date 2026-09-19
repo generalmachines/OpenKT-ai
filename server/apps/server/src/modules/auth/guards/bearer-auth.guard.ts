@@ -12,21 +12,24 @@ import { ActorContextFactory } from "../services/actor-context.factory";
 import { PrincipalResolutionService } from "../services/principal-resolution.service";
 import { buildUserPrincipal } from "@openkt/auth-principal";
 
-// MCP tool names that mutate state. Everything else registered by
-// McpServerFactoryService (kt_recall, kt_search_memories,
-// kt_list_projects, kt_project_brief) is read-only. Used only to scope
-// a `read`-only PAT off JSON-RPC tools/call — every other JSON-RPC
-// method (initialize, tools/list, ping, …) is inherently read-only.
-const MCP_WRITE_TOOLS = new Set([
-  "kt_save_memory",
-  "kt_forget_memory",
-  "kt_session_start",
-  "kt_session_end",
-  "kt_setup",
-  "kt_save_skill",
-  // MCP Apps card tools that write (called by the card, not the model).
-  "kt_commit_save",
-  "kt_mark_used",
+// MCP tools a `read`-only PAT may call. Deny by default: any other
+// tools/call — every mutating tool, and any tool added later without being
+// listed here — needs `write`. An allow-list of WRITERS let a read-only token
+// save skills (kt_save_skill) and create teams / invite links / join teams
+// (kt_create_team, kt_invite_link, kt_join_team) when those tools were added.
+// Every other JSON-RPC method (initialize, tools/list, ping, …) is read-only.
+// kt_setup stays out of this list: it has always been scoped as a write.
+export const MCP_READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
+  "kt_recall",
+  "kt_search_memories",
+  "kt_list_projects",
+  "kt_project_brief",
+  "kt_list_skills",
+  "kt_get_skill",
+  // MCP Apps cards that only render (kt_save_card returns a draft and writes nothing).
+  "kt_save_card",
+  "kt_search_card",
+  "kt_session_card",
 ]);
 
 // BearerAuthGuard — accepts EITHER a Supabase JWT (used by the dashboard
@@ -99,17 +102,19 @@ export class BearerAuthGuard implements CanActivate {
   // this only runs for `okt_pat_…` tokens.
   //
   // REST: GET/HEAD is `read`, every other verb is `write`.
-  // MCP (/mcp, always POST JSON-RPC): only a `tools/call` against a
-  // known-mutating tool name requires `write`; every other JSON-RPC
-  // method (initialize, tools/list, ping, resources/*, and read-only
-  // tool calls) only requires `read`.
+  // MCP (/mcp, always POST JSON-RPC): a `tools/call` requires `write`
+  // unless the tool is in MCP_READ_ONLY_TOOLS; every other JSON-RPC
+  // method (initialize, tools/list, ping, resources/*) only requires `read`.
   private enforcePatScope(request: RequestWithContext, scopes: string[]): void {
     if (scopes.includes("admin")) return;
 
     const requiredScope = this.requiredScopeFor(request);
     if (!scopes.includes(requiredScope)) {
+      // Spec 04: a read-only token calling a write → 403 `insufficient_scope`.
       throw new ForbiddenDomainError(
         `personal access token is missing the '${requiredScope}' scope`,
+        { required_scope: requiredScope },
+        "insufficient_scope",
       );
     }
   }
@@ -124,7 +129,7 @@ export class BearerAuthGuard implements CanActivate {
     const body = request.body as
       | { method?: string; params?: { name?: string } }
       | undefined;
-    if (body?.method === "tools/call" && body.params?.name && MCP_WRITE_TOOLS.has(body.params.name)) {
+    if (body?.method === "tools/call" && !MCP_READ_ONLY_TOOLS.has(body.params?.name ?? "")) {
       return "write";
     }
     return "read";

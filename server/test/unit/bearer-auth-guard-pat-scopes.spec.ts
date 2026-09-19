@@ -43,6 +43,33 @@ function fakeExecutionContext(req: {
 }
 
 describe("BearerAuthGuard — PAT scope enforcement", () => {
+  it("answers 403 insufficient_scope (Spec 04), not a bare forbidden", async () => {
+    const { guard } = buildGuard(["read"]);
+    const { context } = fakeExecutionContext({ method: "POST", path: "/v1/memories" });
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      code: "insufficient_scope",
+      details: { required_scope: "write" },
+    });
+  });
+
+  it.each(["kt_save_skill", "kt_save_memory", "kt_forget_memory", "kt_session_start", "kt_session_end", "kt_setup", "kt_commit_save", "kt_mark_used", "kt_create_team", "kt_invite_link", "kt_join_team", "kt_some_future_tool"])(
+    "MCP: a read-only token may not call %s (deny by default)",
+    async (name) => {
+      const { guard } = buildGuard(["read"]);
+      const { context } = fakeExecutionContext({ method: "POST", path: "/mcp", body: { method: "tools/call", params: { name } } });
+      await expect(guard.canActivate(context)).rejects.toThrow(/write/);
+    },
+  );
+
+  it.each(["kt_recall", "kt_search_memories", "kt_list_projects", "kt_project_brief", "kt_list_skills", "kt_get_skill", "kt_save_card", "kt_search_card", "kt_session_card"])(
+    "MCP: a read-only token may call the read-only %s",
+    async (name) => {
+      const { guard } = buildGuard(["read"]);
+      const { context } = fakeExecutionContext({ method: "POST", path: "/mcp", body: { method: "tools/call", params: { name } } });
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    },
+  );
+
   it("allows a read-scoped token on a GET request", async () => {
     const { guard } = buildGuard(["read"]);
     const { context } = fakeExecutionContext({ method: "GET", path: "/v1/memories" });
