@@ -1521,8 +1521,9 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 | Task | Who | Title | Depends on |
 |---|---|---|---|
 | #41 J70 | junior | providers: types, registry and the `local` provider | — |
+| #113 J70b | junior | providers: `fs.list` entries carry `mtime` and `size` | #41 |
 | #42 J71 | junior | providers: Composio plugin (bring your own API key) | #41 |
-| #43 J72 | junior | connectors: interface + Obsidian (local vault) | #41 |
+| #43 J72 | junior | connectors: interface + Obsidian (local vault) | #41, #113 |
 | #44 J73 | junior | connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll | #43 |
 | #45 J74 | junior | server + app: connector setup flow and the poll job | #42, #44, #26, #3 |
 
@@ -1553,6 +1554,43 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 **Depends on:** nothing — can start now
 
 **Branch:** `task/<issue-number>-j70` · **Rules:** `AGENTS.md`
+
+### J70b · providers: `fs.list` entries carry `mtime` and `size`  #113
+
+`junior` `blocked`
+
+> Read `AGENTS.md` first. Do exactly what is written here. If something is unclear or looks wrong, comment on the issue — do not improvise.
+
+**Context.** The Obsidian connector's `poll` (J72) needs each file's modification time, and the `local` provider's `fs.list` returns only `{ name, type }`. One listing call beats one stat call per file (decided on #112).
+
+**Read first**
+- docs/specs/05-tool-providers.md §2
+- `packages/providers/src/local.ts`
+
+**Do exactly this**
+1. In `fs.list`, add two optional fields to every entry: `mtime?: string` — the entry's modification time as an ISO-8601 UTC string (`stats.mtime.toISOString()`) — and `size?: number` — bytes, on files only (`type: 'file'`), never on directories, symlinks or others.
+2. Take the stats with `lstat` on the entry's path inside the resolved directory: never follow a symlink, so nothing outside the root is ever touched. An entry whose `lstat` fails (deleted between listing and stat) is still returned, without `mtime` and `size`.
+3. Add the two fields to the `LocalEntry` type. Keep them optional so existing callers keep working. Nothing else changes: `fs.read`, path confinement and the registry stay as they are.
+
+**Files you may touch**
+- `packages/providers/src/local.ts`
+- `packages/providers/test/local.test.ts`
+
+**Acceptance — every line must be true and tested**
+- [ ] A file entry carries `mtime` equal to its `lstat` time as ISO-8601 and `size` equal to its byte length (write a Thai or emoji string, so bytes ≠ characters).
+- [ ] A file written after an instant `since` has `Date.parse(entry.mtime) > Date.parse(since)` (set times with `utimes`, not sleeps).
+- [ ] A directory entry carries `mtime` and no `size`.
+- [ ] A symlink entry pointing out of the root carries its own `lstat` `mtime`, no `size`, and nothing from the target.
+- [ ] Every existing `local.test.ts` test still passes unchanged.
+- [ ] typecheck and tests pass.
+
+**Out of scope**
+- A separate `fs.stat` action.
+- Changing `fs.read`.
+
+**Depends on:** #41
+
+**Branch:** `task/<issue-number>-j70b` · **Rules:** `AGENTS.md`
 
 ### J71 · providers: Composio plugin (bring your own API key)  #42
 
@@ -1601,9 +1639,10 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 
 **Do exactly this**
 1. Create `packages/connectors` (copy the package scaffold of `packages/providers`, no dependencies) with the `Connector` interface in `src/types.ts` verbatim. The spec leaves four types open; define them in the same file: `ProviderHandle = { call<T>(action: string, params: Record<string, unknown>): Promise<T> }` (a provider bound to one connection — the app wraps `ToolProvider.call(connectionId, …)`), `Container = { id: string; name: string }`, `Block = Record<string, unknown>` (J73 narrows it), `Turn = { seq: number; role: 'user' | 'assistant' | 'speaker' | 'system' | 'note'; speaker?: string; content: string }` (Spec 01 `session_turns`). Do not import other workspace packages.
-2. `src/obsidian.ts`: containers = top-level folders; items = `.md` files; `toSession` turns a note into turns — one per top-level heading section, `role:'note'`; frontmatter `openkt-space` overrides the container's space; `content_hash` = sha256 of the body; files with `openkt: false` in frontmatter are skipped.
-3. `poll` returns files whose mtime is newer than `since`.
-4. The vault root is listed with `fs.list { dir: "." }` — the `local` provider rejects an empty `dir`.
+2. `src/obsidian.ts`: containers = top-level folders; items = `.md` files; `toSession` turns a note into turns — one per top-level heading section, `role:'note'`; `content_hash` = sha256 of the body; files with `openkt: false` in frontmatter are skipped.
+3. Frontmatter: `title` and `tags` may be read for the draft; there is no per-note space routing — one container maps to one space (Spec 05 §4), `SessionDraft` stays exactly as specified with no `space` field, and an `openkt-space` key is ignored (decided on #112).
+4. `poll` returns the `.md` files whose `fs.list` entry has `Date.parse(entry.mtime) > Date.parse(since)` — compared as instants, never as text; an entry without `mtime` counts as changed (J70b adds the field).
+5. The vault root is listed with `fs.list { dir: "." }` — the `local` provider rejects an empty `dir`.
 
 **Files you may touch**
 - `packages/connectors/**`
@@ -1611,12 +1650,14 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 
 **Acceptance — every line must be true and tested**
 - [ ] `toSession` is tested with 6 fixture notes (no headings, nested headings, frontmatter, empty, huge > 200 KB → truncated with a marker turn, skipped).
+- [ ] `poll`: a note with a newer `mtime` is returned, an older one is not, one without `mtime` is returned; `since` with an offset (`+07:00`) compares as an instant.
+- [ ] A note with `openkt-space` in its frontmatter produces the same `SessionDraft` fields as without it (no space field anywhere).
 - [ ] typecheck and tests pass.
 
 **Out of scope**
 - Watching the filesystem (the app does that).
 
-**Depends on:** #41
+**Depends on:** #41, #113
 
 **Branch:** `task/<issue-number>-j72` · **Rules:** `AGENTS.md`
 
