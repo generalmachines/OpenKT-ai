@@ -13,6 +13,8 @@ export interface Turn {
   content: string;
   t0_ms?: number;
   t1_ms?: number;
+  /** present when one oversized turn was split into parts (J20) */
+  part?: number;
 }
 
 export interface ExtractedFact {
