@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "test": "vitest run",
     "shots": "node scripts/shots.mjs",
+    "e2e": "node e2e/run.mjs",
     "dist:mac": "npm run build && node scripts/fetch-llama.mjs && bash scripts/build-whisper.sh && bash scripts/build-ocr.sh && node scripts/dist-mac.mjs",
     "test:main": "vitest run --config test/main/vitest.config.mts",
     "fetch:llama": "node scripts/fetch-llama.mjs",
