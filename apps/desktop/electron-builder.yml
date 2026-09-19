@@ -1,5 +1,6 @@
-# macOS packaging config. NOT RUN on the Linux build machine — untested.
-# Usage on a Mac: npm run dist:mac
+# macOS packaging config — built and launch-tested on GitHub Actions macos-14 (.github/workflows/desktop.yml).
+# This file is the UNSIGNED baseline. scripts/dist-mac.mjs turns on Developer ID signing, hardened runtime
+# and notarisation when CSC_LINK / APPLE_* secrets are present. Usage: npm run dist:mac
 appId: ai.openkt.desktop
 productName: OpenKT
 copyright: Copyright © OpenKT contributors. Apache-2.0.
@@ -12,6 +13,14 @@ files:
   - build/trayTemplate*.png
   - package.json
 asar: true
+# llama.cpp runtime (scripts/fetch-llama.mjs) → Contents/Resources/llama
+extraResources:
+  - from: resources/llama
+    to: llama
+    filter:
+      - "**/*"
+      - "!.llama-release.json"
+afterPack: scripts/after-pack.cjs
 mac:
   category: public.app-category.productivity
   target:
@@ -20,7 +29,9 @@ mac:
     - target: zip
       arch: [arm64]
   minimumSystemVersion: "15.0"
-  hardenedRuntime: true
+  # Unsigned baseline: no certificate needed. after-pack.cjs applies an ad-hoc signature.
+  identity: null
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

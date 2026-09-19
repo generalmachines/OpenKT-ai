@@ -4,7 +4,7 @@
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { CaptureEvent, HotkeyInfo, IpcChannel, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
+import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
 
@@ -32,6 +32,15 @@ const bridge: OpenKTBridge = {
     openMain: (route?: string) => ipcRenderer.invoke(ch('app:open-main'), typeof route === 'string' ? route : undefined),
     hotkeys: () => ipcRenderer.invoke(ch('app:hotkeys')) as Promise<HotkeyInfo[]>,
     onNavigate: (listener) => listen<string>(ch('app:navigate'), listener),
+  },
+  models: {
+    status: () => ipcRenderer.invoke(ch('models:status')),
+    ensure: () => ipcRenderer.invoke(ch('models:ensure')),
+    onProgress: (listener) => listen<ModelsProgressDto>(ch('models:progress'), listener),
+  },
+  localAi: {
+    extractNote: (input) => ipcRenderer.invoke(ch('local-ai:extract-note'), { ...input, text: String(input?.text ?? '') }),
+    embed: (texts, kind) => ipcRenderer.invoke(ch('local-ai:embed'), texts, kind === 'query' ? 'query' : 'document'),
   },
   net: {
     request: (req: NetRequest) => ipcRenderer.invoke(ch('net:request'), req) as Promise<NetResponse>,

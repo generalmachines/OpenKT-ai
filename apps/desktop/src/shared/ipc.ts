@@ -40,7 +40,12 @@ export type IpcChannel =
   | 'net:request'
   | 'secure:get'
   | 'secure:set'
-  | 'secure:delete';
+  | 'secure:delete'
+  | 'models:status'
+  | 'models:ensure'
+  | 'models:progress'
+  | 'local-ai:extract-note'
+  | 'local-ai:embed';
 
 /** A server request made by main for the renderer (file:// origins fail the server's CORS allowlist). */
 export interface NetRequest {
@@ -53,6 +58,65 @@ export interface NetRequest {
 export interface NetResponse {
   status: number;
   body: string;
+}
+
+// ── Local models (main: src/main/models + src/main/local-ai; see src/main/models/README.md) ──
+
+export type ModelRoleDto = 'embed' | 'llm' | 'mmproj';
+export type ModelStateDto = 'missing' | 'partial' | 'downloading' | 'verifying' | 'ready' | 'error';
+
+export interface ModelStatusDto {
+  role: ModelRoleDto;
+  id: string;
+  file: string;
+  path: string;
+  totalBytes: number;
+  receivedBytes: number;
+  state: ModelStateDto;
+  error?: string;
+}
+
+/** Pushed at most 4×/s per file while downloading, plus one final event per file. */
+export interface ModelsProgressDto {
+  role: ModelRoleDto;
+  id: string;
+  file: string;
+  receivedBytes: number;
+  totalBytes: number;
+  bytesPerSec: number;
+  /** 0..1 across all files of the current ensure() call. */
+  overall: number;
+  state: ModelStateDto;
+  error?: string;
+}
+
+export interface LocalServerInfoDto {
+  state: 'stopped' | 'starting' | 'ready' | 'crashed' | 'failed';
+  port: number;
+  pid: number | null;
+  restarts: number;
+  lastError: string | null;
+}
+
+export interface LocalAiStatusDto {
+  runtime: 'llama.cpp';
+  binary: string;
+  binaryFound: boolean;
+  /** "llm-4b" or "llm-2b" (Macs with ≤ 8 GB RAM). */
+  tier: string;
+  models: ModelStatusDto[];
+  servers: { chat: LocalServerInfoDto; embed: LocalServerInfoDto };
+}
+
+export type ModelsEnsureResult = { ok: true; status: LocalAiStatusDto } | { ok: false; error: string; status: LocalAiStatusDto };
+
+export interface ExtractedNoteDto {
+  title: string;
+  summary: string;
+  facts: { kind: string; statement: string; quote: string }[];
+  status: 'ok' | 'partial' | 'noop';
+  latencyMs: { summarise: number; extract: number };
+  notes: string[];
 }
 
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
@@ -76,6 +140,17 @@ export interface OpenKTBridge {
     hotkeys(): Promise<HotkeyInfo[]>;
     /** Main asks the main window to navigate (tray → "New voice note"). */
     onNavigate(listener: (route: string) => void): () => void;
+  };
+  models: {
+    status(): Promise<LocalAiStatusDto>;
+    /** Downloads whatever is missing (embeddings first). Resolves when embeddings + LLM are on disk. Safe to call repeatedly. */
+    ensure(): Promise<ModelsEnsureResult>;
+    onProgress(listener: (progress: ModelsProgressDto) => void): () => void;
+  };
+  localAi: {
+    extractNote(input: { text: string; title?: string; date?: string; source?: string; author?: string }): Promise<ExtractedNoteDto>;
+    /** Unit-norm 1024-dim vectors. kind "query" adds the retrieval instruction prefix. */
+    embed(texts: string[], kind: 'query' | 'document'): Promise<number[][]>;
   };
   net: {
     request(req: NetRequest): Promise<NetResponse>;

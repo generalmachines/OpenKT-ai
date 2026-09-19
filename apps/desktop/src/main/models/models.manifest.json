@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-09-19",
+  "source": "https://huggingface.co/api/models/<repo>/tree/main (size + lfs.oid); regenerate with scripts/gen-models-manifest.mjs",
+  "models": {
+    "embed": {
+      "repo": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+      "revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+      "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
+      "bytes": 639150592,
+      "sha256": "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439"
+    },
+    "llm-4b": {
+      "repo": "unsloth/Qwen3.5-4B-GGUF",
+      "revision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+      "file": "Qwen3.5-4B-Q4_K_M.gguf",
+      "bytes": 2740937888,
+      "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+    },
+    "mmproj-4b": {
+      "repo": "unsloth/Qwen3.5-4B-GGUF",
+      "revision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+      "file": "mmproj-F16.gguf",
+      "saveAs": "Qwen3.5-4B-mmproj-F16.gguf",
+      "bytes": 672423616,
+      "sha256": "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"
+    },
+    "llm-2b": {
+      "repo": "unsloth/Qwen3.5-2B-GGUF",
+      "revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
+      "file": "Qwen3.5-2B-Q4_K_M.gguf",
+      "bytes": 1280835840,
+      "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+    },
+    "mmproj-2b": {
+      "repo": "unsloth/Qwen3.5-2B-GGUF",
+      "revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
+      "file": "mmproj-F16.gguf",
+      "saveAs": "Qwen3.5-2B-mmproj-F16.gguf",
+      "bytes": 668227264,
+      "sha256": "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+    }
+  },
+  "llama": {
+    "tag": "b11046",
+    "asset": "llama-b11046-bin-macos-arm64.tar.gz",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11046/llama-b11046-bin-macos-arm64.tar.gz",
+    "bytes": 11157542,
+    "sha256": "96623092033e83545cd92316ff63d0378a976a4979735f80a1934cc128efb0ad"
+  }
+}

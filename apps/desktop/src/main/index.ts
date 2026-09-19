@@ -2,6 +2,8 @@ import { app, ipcMain, session } from 'electron';
 import type { CaptureEvent, IpcChannel, OverlayKind } from '../shared/ipc';
 import { createCaptureService, type MeetingDetected } from './capture';
 import { StubEngine } from './engine/stub';
+import { autoEnsureModels, disposeLocalAi, registerLocalAiIpc } from './local-ai/ipc';
+import { isSmoke, runSmoke } from './local-ai/smoke';
 import { registerNetIpc } from './net';
 import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
@@ -75,6 +77,8 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
     registerIpc();
+    registerLocalAiIpc(allWindows);
+    if (isSmoke()) return void runSmoke(() => openMainWindow());
     registerNetIpc();
     capture.onEvent(broadcast);
     capture.onMeetingDetected((meeting) => {
@@ -94,6 +98,7 @@ if (!app.requestSingleInstanceLock()) {
     registerShortcuts({ toggleVoice: () => void toggleVoice(), captureScreenshot: () => void captureScreenshot() });
 
     await openMainWindow();
+    autoEnsureModels(allWindows);
     app.on('activate', () => void openMainWindow());
   });
 
@@ -106,5 +111,6 @@ if (!app.requestSingleInstanceLock()) {
     unregisterShortcuts();
     destroyTray();
     void capture.dispose();
+    disposeLocalAi();
   });
 }
