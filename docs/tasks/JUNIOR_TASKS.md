@@ -1525,6 +1525,7 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 | #42 J71 | junior | providers: Composio plugin (bring your own API key) | #41 |
 | #43 J72 | junior | connectors: interface + Obsidian (local vault) | #41, #113 |
 | #44 J73 | junior | connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll | #43 |
+| #121 J73b | junior | connectors: the Drive connector walks subfolders | #43 |
 | #45 J74 | junior | server + app: connector setup flow and the poll job | #42, #44, #26, #3 |
 
 
@@ -1702,6 +1703,46 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 **Depends on:** #43
 
 **Branch:** `task/<issue-number>-j73` · **Rules:** `AGENTS.md`
+
+### J73b · connectors: the Drive connector walks subfolders  #121
+
+`junior` `blocked`
+
+> Read `AGENTS.md` first. Do exactly what is written here. If something is unclear or looks wrong, comment on the issue — do not improvise.
+
+**Context.** A connected Drive folder includes everything in it, the same as an Obsidian folder (J72). The connector walks the subfolders itself: provider list actions (Composio's Drive list among them) return direct children only, so relying on the provider silently misses documents. Decided after the review of #120.
+
+**Read first**
+- docs/specs/05-tool-providers.md §3–§4
+- `packages/connectors/src/gdrive.ts`
+- `packages/connectors/src/obsidian.ts (the paging pattern of `backfill`)`
+
+**Do exactly this**
+1. Change the contract comment at the top of `gdrive.ts`: `gdrive.listChildren { containerId, cursor? }` returns the **direct children** of one folder, paginated. An entry is a document, a folder (`mimeType: 'application/vnd.google-apps.folder'`), or a shortcut (`mimeType: 'application/vnd.google-apps.shortcut'` with `shortcutDetails: { targetId, targetMimeType }`, as the Drive API names them). Remove the sentence saying the provider walks the tree.
+2. Walk from the container folder (depth 0). Descend into a folder, or a shortcut whose `targetMimeType` is a folder (use `targetId`), only while its depth is ≤ `MAX_FOLDER_DEPTH = 8`; a folder at depth 9 is never listed. Keep a `Set` of visited folder ids, starting with the container: a folder id already visited is skipped, so shared folders and shortcut cycles are listed once. Every folder's listing follows its cursors with the existing `normalizeCursor` and repeated-cursor rules.
+3. Documents: a shortcut to an ingestible document counts as that document (id = `targetId`). De-duplicate documents by file id across all folders, then keep only `INGESTIBLE_MIME_TYPES`.
+4. `backfill` walks the whole tree, sorts the de-duplicated documents by id and returns 50 per call, with `nextCursor` as the offset string (the Obsidian pattern). `poll` walks the whole tree and keeps documents with `Date.parse(modifiedTime) > Date.parse(since)`; a missing or unparseable time counts as changed.
+
+**Files you may touch**
+- `packages/connectors/src/gdrive.ts`
+- `packages/connectors/test/gdrive.test.ts`
+
+**Acceptance — every line must be true and tested**
+- [ ] A fixture tree nested three deep (F → A → B → C, one document in each) returns all four documents from `backfill` and from `poll`.
+- [ ] A document with the same file id in folders A and B is returned once.
+- [ ] A cycle (a shortcut in C whose target is folder A) ends: A is listed exactly once (assert on the fake provider's calls) and nothing is returned twice.
+- [ ] A chain of 10 nested folders: documents down to depth 8 are returned, and `listChildren` is never called for the folder at depth 9.
+- [ ] A folder whose listing has 2 pages is followed to the end, and `backfill` pages 120 documents as 50 + 50 + 20.
+- [ ] Every existing `gdrive.test.ts` expectation that still applies passes; tests use fixtures only.
+- [ ] typecheck and tests pass.
+
+**Out of scope**
+- Changing other connectors.
+- Following shortcuts to anything but folders and ingestible documents.
+
+**Depends on:** #43
+
+**Branch:** `task/<issue-number>-j73b` · **Rules:** `AGENTS.md`
 
 ### J74 · server + app: connector setup flow and the poll job  #45
 
