@@ -12,7 +12,7 @@ ISSUES = [
 # ───────────────────────────── senior ─────────────────────────────
 dict(key="S1", who="senior", ms=M01, title="Import the server into this repository as `server/`",
   context="The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) is being finished on branch `feat/context-cloud-v0.1` of the private `openkt-server` repository. It moves here as a clean snapshot so all work happens in one place.",
-  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Record the mapping old path → new path in `server/README.md`."],
+  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Write `server/WHERE_THINGS_LIVE.md` for junior engineers."],
   accept=["`server/` builds and its unit tests pass from a clean clone.", "No secret, account id or internal hostname in the tree."], deps=[]),
 dict(key="S2", who="senior", ms=M01, title="Built-in sign-in (email link + OIDC) so a server needs no third party",
   context="Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a junior task.",
@@ -95,7 +95,7 @@ dict(key="J6", who="junior", ms=M01, title="pipeline: secrets filter `findSecret
 
 dict(key="J7", who="junior", ms=M01, title="server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint",
   context="Every recall is logged so we can measure whether retrieved context was used (Spec 01 §3, Spec 04 `POST /v1/recall/:recall_id/feedback`).",
-  read=["docs/specs/01-memory-overlays.md §3", "docs/specs/04-api-contract.md (Context section)", "server/README.md (where migrations, schema files and controllers live)"],
+  read=["docs/specs/01-memory-overlays.md §3", "docs/specs/04-api-contract.md (Context section)", "server/WHERE_THINGS_LIVE.md"],
   steps=["Add one migration creating `recall_events` and `recall_feedback` exactly as in Spec 01 §3, with an index on `recall_events(user_id, created_at desc)`. Append its entry to the migrations journal with a `when` value larger than every existing entry.",
          "Add the two Drizzle schema files and export them from the schema index.",
          "In the recall service, after the response is built, insert one `recall_events` row. It must not delay or fail the response: no `await` on the hot path, errors are logged and swallowed.",
@@ -245,7 +245,7 @@ dict(key="J27", who="junior", ms=M02, title="pipeline: `assignConfidence()`",
 # ───────────────────────────── 0.2 · server ─────────────────────────────
 dict(key="J30", who="junior", ms=M02, title="server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults",
   context="The tables of tiers T2 and T3 (Spec 01 §3).",
-  read=["docs/specs/01-memory-overlays.md §3", "server/README.md", "an existing migration + schema pair in `server/` as a style reference"],
+  read=["docs/specs/01-memory-overlays.md §3", "server/WHERE_THINGS_LIVE.md", "an existing migration + schema pair in `server/` as a style reference"],
   steps=["One migration adding: `pages`, `page_sections` (with `embedding vector(1024)`, generated `tsv` using the `simple` config, GIN index on `tsv`, HNSW index on `embedding` with `vector_cosine_ops`), `page_section_facts`, `page_revisions`, `briefs`, `attachments`, `connector_defaults`, and the columns `memories.quote`, `memories.valid_from`, `memories.valid_to`, `projects.shared_with_workspace`. Skip any column that already exists (`ADD COLUMN IF NOT EXISTS`).",
          "Foreign keys cascade on delete from `pages` to its children and from `sessions` to `attachments`; `page_section_facts.memory_id` cascades too.",
          "Drizzle schema files for each table, exported from the schema index. Match the column names exactly.", "Append the journal entry with a `when` larger than every existing one."],

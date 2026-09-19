@@ -1,0 +1,1402 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/internal/auth/me": {
+      "get": {
+        "operationId": "InternalAuthController_getCurrentPrincipal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Inspect the current JWT-authenticated principal",
+        "tags": [
+          "Internal Auth"
+        ]
+      }
+    },
+    "/v1/internal/auth/service": {
+      "get": {
+        "operationId": "InternalAuthController_getServicePrincipal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Inspect the current service principal",
+        "tags": [
+          "Internal Auth"
+        ]
+      }
+    },
+    "/v1/internal/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "Internal Health"
+        ]
+      }
+    },
+    "/v1/internal/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Readiness probe",
+        "tags": [
+          "Internal Health"
+        ]
+      }
+    },
+    "/v1/memories": {
+      "get": {
+        "operationId": "MemoriesController_list",
+        "parameters": [
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "min_confidence",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal",
+                "project",
+                "org"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "decision",
+                "pattern",
+                "incident",
+                "skill",
+                "context",
+                "anti-pattern",
+                "debug-recipe",
+                "environment",
+                "note",
+                "fact",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "include_archived",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              ],
+              "default": false
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "project_id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List memories for a project",
+        "tags": [
+          "Memory"
+        ]
+      },
+      "post": {
+        "operationId": "MemoriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "decision",
+                      "pattern",
+                      "incident",
+                      "skill",
+                      "context",
+                      "anti-pattern",
+                      "debug-recipe",
+                      "environment",
+                      "note",
+                      "fact",
+                      "other"
+                    ],
+                    "default": "note"
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "personal",
+                      "project",
+                      "org"
+                    ],
+                    "default": "project"
+                  },
+                  "tag_slugs": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+                      "minLength": 2,
+                      "maxLength": 40
+                    }
+                  },
+                  "category": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 64
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 1
+                  },
+                  "importance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.5
+                  },
+                  "source_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "commit",
+                            "pr",
+                            "issue",
+                            "url",
+                            "file",
+                            "decision"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Create a memory and enqueue async processing through the outbox",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/memories/{id}": {
+      "get": {
+        "operationId": "MemoriesController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get a memory by id",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/memories/{id}/access": {
+      "get": {
+        "operationId": "MemoriesController_getAccessSummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get access and recall summary for a memory",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/memories/search": {
+      "post": {
+        "operationId": "MemoriesController_search",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "default": ""
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "vector",
+                      "keyword",
+                      "hybrid"
+                    ],
+                    "default": "hybrid"
+                  },
+                  "vector_weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.6
+                  },
+                  "workspace_weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.4
+                  },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "project_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "maxItems": 50
+                      },
+                      "visibility": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "personal",
+                            "project",
+                            "org"
+                          ]
+                        }
+                      },
+                      "authors": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "maxItems": 50
+                      },
+                      "kinds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "decision",
+                            "pattern",
+                            "incident",
+                            "skill",
+                            "context",
+                            "anti-pattern",
+                            "debug-recipe",
+                            "environment",
+                            "note",
+                            "fact",
+                            "other"
+                          ]
+                        }
+                      },
+                      "tags": {
+                        "type": "object",
+                        "properties": {
+                          "any": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "maxItems": 20
+                          },
+                          "all": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "maxItems": 20
+                          },
+                          "none": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "maxItems": 20
+                          }
+                        }
+                      },
+                      "created_after": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "created_before": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "min_confidence": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "min_similarity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "include_archived": {
+                        "type": "boolean",
+                        "default": false
+                      },
+                      "include_superseded": {
+                        "type": "boolean",
+                        "default": false
+                      }
+                    }
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200,
+                    "default": 20
+                  },
+                  "cursor": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Search memories with hybrid/vector/keyword retrieval",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/memories/recall": {
+      "post": {
+        "operationId": "MemoriesController_recall",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "query": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "default": ""
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "decision",
+                      "pattern",
+                      "incident",
+                      "skill",
+                      "context",
+                      "anti-pattern",
+                      "debug-recipe",
+                      "environment",
+                      "note",
+                      "fact",
+                      "other"
+                    ]
+                  },
+                  "min_confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0
+                  },
+                  "workspace_weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.4
+                  },
+                  "vector_weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.6
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 10
+                  },
+                  "invocation_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "rerank": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Recall the most relevant memories for a question",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/memories/answer": {
+      "post": {
+        "operationId": "MemoriesController_answer",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "question": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 3,
+                    "maximum": 30,
+                    "default": 15
+                  },
+                  "vector_weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.6
+                  }
+                },
+                "required": [
+                  "question"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Answer a question by composing across recalled memories",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
+    "/v1/projects": {
+      "get": {
+        "operationId": "ProjectsController_listVisible",
+        "parameters": [
+          {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal",
+                "org",
+                "public"
+              ]
+            }
+          },
+          {
+            "name": "orgId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List projects visible to the current principal",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 41,
+                    "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "personal",
+                      "org",
+                      "public"
+                    ],
+                    "default": "personal"
+                  },
+                  "orgId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true,
+                    "default": null
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Create a project",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/v1/projects/slug/{accountSlug}/{projectSlug}": {
+      "get": {
+        "operationId": "ProjectsController_getBySlug",
+        "parameters": [
+          {
+            "name": "projectSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "accountSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get a project by account slug and project slug",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/v1/projects/{id}": {
+      "get": {
+        "operationId": "ProjectsController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get a project by id",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/v1/prime": {
+      "post": {
+        "operationId": "PrimeController_prime",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "with_briefing": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Compose the session-start prime payload for a project",
+        "tags": [
+          "Prime"
+        ]
+      }
+    },
+    "/v1/orgs": {
+      "get": {
+        "operationId": "OrgsController_listMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List organizations visible to the current principal",
+        "tags": [
+          "Orgs"
+        ]
+      },
+      "post": {
+        "operationId": "OrgsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 41,
+                    "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Create an organization",
+        "tags": [
+          "Orgs"
+        ]
+      }
+    },
+    "/v1/orgs/slug/{slug}": {
+      "get": {
+        "operationId": "OrgsController_getBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get an organization by slug",
+        "tags": [
+          "Orgs"
+        ]
+      }
+    },
+    "/v1/orgs/slug/{slug}/members": {
+      "get": {
+        "operationId": "OrgsController_listMembers",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List organization members by organization slug",
+        "tags": [
+          "Orgs"
+        ]
+      }
+    },
+    "/v1/profile/me": {
+      "get": {
+        "operationId": "ProfileController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get the current user's profile",
+        "tags": [
+          "Profile"
+        ]
+      },
+      "patch": {
+        "operationId": "ProfileController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "avatarUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Update the current user's profile",
+        "tags": [
+          "Profile"
+        ]
+      }
+    },
+    "/v1/settings/user": {
+      "get": {
+        "operationId": "SettingsController_getUser",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get user settings",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "operationId": "SettingsController_updateUser",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Update user settings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/v1/settings/projects/{projectId}": {
+      "get": {
+        "operationId": "SettingsController_getProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get project settings",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "operationId": "SettingsController_updateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Update project settings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/v1/settings/orgs/{orgSlug}": {
+      "get": {
+        "operationId": "SettingsController_getOrg",
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get organization settings",
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "operationId": "SettingsController_updateOrg",
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "settings"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Update organization settings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/v1/secrets/orgs/{orgSlug}": {
+      "get": {
+        "operationId": "SecretsController_listOrgSecrets",
+        "parameters": [
+          {
+            "name": "orgSlug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List secret metadata for an organization",
+        "tags": [
+          "Secrets"
+        ]
+      }
+    },
+    "/v1/invites/accept": {
+      "post": {
+        "operationId": "InvitesController_accept",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Accept an invite token",
+        "tags": [
+          "Invites"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "OpenKT SGS API",
+    "description": "Canonical NestJS backend contract for OpenKT. Success responses use `{ data, error, meta }` envelopes and JWT-authenticated routes expect `Authorization: Bearer <token>`.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "supabase-bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "Supabase access token for user-authenticated SGS routes."
+      }
+    },
+    "schemas": {}
+  }
+}

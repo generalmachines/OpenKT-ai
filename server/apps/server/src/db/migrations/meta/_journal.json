@@ -1,0 +1,279 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1778130523268,
+      "tag": "0000_initial_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778225400000,
+      "tag": "0001_outbox_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778227140000,
+      "tag": "0002_memory_access_invocation_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778228200000,
+      "tag": "0003_agentic_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778229360000,
+      "tag": "0004_worker_pipeline_plain_postgres",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778230860000,
+      "tag": "0005_llm_provider_configs",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778231760000,
+      "tag": "0006_llm_config_masked_key_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778304300000,
+      "tag": "0007_memory_external_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778316000000,
+      "tag": "0008_memory_external_refs_tenancy",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778328000000,
+      "tag": "0009_memory_external_refs_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778349000000,
+      "tag": "0010_pulse_pipeline_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778350500000,
+      "tag": "0011_pulse_personal_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778415000000,
+      "tag": "0012_device_codes_local_pg",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778529502988,
+      "tag": "0013_org_invites_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778600000000,
+      "tag": "0014_knowledge_synthesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778700000000,
+      "tag": "0015_observability",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778800000000,
+      "tag": "0016_member_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778900000000,
+      "tag": "0017_briefings_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779000000000,
+      "tag": "0018_profile_github_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779100000000,
+      "tag": "0019_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779200000000,
+      "tag": "0020_analytics_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779200100000,
+      "tag": "0021_daily_user_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779200200000,
+      "tag": "0022_daily_org_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779200300000,
+      "tag": "0023_rate_limit_buckets",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779300000000,
+      "tag": "0024_restore_synthesize_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779400000000,
+      "tag": "0025_llm_calls_io_capture",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0026_memory_neighbors",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779600000000,
+      "tag": "0027_waitlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779700000000,
+      "tag": "0028_drop_dead_job_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0029_drop_unused_users_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779900000000,
+      "tag": "0030_repair_org_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0031_personal_access_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780100000000,
+      "tag": "0032_oauth",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780300000000,
+      "tag": "0033_memmachine_nodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1780400000000,
+      "tag": "0034_service_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1780500000000,
+      "tag": "0035_oauth_public_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780600000000,
+      "tag": "0036_agentic_jobs_sqs_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1780700000000,
+      "tag": "0037_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1780800000000,
+      "tag": "0038_grants",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,651 @@
+import { Injectable } from "@nestjs/common";
+import { createUIResource } from "@mcp-ui/server";
+import { z } from "zod";
+
+import type { ActorContext } from "@openkt/core-context";
+
+import { BriefingService } from "../../briefing/services/briefing.service";
+import {
+  CreateMemorySchema,
+  DeleteMemoryInputSchema,
+  MemorySearchRequestSchema,
+  RecallRequestSchema,
+} from "../../memory/contracts/memory.contract";
+import { MemoryCommandsApplicationService } from "../../memory/services/memory-commands.application.service";
+import { MemoryQueriesApplicationService } from "../../memory/services/memory-queries.application.service";
+import { MemoryRecallService } from "../../memory/services/memory-recall.service";
+import { ProjectScopeService } from "../../projects/services/project-scope.service";
+import { ProjectsApplicationService } from "../../projects/services/projects-application.service";
+import {
+  CloseSessionSchema,
+  CreateSessionSchema,
+} from "../../sessions/contracts/session.contract";
+import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
+import { PersonalTokensService } from "../../personal-tokens/services/personal-tokens.service";
+import { McpUiRendererService } from "./mcp-ui-renderer.service";
+
+// The contract every connected tool should follow — kept here (not
+// inline in `new McpServer(...)`) so its size is easy to eyeball.
+// MCP server `instructions` are shown to the model once per
+// connection; some clients truncate long ones, so this stays well
+// under the 2KB budget architecture.md §4 sets for it and every tool
+// description.
+const SERVER_INSTRUCTIONS = `OpenKT is your team's shared memory: what one person saved should reach a teammate's session, not just yours.
+
+Contract for every session:
+1. START — call kt_session_start at the beginning of work. It returns a session_id and a brief for the project. Read the brief before doing anything else.
+2. RECALL — call kt_recall(query, session_id) before any non-trivial work: before answering a question, before implementing something that might already have a decided approach, before debugging something that might already have a known cause. A teammate's session may have already solved this.
+3. SAVE — call kt_save_memory(content, session_id) at decision points as they happen, not only at the end: a decision made, an incident and its fix, a convention, a gotcha. Small and frequent beats one big dump at close.
+4. END — call kt_session_end(session_id, summary) when the work is done. Idle sessions close themselves, but an explicit summary is better than none.
+
+Passing session_id to kt_recall/kt_save_memory keeps provenance (who learned what, when, from which tool) accurate and keeps the session from being closed as idle mid-work. It is optional — omitting it still saves/recalls, just without that link.
+
+No project bound yet? Call kt_list_projects and ask the user, or omit project_id entirely to use their personal space — nothing is ever dropped for lack of somewhere to put it.`;
+
+// `@modelcontextprotocol/sdk` ships ESM-only (`"type": "module"`). The
+// bff is CommonJS; static `require()` of an ESM module only works under
+// Node 22.12+ where `require(esm)` is on by default. The package's
+// engines field allows Node 20, so we go through dynamic `import()`
+// (always supported from CJS) and cache the loaded namespaces — the
+// SDK is loaded once on first MCP request, not per-request.
+type SdkExports = Awaited<typeof sdkExportsPromise>;
+const sdkExportsPromise = (async () => {
+  const [{ McpServer }, { StreamableHTTPServerTransport }] = await Promise.all([
+    import("@modelcontextprotocol/sdk/server/mcp.js"),
+    import("@modelcontextprotocol/sdk/server/streamableHttp.js"),
+  ]);
+  return { McpServer, StreamableHTTPServerTransport };
+})();
+
+// Tool naming
+// ───────────
+// All tools are prefixed `kt_` so they're unambiguous in clients that
+// have multiple MCP servers connected (Linear, GitHub, OpenKT). Names
+// are verb-noun, descriptions tell the agent *when* to call the tool —
+// since we can no longer rely on a SessionStart hook to inject context
+// for non-CLI clients (Claude.ai), the recall tool's description does
+// the prompting itself.
+@Injectable()
+export class McpServerFactoryService {
+  constructor(
+    private readonly memoryCommands: MemoryCommandsApplicationService,
+    private readonly memoryQueries: MemoryQueriesApplicationService,
+    private readonly memoryRecall: MemoryRecallService,
+    private readonly projectsApp: ProjectsApplicationService,
+    private readonly projectScope: ProjectScopeService,
+    private readonly briefing: BriefingService,
+    private readonly ui: McpUiRendererService,
+    private readonly sessionsApp: SessionsApplicationService,
+    private readonly personalTokens: PersonalTokensService,
+  ) {}
+
+  async sdk(): Promise<SdkExports> {
+    return sdkExportsPromise;
+  }
+
+  async build(context: ActorContext): Promise<InstanceType<SdkExports["McpServer"]>> {
+    const { McpServer } = await sdkExportsPromise;
+    const server = new McpServer(
+      {
+        name: "openkt",
+        version: "1.0.0",
+      },
+      { instructions: SERVER_INSTRUCTIONS },
+    );
+
+    // ── kt_recall ───────────────────────────────────────────────────
+    server.registerTool(
+      "kt_recall",
+      {
+        title: "Recall project memories",
+        description:
+          "Search the user's saved project memories for context relevant to a question or task. " +
+          "ALWAYS CALL THIS FIRST on any new topic, decision, or task before answering — it " +
+          "surfaces prior decisions, incidents, conventions, and gotchas the user already saved. " +
+          "\n\n" +
+          "PROJECT RESOLUTION (read this if you don't already have a project_id):\n" +
+          "• Coding harness with a working directory (Claude Code, Cursor, Codex, OpenCode): the " +
+          "host's session-start primer normally injects project_id from a .openkt/manifest.json " +
+          "parent-walk. If it didn't, the user isn't bound to a project yet — point them at `kt init`.\n" +
+          "• Non-coding harness (Claude.ai web, ChatGPT, Slack, etc.) on first connection: call " +
+          "kt_list_projects, ask the user which one to use, THEN call this tool with the chosen " +
+          "project_id. Cache the choice for the rest of the conversation.\n" +
+          "\n" +
+          "Cheap and idempotent: bumps a per-memory recall counter but does not modify content. " +
+          "Returns hybrid (vector + keyword) ranked memories with kind, content, tags, importance. " +
+          "Pass session_id from kt_session_start to keep the session's activity fresh.",
+        inputSchema: RecallRequestSchema.shape,
+        annotations: {
+          title: "Recall project memories",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input, extra) => {
+        // Progressive UI: send notifications/progress while the recall
+        // pipeline runs so hosts that support MCP progress (Claude.ai,
+        // Claude Code, Cursor) show a live "Thinking…" line. Falls back
+        // silently if the host hasn't passed a progressToken.
+        await notifyProgress(extra, 0.1, "Embedding query…");
+        const result = await this.memoryRecall.recall(context, input);
+        await notifyProgress(extra, 0.7, "Ranking memories…");
+        const ui = this.ui.renderRecall(result as never, input.query ?? "");
+        await notifyProgress(extra, 1, "Done");
+        return jsonAndUi(result, ui, "openkt/recall");
+      },
+    );
+
+    // ── kt_save_memory ──────────────────────────────────────────────
+    server.registerTool(
+      "kt_save_memory",
+      {
+        title: "Save a project memory",
+        description:
+          "Persist a non-obvious fact, decision, incident, pattern, or anti-pattern as a " +
+          "project memory so future sessions (and other team members) can recall it. " +
+          "Save proactively when you learn something the next agent should know: " +
+          "kind=decision (we chose X over Y because Z), incident (symptom S was caused by C; fix is F), " +
+          "pattern (the right way to do P is Q), anti-pattern (don't do X without Y), " +
+          "context (background fact), skill (how to do X). " +
+          "\n\n" +
+          "Same project-resolution rule as kt_recall: in coding harnesses the host injects " +
+          "project_id; in non-coding harnesses, call kt_list_projects first, confirm with the " +
+          "user, then pass the chosen project_id here. Triggers the async embedding + " +
+          "deduplication pipeline through the outbox. Pass session_id from kt_session_start " +
+          "so the memory is attributed to this session and to its connector.",
+        inputSchema: CreateMemorySchema.shape,
+        annotations: {
+          title: "Save a project memory",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        const result = await this.memoryCommands.create(context, input);
+        const ui = this.ui.renderSaved(result as never);
+        return jsonAndUi(result, ui, "openkt/saved");
+      },
+    );
+
+    // ── kt_search_memories ──────────────────────────────────────────
+    server.registerTool(
+      "kt_search_memories",
+      {
+        title: "Search memories (no recall side-effects)",
+        description:
+          "Browse or filter memories across one or more projects by query, kind, or tag without " +
+          "bumping recall counters. Use this for listing/browsing UX — when the user asks " +
+          "\"what memories do I have about X\" or you need to enumerate before deciding. " +
+          "Prefer kt_recall when you need context to answer a question.",
+        inputSchema: MemorySearchRequestSchema.shape,
+        annotations: {
+          title: "Search memories",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const result = await this.memoryQueries.search(context, input);
+        const ui = this.ui.renderRecall(result as never, input.query ?? "search");
+        return jsonAndUi(result, ui, "openkt/search");
+      },
+    );
+
+    // ── kt_forget_memory ────────────────────────────────────────────
+    server.registerTool(
+      "kt_forget_memory",
+      {
+        title: "Forget (archive or hard-delete) a memory",
+        description:
+          "Archive a memory by id (default: soft, recoverable) or hard-delete it (owner-only, " +
+          "irreversible). Use when the user explicitly asks to forget something or when a " +
+          "memory is clearly obsolete. Always prefer soft archive over hard delete.",
+        inputSchema: DeleteMemoryInputSchema.shape,
+        annotations: {
+          title: "Forget a memory",
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const result = await this.memoryCommands.forget(context, input);
+        return jsonResult(result);
+      },
+    );
+
+    // ── kt_list_projects ────────────────────────────────────────────
+    server.registerTool(
+      "kt_list_projects",
+      {
+        title: "List projects the user has access to",
+        description:
+          "List the OpenKT projects the current user can read. " +
+          "\n\n" +
+          "WHEN TO CALL:\n" +
+          "• Non-coding harness (Claude.ai web, ChatGPT, Slack) — call this FIRST on every new " +
+          "conversation to find the right project_id, then ask the user to confirm which one " +
+          "before reading or writing memories. Cache the choice for the conversation.\n" +
+          "• Coding harness without a bound project — fall back to this when the host's primer " +
+          "didn't supply a project_id (i.e. cwd has no .openkt/manifest.json).\n" +
+          "\n" +
+          "Returns project_id, slug, name, org, role, and visibility. Use the result to populate " +
+          "the project_id argument on kt_recall / kt_save_memory / kt_project_brief.",
+        inputSchema: ListProjectsSchema.shape,
+        annotations: {
+          title: "List accessible projects",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const filters: Record<string, string> = {};
+        if (input.org_id) filters.orgId = input.org_id;
+        if (input.visibility) filters.visibility = input.visibility;
+        const rows = await this.projectsApp.listVisible(
+          context,
+          filters as Parameters<typeof this.projectsApp.listVisible>[1],
+        );
+        const payload = { count: rows.length, projects: rows };
+        const ui = this.ui.renderProjectList(payload as never);
+        return jsonAndUi(payload, ui, "openkt/projects");
+      },
+    );
+
+    // ── kt_project_brief ────────────────────────────────────────────
+    server.registerTool(
+      "kt_project_brief",
+      {
+        title: "Get a project's auto-generated brief",
+        description:
+          "Fetch the auto-maintained brief for a project: scope, conventions, recent activity, " +
+          "active people, key decisions. Call this at session start (or when switching projects) " +
+          "to ground yourself before answering domain questions. " +
+          "\n\n" +
+          "Accepts project_id (UUID) OR project_slug — pass exactly one. If you have neither " +
+          "(typical for non-coding harnesses on first connection), call kt_list_projects first " +
+          "and ask the user which project the conversation is about. " +
+          "Recommended flow for non-coding harnesses: kt_list_projects → user picks → " +
+          "kt_project_brief on the chosen project → kt_recall on subsequent prompts.",
+        inputSchema: ProjectBriefSchema.shape,
+        annotations: {
+          title: "Get project brief",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const projectId = await this.resolveProjectId(context, input);
+        const result = await this.briefing.getBriefing(context, projectId);
+        const ui = this.ui.renderProjectBrief(result as never);
+        return jsonAndUi(result, ui, "openkt/brief");
+      },
+    );
+
+    // ── kt_session_start ──────────────────────────────────────────
+    // M1/M3 "Session lifecycle over MCP" (architecture.md §4). Opens a
+    // T0 session and returns its id together with the project brief in
+    // one round-trip, so a client only needs one tool call to go from
+    // "nothing" to "warm and ready to work".
+    server.registerTool(
+      "kt_session_start",
+      {
+        title: "Start a session",
+        description:
+          "Open a session at the beginning of work — call this FIRST, before kt_recall or " +
+          "kt_save_memory. Returns session_id (pass it to every kt_recall/kt_save_memory/" +
+          "kt_session_end call in this conversation) and the project's brief, so you start " +
+          "warm instead of cold. " +
+          "\n\n" +
+          "Same project-resolution rule as kt_recall: omit project to use the user's personal " +
+          "space, or pass the project_id/slug the host already bound. Sessions close themselves " +
+          "after a period of inactivity even if you forget to call kt_session_end.",
+        inputSchema: StartSessionSchema.shape,
+        annotations: {
+          title: "Start a session",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        const session = await this.sessionsApp.start(context, {
+          project_id: input.project ?? undefined,
+          source: input.source ?? "mcp",
+          client: input.client ?? null,
+          title: input.title ?? null,
+          metadata: {},
+        });
+        const brief = await this.briefing
+          .getBriefing(context, session.project_id)
+          .catch(() => null);
+        return jsonResult({ session, brief });
+      },
+    );
+
+    // ── kt_session_end ────────────────────────────────────────────
+    server.registerTool(
+      "kt_session_end",
+      {
+        title: "End a session",
+        description:
+          "Close a session with your own summary of what happened — call this when the work " +
+          "is done or the conversation is ending. A good summary is a few sentences: what was " +
+          "asked, what changed, what's left open. Idle sessions close automatically, but an " +
+          "explicit summary is more useful than an idle-timeout placeholder.",
+        inputSchema: CloseSessionToolSchema.shape,
+        annotations: {
+          title: "End a session",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const session = await this.sessionsApp.close(context, input.session_id, {
+          summary: input.summary ?? null,
+        });
+        return jsonResult({ session });
+      },
+    );
+
+    // ── kt_setup ────────────────────────────────────────────────────
+    // Interactive onboarding wizard. Uses MCP elicitation (spec rev
+    // 2025-06-18, supported by Claude.ai, Claude Code, Cursor) to walk
+    // the user through email → verification code → org-pick in the
+    // chat, no dashboard round-trip needed.
+    //
+    // DEMO MODE: the email + code path is currently mock data so the
+    // user can evaluate the UX before we implement real OAuth 2.1 +
+    // DCR. Any 6-digit code is accepted; the org list is hard-coded.
+    // Replace the mock branches with real Supabase signInWithOtp +
+    // verifyOtp once the UX is signed off.
+    server.registerTool(
+      "kt_setup",
+      {
+        title: "Interactive setup wizard",
+        description:
+          "Walk the user through OpenKT onboarding right in the chat: email + code login, " +
+          "org selection, default-project pick. Call this on first connection or whenever the " +
+          "user wants to switch accounts. Uses MCP elicitation so the client renders proper " +
+          "form fields instead of asking the agent to ad-hoc prompt for input.",
+        inputSchema: z.object({}).shape,
+        annotations: {
+          title: "Interactive setup wizard",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async () => {
+        return this.runSetupWizard(server, context);
+      },
+    );
+
+    return server;
+  }
+
+  private async runSetupWizard(
+    server: InstanceType<SdkExports["McpServer"]>,
+    context: ActorContext,
+  ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+    // Step 1 — collect email
+    const emailResult = await server.server.elicitInput({
+      message: "Welcome to OpenKT. What email do you want to sign in with?",
+      requestedSchema: {
+        type: "object",
+        properties: {
+          email: {
+            type: "string",
+            title: "Email",
+            description: "The address you used to join the OpenKT beta waitlist.",
+          },
+        },
+        required: ["email"],
+      },
+    });
+    if (emailResult.action !== "accept" || !emailResult.content) {
+      return jsonResult({
+        setup: "cancelled",
+        reason: emailResult.action,
+        hint: "You can re-run kt_setup any time.",
+      });
+    }
+    const email = String((emailResult.content as { email?: unknown }).email ?? "");
+
+    // Step 2 — verification code (mock-accept any 6-digit value)
+    const codeResult = await server.server.elicitInput({
+      message: `We sent a code to ${email}. Enter it to continue. (Demo mode: any 6 digits works.)`,
+      requestedSchema: {
+        type: "object",
+        properties: {
+          code: {
+            type: "string",
+            title: "6-digit code",
+            description: "Check your inbox for the verification code we just sent.",
+          },
+        },
+        required: ["code"],
+      },
+    });
+    if (codeResult.action !== "accept" || !codeResult.content) {
+      return jsonResult({ setup: "cancelled_at_code", email });
+    }
+    const code = String((codeResult.content as { code?: unknown }).code ?? "");
+
+    // Step 3 — org selection (mock list; real list comes from
+    // ProjectsApplicationService once the auth flow is real).
+    const orgResult = await server.server.elicitInput({
+      message: `Signed in as ${email}. Which workspace do you want to set as default?`,
+      requestedSchema: {
+        type: "object",
+        properties: {
+          org_slug: {
+            type: "string",
+            title: "Workspace",
+            description: "Pick the workspace OpenKT should default to for future calls.",
+            oneOf: [
+              { const: "deepwork", title: "Deepwork — Pratham's personal scope" },
+              { const: "openkt", title: "OpenKT — the company" },
+              { const: "gas-city", title: "Gas-city — pilot org" },
+            ],
+          },
+        },
+        required: ["org_slug"],
+      },
+    });
+    if (orgResult.action !== "accept" || !orgResult.content) {
+      return jsonResult({ setup: "cancelled_at_org", email, code_received: !!code });
+    }
+    const orgSlug = String((orgResult.content as { org_slug?: unknown }).org_slug ?? "");
+
+    // The email/code/org steps above are still an elicitation UX
+    // preview (no real signInWithOtp/verifyOtp — see the DEMO MODE
+    // note on this tool's registration). The token below, however, is
+    // real: reaching this handler already required a valid bearer
+    // (BearerAuthGuard gates every /mcp call), so `context.principal`
+    // is a genuine authenticated user. We mint an actual `okt_pat_…`
+    // for that user instead of returning a fake string — a client
+    // that runs kt_setup gets a credential it can actually use.
+    const userId = context.principal.userId;
+    const issued = userId
+      ? await this.personalTokens
+          .create({ userId, name: `MCP setup (${new Date().toISOString().slice(0, 10)})` })
+          .catch(() => null)
+      : null;
+
+    return jsonResult({
+      setup: "complete",
+      account: { email, org: orgSlug },
+      token: issued
+        ? {
+            note:
+              "Real personal access token, shown once — store it now. " +
+              "The email/code/org steps above are still a UX preview " +
+              "(TODO: replace with real Supabase signInWithOtp/verifyOtp).",
+            raw_token: issued.rawToken,
+            scopes: issued.scopes,
+            expires_at: issued.expiresAt,
+          }
+        : {
+            note: "Could not mint a token — no authenticated principal on this connection.",
+            raw_token: null,
+          },
+      next_steps: [
+        "Call kt_list_projects to see the workspaces you have access to.",
+        "Save a first memory with kt_save_memory.",
+        "kt_project_brief grounds you on a project's current state.",
+      ],
+    });
+  }
+
+  private async resolveProjectId(
+    context: ActorContext,
+    input: { project_id?: string | null; project_slug?: string | null },
+  ): Promise<string> {
+    if (input.project_id) return input.project_id;
+    if (input.project_slug) {
+      // resolveProjectIdOrSlug accepts either; we pass slug explicitly so
+      // the caller can't smuggle a UUID through the slug field.
+      return this.projectScope.resolveProjectIdOrSlug(context, input.project_slug);
+    }
+    // Fall back to the caller's personal project — same default as the CLI.
+    return this.projectScope.resolvePersonalProjectId(context);
+  }
+}
+
+const ListProjectsSchema = z.object({
+  org_id: z
+    .string()
+    .uuid()
+    .nullable()
+    .optional()
+    .describe("Optional: scope the listing to a single org."),
+  visibility: z
+    .enum(["personal", "project", "org"])
+    .nullable()
+    .optional()
+    .describe("Optional: filter by visibility."),
+});
+
+const ProjectBriefSchema = z.object({
+  project_id: z
+    .string()
+    .uuid()
+    .nullable()
+    .optional()
+    .describe("Project UUID. Pass either project_id or project_slug, not both."),
+  project_slug: z
+    .string()
+    .min(1)
+    .max(120)
+    .nullable()
+    .optional()
+    .describe(
+      "Project slug (e.g. 'openkt-server'). If neither id nor slug is given, falls back to the user's personal project.",
+    ),
+});
+
+const StartSessionSchema = z.object({
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe(
+      "Project UUID or slug to file this session under. Omit to use the user's personal space.",
+    ),
+  title: z.string().max(200).optional().describe("Optional short title for this session."),
+  source: z
+    .enum([
+      "claude-code",
+      "chatgpt",
+      "claude",
+      "mcp",
+      "voice",
+      "meeting",
+      "screenshot",
+      "note",
+      "connector",
+    ])
+    .optional()
+    .describe("The connector opening this session. Defaults to 'mcp'."),
+  client: z.string().max(120).optional().describe("Free-text client identifier, e.g. 'claude-code/1.2.0'."),
+});
+
+const CloseSessionToolSchema = z.object({
+  session_id: z.string().uuid().describe("The session_id returned by kt_session_start."),
+  summary: z
+    .string()
+    .max(20_000)
+    .optional()
+    .describe("A few sentences: what was asked, what changed, what's left open."),
+});
+
+function jsonResult(value: unknown) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(value, null, 2),
+      },
+    ],
+  };
+}
+
+// Combine the JSON payload (so the agent can reason about the result)
+// with an inline HTML UI resource (so MCP-UI-capable hosts render a
+// rich card). MimeType is `text/html` per the MCP Apps spec; the host
+// sandboxes the iframe and discards the resource if it can't render.
+function jsonAndUi(value: unknown, htmlString: string, uriNamespace: string) {
+  const ui = createUIResource({
+    uri: `ui://${uriNamespace}/${randomShortId()}`,
+    content: { type: "rawHtml", htmlString },
+    encoding: "text",
+  });
+  return {
+    content: [
+      { type: "text" as const, text: JSON.stringify(value, null, 2) },
+      ui,
+    ],
+  };
+}
+
+// MCP progress notifications. The SDK exposes a `sendNotification`
+// helper on the tool-handler `extra` arg; we wrap it so a missing
+// progressToken silently no-ops (hosts that don't request progress
+// shouldn't see any side effects).
+async function notifyProgress(
+  extra: unknown,
+  progress: number,
+  message: string,
+): Promise<void> {
+  const params = extra as
+    | {
+        _meta?: { progressToken?: string | number };
+        sendNotification?: (n: {
+          method: string;
+          params: { progressToken: string | number; progress: number; message?: string };
+        }) => Promise<void>;
+      }
+    | undefined;
+  const token = params?._meta?.progressToken;
+  if (!token || !params?.sendNotification) return;
+  try {
+    await params.sendNotification({
+      method: "notifications/progress",
+      params: { progressToken: token, progress, message },
+    });
+  } catch {
+    // Best-effort — the client may have already moved on.
+  }
+}
+
+function randomShortId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
