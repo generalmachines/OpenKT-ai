@@ -171,10 +171,24 @@ export interface PageSpan {
   cites?: number[];
 }
 
+/** A paragraph or a list item of a section written from the server's markdown. */
+export interface PageBlock {
+  kind: 'p' | 'li';
+  spans: PageSpan[];
+}
+
 export interface PageSection {
   id: Id;
   heading: string;
   spans: PageSpan[];
+  /** A section from the server: paragraphs and list items. When present it is shown instead of `spans`. */
+  blocks?: PageBlock[];
+  /** The section's markdown with `[^n]` citation markers — what the editor shows. */
+  markdown?: string;
+  /** A person edited it: agents never rewrite it again (Spec 01 §5 "humans win"). */
+  locked?: boolean;
+  /** Which fact each `[^n]` of this section stands for, so an edit keeps its citations. */
+  citationMap?: { factId: Id; n: number }[];
   /** Two people holding different positions on the same question, each in their own words. Nothing is settled. */
   fork?: PageFork;
   /** What the team believes now, and what it believed before. */
@@ -239,6 +253,26 @@ export interface PageSource {
   title: string;
   /** "Pratham · meeting · today" */
   meta: string;
+  /** Who said it: the person whose session it came from. */
+  author?: string;
+}
+
+/** The space brief (T3): what an AI tool reads first when a session starts in the space. */
+export interface SpaceBrief {
+  markdown: string;
+  updatedAt: string;
+}
+
+/** Sessions of a space waiting to become pages. Processing runs on members' Macs with on-device AI. */
+export interface SpaceProcessing {
+  /** Closed sessions no Mac has picked up yet. */
+  waiting: number;
+  /** Being processed on a teammate's Mac now. */
+  running: number;
+  failed: number;
+  lastDoneAt: string | null;
+  /** Whose Mac did the last one. */
+  lastDoneBy: string | null;
 }
 
 export interface Page {

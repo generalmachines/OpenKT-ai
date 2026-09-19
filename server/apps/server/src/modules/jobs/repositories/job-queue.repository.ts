@@ -116,7 +116,7 @@ export class JobQueueRepository {
    * Claims one job in a space where `userId` may write (owner, org owner/admin, or an
    * editor/owner grant on the space or its org — the same rule as requireProjectAccess "write"),
    * with a 5-minute lease. One statement, FOR UPDATE SKIP LOCKED: two workers never get the same
-   * job. A claimed job whose lease ran out is claimable again.
+   * job. A claimed job whose lease ran out is claimable again. A deleted space's jobs are never handed out.
    */
   async claim(userId: string, kinds: readonly JobKind[]): Promise<JobRecord | null> {
     await this.failExhaustedLeases();
@@ -141,6 +141,7 @@ export class JobQueueRepository {
        where id = (
          select j.id from jobs j
           where j.project_id in (select id from writable)
+            and not exists (select 1 from projects d where d.id = j.project_id and d.deleted_at is not null)
             and j.kind in (${kindList})
             and ((j.status = 'queued' and j.run_after <= now())
                  or (j.status = 'claimed' and j.lease_until < now() and j.attempts < ${MAX_ATTEMPTS}))

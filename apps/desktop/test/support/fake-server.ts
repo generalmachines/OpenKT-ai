@@ -21,6 +21,8 @@
  *     lists owned AND granted projects; GET /v1/projects/:id adds viewer_role (owner | admin | member | viewer —
  *     a grant's owner/editor/reader); a grantee may search a space (POST /v1/memories/search, every id authorised)
  *     and write into it as an editor
+ *   - living pages (modules/pages, #100): GET /v1/projects/:id/pages → [] with meta.processing, GET /v1/projects/:id/brief
+ *     → {brief_md: null}, GET /v1/pages/:id → 404 — a space's pages exist only once a Mac has processed its sessions
  *   - optional routes answer the way Nest does when they are missing — 404 `http_exception` "Cannot PATCH /v1/…" —
  *     unless a test turns them on: `state.moveSession` (PATCH /v1/sessions/:id {project_id}; on no server yet) and
  *     `state.joinLinks` (modules/teams, #86: POST /v1/projects/:id/join-links {role} by an owner or editor →
@@ -436,6 +438,23 @@ export function createFakeServer(baseUrl: string) {
         const p = projects.find((x) => x['id'] === params['id']);
         return p && canRead(user, p['id']) ? ok({ ...p, viewer_role: viewerRole(user, p) }) : fail(404, 'not_found', 'project');
       }),
+    ),
+    // Living pages (server modules/pages, #100): a new space has no pages, no brief, nothing waiting.
+    http.get(
+      v1('/projects/:id/pages'),
+      authed(({ user, params }) =>
+        canRead(user, params['id'])
+          ? ok([], { processing: { queued: 0, claimed: 0, failed: 0, oldest_queued_at: null, last_done_at: null, last_done_by: null } })
+          : fail(404, 'not_found', 'project'),
+      ),
+    ),
+    http.get(
+      v1('/projects/:id/brief'),
+      authed(({ user, params }) => (canRead(user, params['id']) ? ok({ brief_md: null, updated_at: null }) : fail(404, 'not_found', 'project'))),
+    ),
+    http.get(
+      v1('/pages/:id'),
+      authed(() => fail(404, 'not_found', 'page')),
     ),
     http.post(
       v1('/projects/:id/join-links'),

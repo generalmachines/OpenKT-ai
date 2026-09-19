@@ -39,12 +39,13 @@
  *   PATCH  /v1/sessions/:id                {project_id} → the session, moved (no server has it yet)
  *   POST   /v1/projects/:id/join-links     {role} → {code, url, space_id, role, expires_at, …} (owner or editor)
  *   POST   /v1/join                        {code} → {space: {id, name}, role}; 404 for a link that is unknown, expired or used up
+ *   GET    /v1/projects/:id/pages · GET /v1/pages/:id · PUT /v1/pages/:id/sections/:sid · GET /v1/projects/:id/brief
  *   (signing in and out: src/api/auth.ts)
  *
  * The server says project and memory; the app says space and context. Those
- * words stop at this file. Pages, connectors, access defaults, teams
- * and models have no endpoint: they come from the local mock and are listed
- * in `preview` so their screens carry a "sample data" badge.
+ * words stop at this file. Connectors, access defaults, teams and models
+ * have no endpoint: they come from the local mock and are listed in
+ * `preview` so their screens carry a "sample data" badge.
  */
 import type { NetRequest, NetResponse } from '../shared/ipc';
 import { netRequest } from './bridge';
@@ -52,6 +53,7 @@ import { NotFoundError, type OpenKTClient } from './client';
 import { ApiError, kindForStatus } from './errors';
 import { relativeDay, sourceLabel } from './format';
 import { MockClient } from './mock';
+import { toBrief, toPage, toPageListItem, toProcessing } from './pages';
 import { createDeviceSeed } from './mock/seed';
 import { byteLength } from './skillFiles';
 import { isSlugTaken, joinCodeFrom, localDescription, nextFreeSlug, setLocalDescription, spaceSlug } from './spaces';
@@ -68,6 +70,8 @@ import type {
   NewSessionInput,
   NewSkillInput,
   NewSpaceInput,
+  Page,
+  PageListItem,
   PreviewArea,
   RecallHit,
   ResourceRef,
@@ -80,8 +84,10 @@ import type {
   SkillFile,
   SkillSummary,
   Space,
+  SpaceBrief,
   SpaceMember,
   SpaceMembers,
+  SpaceProcessing,
   Workspace,
 } from './types';
 
@@ -214,7 +220,7 @@ const NIL_UUID = '00000000-0000-4000-8000-000000000000';
 
 export class HttpClient implements OpenKTClient {
   readonly kind = 'http' as const;
-  readonly preview: ReadonlySet<PreviewArea> = new Set<PreviewArea>(['pages', 'connectors', 'access-defaults', 'models', 'teams']);
+  readonly preview: ReadonlySet<PreviewArea> = new Set<PreviewArea>(['connectors', 'access-defaults', 'models', 'teams']);
   readonly baseUrl: string;
   private readonly token: string;
   private readonly fetchImpl: typeof fetch | null;
@@ -1043,13 +1049,57 @@ export class HttpClient implements OpenKTClient {
     return out;
   }
 
+  // ── living pages and the space brief ──────────────────────────────────
+  //   GET /v1/projects/:id/pages       → pages; meta.processing = sessions waiting for a Mac
+  //   GET /v1/pages/:id                → sections with [^n] markers + sources (who said it, which session)
+  //   PUT /v1/pages/:id/sections/:sid  {body_md} → the page again; the section is locked
+  //   GET /v1/projects/:id/brief       → {brief_md, updated_at}
+  // A server from before living pages answers 404 on these routes: no pages, no brief, nothing waiting.
+
+  async listPages(spaceId: Id): Promise<PageListItem[]> {
+    try {
+      return arr(await this.data('GET', `/projects/${encodeURIComponent(spaceId)}/pages`)).map(toPageListItem);
+    } catch (e) {
+      if (e instanceof ApiError && missingRoute(e)) return [];
+      throw e;
+    }
+  }
+
+  async getPage(id: Id): Promise<Page> {
+    try {
+      return toPage(obj(await this.data('GET', `/pages/${encodeURIComponent(id)}`)));
+    } catch (e) {
+      if (e instanceof ApiError && missingRoute(e)) throw new NotFoundError('page', id);
+      throw e;
+    }
+  }
+
+  async editPageSection(pageId: Id, sectionId: Id, markdown: string): Promise<Page> {
+    const page = toPage(obj(await this.data('PUT', `/pages/${encodeURIComponent(pageId)}/sections/${encodeURIComponent(sectionId)}`, { body_md: markdown })));
+    this.changed();
+    return page;
+  }
+
+  async getSpaceBrief(spaceId: Id): Promise<SpaceBrief | null> {
+    try {
+      return toBrief(obj(await this.data('GET', `/projects/${encodeURIComponent(spaceId)}/brief`)));
+    } catch (e) {
+      if (e instanceof ApiError && missingRoute(e)) return null;
+      throw e;
+    }
+  }
+
+  async getSpaceProcessing(spaceId: Id): Promise<SpaceProcessing | null> {
+    try {
+      return toProcessing((await this.call('GET', `/projects/${encodeURIComponent(spaceId)}/pages`)).meta);
+    } catch (e) {
+      if (e instanceof ApiError && missingRoute(e)) return null;
+      throw e;
+    }
+  }
+
   // ── no endpoint yet: sample data, flagged in `preview` ────────────────
 
-  listPages = async () => []; // a real space has no sample pages to show
-  // No pages endpoint yet, and listPages is empty: a page URL must not open a sample page for a signed-in person.
-  getPage = async (id: Id): Promise<never> => {
-    throw new NotFoundError('page', id);
-  };
   listAccessDefaults = () => this.fallback.listAccessDefaults();
   listConnectors = () => this.fallback.listConnectors();
   updateConnector: OpenKTClient['updateConnector'] = (id, patch) => this.fallback.updateConnector(id, patch);

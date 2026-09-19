@@ -30,6 +30,9 @@ import {
 } from "../rules/living-rules";
 import { SessionResultApplier, type ApplyReport } from "./session-result.applier";
 
+/** Earlier facts of the space that no page cites yet, offered to the router again (newest first). */
+const UNROUTED_FACTS = 20;
+
 const NAME = (alias: string) => sql.raw(`coalesce(nullif(${alias}.display_name, ''), split_part(${alias}.email, '@', 1), 'Someone')`);
 const iso = (v: unknown): string => {
   const d = v instanceof Date ? v : new Date(String(v ?? ""));
@@ -85,7 +88,7 @@ export class JobsApplicationService {
   private async sessionInput(job: JobRecord): Promise<Record<string, unknown> | null> {
     const session = job.session_id ? await this.sessions.findById(job.session_id) : null;
     if (!session || session.project_id !== job.project_id) return null;
-    const [turns, meta, vocabulary, sessionFacts] = await Promise.all([
+    const [turns, meta, vocabulary, sessionFacts, unrouted] = await Promise.all([
       this.sessions.turnsForSession(session.id),
       this.db.execute(sql`
         select pr.name as space_name, ${NAME("p")} as author_name
@@ -110,6 +113,21 @@ export class JobsApplicationService {
          group by m.id, p.display_name, p.email
          order by m.created_at limit 60
       `),
+      // Spec 02 §5: facts that were never on a page are routed again when the next session in the
+      // space closes, so three sessions that each said one thing about a topic still make its page.
+      this.db.execute(sql`
+        select m.id, m.content, m.kind::text as kind, m.created_at, ${NAME("p")} as author_name,
+               coalesce(array_agg(t.slug) filter (where t.slug is not null), '{}') as tags
+          from memories m left join profiles p on p.user_id = m.owner_user_id
+          left join memory_tags mt on mt.memory_id = m.id left join tags t on t.id = mt.tag_id
+         where m.project_id = ${session.project_id}::uuid and m.archived = false and m.superseded_by is null
+           and m.visibility <> 'personal' and m.session_id is distinct from ${session.id}::uuid
+           and m.created_at > now() - interval '30 days'
+           and not exists (select 1 from page_section_facts f where f.memory_id = m.id)
+           and not (coalesce(m.source_refs, '[]'::jsonb) @> '[{"kind":"page"}]'::jsonb)
+         group by m.id, p.display_name, p.email
+         order by m.created_at desc limit ${UNROUTED_FACTS}
+      `),
     ]);
     const row = (meta.rows[0] ?? {}) as { space_name?: string; author_name?: string };
     return {
@@ -126,6 +144,13 @@ export class JobsApplicationService {
       turns: turns.filter((t) => t.role !== "system").map((t) => ({ seq: t.seq, role: t.role, content: t.content })),
       vocabulary: (vocabulary.rows as { tag: string; count: number }[]).map((v) => ({ tag: v.tag, count: Number(v.count) })),
       session_facts: (sessionFacts.rows as Record<string, unknown>[]).map((f) => ({
+        id: String(f.id),
+        statement: String(f.content),
+        kind: unmapKind(String(f.kind), (f.tags as string[]) ?? []),
+        author: String(f.author_name),
+        created_at: iso(f.created_at),
+      })),
+      unrouted_facts: (unrouted.rows as Record<string, unknown>[]).map((f) => ({
         id: String(f.id),
         statement: String(f.content),
         kind: unmapKind(String(f.kind), (f.tags as string[]) ?? []),

@@ -4,7 +4,7 @@
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind, PermissionsStatusDto } from '../shared/ipc';
+import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind, PermissionsStatusDto, WorkerStatusDto } from '../shared/ipc';
 import type { UpdateStatusDto } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
@@ -106,6 +106,14 @@ const bridge: OpenKTBridge = {
     shareSignIn: (signIn) => ipcRenderer.invoke(ch('connect:share-sign-in'), { server: String(signIn?.server ?? ''), token: String(signIn?.token ?? '') }),
   },
   // ── connect tools (end) ──
+  worker: {
+    status: () => ipcRenderer.invoke(ch('worker:status')),
+    setEnabled: (on: boolean) => ipcRenderer.invoke(ch('worker:set-enabled'), on === true),
+    configure: (config) =>
+      ipcRenderer.invoke(ch('worker:configure'), { baseUrl: String(config?.baseUrl ?? ''), adapter: config?.adapter === 'http' ? 'http' : 'mock', signedIn: config?.signedIn === true }),
+    poke: () => ipcRenderer.invoke(ch('worker:poke')),
+    onChange: (listener) => listen<WorkerStatusDto>(ch('worker:changed'), listener),
+  },
   secureStore: {
     get: (key: string) => ipcRenderer.invoke(ch('secure:get'), key) as Promise<string | null>,
     set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,

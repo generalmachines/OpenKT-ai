@@ -120,7 +120,7 @@ describe("write_section citation validation", () => {
   const input: WriteSectionInput = {
     page_title: "Auth — token refresh",
     section_title: "Token lifetimes",
-    section_md: "Session tokens last 24 hours [^f:f_031].\n\nAsk Ojas before changing these.",
+    section_md: "Session tokens last 24 hours [^f:f_031].\n\nTokens are signed with RS256 [^f:f_020].",
     facts: [
       { id: "f_102", statement: "Session tokens last 1 hour.", author: "Pratham", date: "2026-09-12" },
       { id: "f_103", statement: "Refresh tokens rotate on every use.", author: "Pratham", date: "2026-09-12" },
@@ -128,9 +128,9 @@ describe("write_section citation validation", () => {
     superseded_ids: ["f_031"],
   };
   const good =
-    "Session token lifetime was 24 hours; since 2026-09-12 it is 1 hour [^f:f_031][^f:f_102].\n\nRefresh tokens rotate on every use [^f:f_103].\n\nAsk Ojas before changing these.";
+    "Session token lifetime was 24 hours; since 2026-09-12 it is 1 hour [^f:f_031][^f:f_102].\n\nRefresh tokens rotate on every use [^f:f_103].\n\nTokens are signed with RS256 [^f:f_020].";
 
-  it("accepts a section where every new sentence is cited and human text is kept", async () => {
+  it("accepts a section where every sentence is cited and existing text is kept", async () => {
     const result = await writeSection.run(input, new ScriptedClient({ section_md: good }));
     expect(result).toMatchObject({ status: "ok", attempts: 1, output: { section_md: good } });
   });
@@ -167,9 +167,9 @@ describe("write_section citation validation", () => {
   });
 
   it("append mode may not edit existing text; rewrite mode may", async () => {
-    const edited = good.replace("Ask Ojas before changing these.", "").trim();
+    const edited = good.replace("Tokens are signed with RS256 [^f:f_020].", "").trim();
     const asAppend = await writeSection.run(input, new ScriptedClient({ section_md: edited }, { section_md: edited }));
-    expect(asAppend.errors[0]).toMatch(/existing text must stay unchanged.*Ask Ojas/);
+    expect(asAppend.errors[0]).toMatch(/existing text must stay unchanged.*RS256/);
     const asRewrite = await writeSection.run({ ...input, mode: "rewrite_section" }, new ScriptedClient({ section_md: edited }));
     expect(asRewrite.status).toBe("ok");
   });
@@ -180,6 +180,14 @@ describe("write_section citation validation", () => {
     expect(user.startsWith("<instruction>\nAdd the facts to the section without changing existing sentences.\n</instruction>")).toBe(true);
     expect(user.match(/<instruction>/g)).toHaveLength(1);
     expect(textOf(writeSection.buildMessages({ ...input, mode: "rewrite_section" })[1])).toContain("reads as one current account");
+  });
+
+  it("rejects a sentence without a citation even when the section already had it (Spec 02 §6)", async () => {
+    const withNote = { ...input, section_md: `${input.section_md}\n\nAsk Ojas before changing these.` };
+    const kept = `${good}\n\nAsk Ojas before changing these.`;
+    const result = await writeSection.run(withNote, new ScriptedClient({ section_md: kept }, { section_md: good }));
+    expect(result).toMatchObject({ status: "ok", attempts: 2, output: { section_md: good } });
+    expect(result.errors[0]).toMatch(/needs a \[\^f:<id>\] citation.*Ask Ojas/);
   });
 
   it("rejects new prose without a citation", async () => {

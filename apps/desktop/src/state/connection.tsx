@@ -92,6 +92,12 @@ export function ConnectionProvider({ initial, children }: { initial: ApiSettings
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // The on-device worker (main process) needs to know which server this app is signed in to; the
+  // token itself stays in the keychain, where main reads it.
+  useEffect(() => {
+    void window.openkt?.worker?.configure({ baseUrl: settings.baseUrl, adapter: settings.adapter, signedIn: !needsSignIn(settings) }).catch(() => undefined);
+  }, [settings]);
+
   const value = useMemo<Connection>(() => ({ settings, expired, signedOut: needsSignIn(settings), connect, signOut }), [settings, expired, connect, signOut]);
 
   return (

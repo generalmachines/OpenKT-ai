@@ -281,6 +281,13 @@ export class PageRepository {
     if (cites.length) {
       const values = sql.join(cites.map((id) => sql`(${input.sectionId}::uuid, ${id}::uuid)`), sql`, `);
       await db.execute(sql`insert into page_section_facts (section_id, memory_id) values ${values} on conflict do nothing`);
+      // A fact that has been on a page is never offered to the router again, even after a person
+      // edits it out of the page (jobs-application.service.ts, unrouted_facts).
+      const list = sql.join(cites.map((id) => sql`${id}::uuid`), sql`, `);
+      await db.execute(sql`
+        update memories set source_refs = coalesce(source_refs, '[]'::jsonb) || ${JSON.stringify([{ kind: "page", ref: input.pageId }])}::jsonb
+         where id in (${list}) and not (coalesce(source_refs, '[]'::jsonb) @> '[{"kind":"page"}]'::jsonb)
+      `);
     }
     const first = await db.execute(sql`
       select body_md from page_sections where page_id = ${input.pageId}::uuid and body_md <> '' order by seq limit 1

@@ -32,6 +32,8 @@ import type {
   Space,
   SpaceMember,
   SpaceMembers,
+  SpaceBrief,
+  SpaceProcessing,
 } from '../types';
 import { initialsOf, viaLabel } from '../format';
 import { createSeed, type SeedData } from './seed';
@@ -218,6 +220,33 @@ export class MockClient implements OpenKTClient {
     const p = this.db.pages.find((x) => x.id === id);
     if (!p) throw new NotFoundError('page', id);
     return clone(p);
+  }
+
+  /** Sample data: the edit replaces the section's text, which is then a person's (locked). */
+  async editPageSection(pageId: Id, sectionId: Id, markdown: string) {
+    const p = this.db.pages.find((x) => x.id === pageId);
+    const sec = p?.sections.find((x) => x.id === sectionId);
+    if (!p || !sec) throw new NotFoundError('page', pageId);
+    sec.spans = [{ text: markdown.replace(/\s*\[\^\d+\]/g, '') }];
+    sec.blocks = undefined;
+    sec.markdown = markdown;
+    sec.locked = true;
+    p.updatedAt = new Date().toISOString();
+    this.changed();
+    return clone(p);
+  }
+
+  async getSpaceBrief(spaceId: Id): Promise<SpaceBrief | null> {
+    const pages = this.db.pages.filter((p) => p.spaceId === spaceId);
+    if (!pages.length) return null;
+    return {
+      markdown: ['## What matters now', ...pages.slice(0, 3).map((p) => `- ${p.summary} (${p.title})`)].join('\n'),
+      updatedAt: pages[0]!.updatedAt,
+    };
+  }
+
+  async getSpaceProcessing(): Promise<SpaceProcessing | null> {
+    return { waiting: 0, running: 0, failed: 0, lastDoneAt: null, lastDoneBy: null };
   }
 
   private personName(id: Id): string {

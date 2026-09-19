@@ -5,6 +5,7 @@ import { PreviewBadge } from '../../components/PreviewBadge';
 import { ErrorNote, Loading } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Select } from '../../components/Select';
+import { WorkerCard } from '../../components/WorkerCard';
 import { modelsSetup } from '../../api/setup-bridge';
 import { useModelsSetup } from '../../onboarding/models';
 
@@ -60,6 +61,7 @@ export function Models() {
       {live === null && <PreviewBadge area="models">Preview — sample data · model downloads need the desktop app</PreviewBadge>}
       {settings.loading && !settings.data && <Loading />}
       {settings.error && <ErrorNote error={settings.error} />}
+      {live && <WorkerCard />}
       {live && live.length > 0 && <ModelsSetup setup={setup} />}
       <ul className="plain" hidden={Boolean(live?.length)}>
         {(live === null ? (settings.data?.models ?? []) : []).map((m) => (

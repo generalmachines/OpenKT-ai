@@ -257,10 +257,10 @@ describe.each(adapters)('OpenKTClient behaviour — %s adapter', (kind, make) =>
     await expect(make().getSession(kind === 'mock' ? 's-nope' : '00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(Error);
   });
 
-  it('says which areas are sample data — skills are real on both', () => {
+  it('says which areas are sample data — skills and pages are real on both', () => {
     const preview = make().preview;
     expect((preview as ReadonlySet<string>).has('skills')).toBe(false);
-    expect(preview.has('pages')).toBe(kind === 'http');
+    expect(preview.has('pages')).toBe(false);
   });
 
   // ── skills ──────────────────────────────────────────────────────────────
