@@ -1,0 +1,490 @@
+/* ── sample workspace: the banner, living-page blocks, people, graph ──── */
+
+/* One quiet line across the top of the sample workspace. */
+.demobar {
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  background: var(--side);
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.demobar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.demobar__btn {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.app--sample {
+  height: calc(100% - 36px);
+}
+/* macOS: the traffic lights sit over the banner, which drags the window. */
+[data-platform='darwin'] .demobar {
+  -webkit-app-region: drag;
+  padding-left: 84px;
+}
+[data-platform='darwin'] .demobar__btn {
+  -webkit-app-region: no-drag;
+}
+[data-platform='darwin'] .app--sample .sidebar {
+  padding-top: 14px;
+}
+[data-platform='darwin'] .app--sample .sidebar__drag {
+  display: none;
+}
+
+/* A reader sees who to ask. */
+.readonly {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: 640px;
+}
+.readonly svg {
+  color: var(--ink-3);
+}
+
+/* ⑂ two attributed positions */
+.fork {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+}
+.fork__label {
+  font-size: 10.5px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.fork__sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.fork__side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--side);
+  border-radius: 8px;
+}
+.fork__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.fork__position {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.fork__from {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ⟳ now … (was …) */
+.changes {
+  display: flex;
+  flex-direction: column;
+  max-width: 680px;
+}
+.change {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.change:first-child {
+  padding-top: 0;
+}
+.change__topic {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.change__now,
+.change__was {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: baseline;
+  line-height: 1.5;
+}
+.change__now {
+  font-size: 14.5px;
+}
+.change__was {
+  font-size: 13.5px;
+  color: var(--ink-3);
+}
+.change__tag {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.change__now .change__tag {
+  color: var(--accent);
+}
+
+/* who said what */
+.pfacts {
+  max-width: 720px;
+}
+.pfact {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pfact .chip {
+  padding-top: 3px;
+}
+.pfact__text {
+  flex-grow: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pfact.is-superseded .pfact__text {
+  color: var(--ink-3);
+}
+.pfact__note {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.pfact__who {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  padding-top: 3px;
+}
+
+.related .related__row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--ink);
+  max-width: 680px;
+}
+.related__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.related__row:hover .related__title {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.related__why {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* the rail's people */
+.ppl {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ppl__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ppl__name {
+  font-size: 13px;
+}
+.ppl__meta {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+/* the Space page's people panel */
+.space__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.space__graph {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.contribs {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 22px;
+}
+.contrib {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.contrib__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.contrib__name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.contrib__title {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.contrib__meta {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.contrib__topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+.contrib__topic {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.contrib__topic:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.contrib__more {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+/* the knowledge graph */
+.main--graph {
+  gap: 12px;
+  padding-bottom: 24px;
+}
+.graph__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.graph__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.graph__hint {
+  margin-left: auto;
+}
+.graph__key {
+  display: inline-block;
+}
+.graph__key--fact {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.graph__key--page {
+  width: 14px;
+  height: 9px;
+  border-radius: 2px;
+  border: 1px solid var(--ink-3);
+}
+.graph__key--person {
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
+  transform: rotate(45deg);
+}
+.graph__key--relates {
+  width: 16px;
+  height: 0;
+  border-top: 1.5px solid var(--accent);
+}
+.graph {
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+.graph__stage {
+  flex: 1 1 0;
+  min-width: 0;
+  height: calc(100vh - 210px);
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--side);
+  overflow: hidden;
+}
+.app--sample .graph__stage {
+  height: calc(100vh - 246px);
+}
+.graph__canvas {
+  display: block;
+}
+.gedge {
+  stroke: var(--line-strong);
+  stroke-width: 0.8;
+}
+.gedge--contributes {
+  stroke-dasharray: 3 3;
+  stroke: #b9b8b2;
+}
+.gedge--relates {
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-opacity: 0.75;
+}
+.gedge.is-on {
+  stroke: var(--ink-2);
+  stroke-opacity: 1;
+}
+.gedge--relates.is-on {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+}
+.gedge.is-dim {
+  stroke-opacity: 0.18;
+}
+.gnode {
+  cursor: pointer;
+  outline: none;
+}
+.gnode.is-dim {
+  opacity: 0.22;
+}
+.gnode:focus-visible rect,
+.gnode:focus-visible circle,
+.gnode:focus-visible path {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.gnode__label {
+  font-size: 10.5px;
+  fill: var(--ink);
+  font-family: var(--font-sans);
+}
+.gnode__diamond {
+  fill: var(--ink);
+}
+.gnode--person.is-selected .gnode__diamond {
+  fill: var(--accent);
+}
+.gnode__name {
+  font-size: 10.5px;
+  fill: var(--ink-2);
+  font-family: var(--font-mono);
+}
+.graph__detail {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  align-self: flex-start;
+}
+.graph__title {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.graph__title.is-superseded {
+  color: var(--ink-3);
+}
+.graph__meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.graph__rel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.graph__rel li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+.graph__why {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.graph__open {
+  align-self: flex-start;
+  text-decoration: none;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+}
+.graph__empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+/* Welcome: the demo is a visible second way in. */
+.welcome__demo {
+  width: 100%;
+  height: 40px;
+  border-radius: 20px;
+  justify-content: center;
+}
+.welcome__demo-note {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.welcome__demo-wrap {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}

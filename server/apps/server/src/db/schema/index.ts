@@ -27,3 +27,5 @@ export * from "./oauth";
 export * from "./sessions";
 export * from "./grants";
 export * from "./accounts";
+export * from "./skills";
+export * from "./join-links";

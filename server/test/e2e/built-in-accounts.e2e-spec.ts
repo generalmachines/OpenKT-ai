@@ -4,8 +4,9 @@
  * when DATABASE_URL is unset).
  *
  * Covers: boot without Supabase; signup → login → /v1/me → logout → token
- * rejected; duplicate email; weak passwords; the brute-force limit (per email
- * and per IP, generic message); password change signing out other sessions;
+ * rejected; duplicate email; weak passwords; the brute-force limits (failed
+ * logins per email and per IP, sign-ups per IP — a venue behind one address
+ * can all sign up; generic message); password change signing out other sessions;
  * Google sign-in (create, link by email, rejected tokens — "provider disabled"
  * needs a second boot and lives in built-in-accounts-google-off.e2e-spec.ts);
  * share by email (known email, unknown email → pending → converts at signup)
@@ -53,6 +54,9 @@ function googleToken(claims: Record<string, unknown>): string {
 }
 
 const SUPABASE_KEYS = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
+// Per-IP limits small enough to reach in a test (production: 100 failed
+// logins / 15 min, 300 sign-ups / hour). The per-email limit keeps its default.
+const LIMITS = { OPENKT_AUTH_MAX_FAILED_LOGINS_PER_IP: "12", OPENKT_AUTH_MAX_SIGNUPS_PER_IP: "15" };
 const PASSWORD = "plum-Tractor-91";
 
 // Every test gets its own addresses, so reruns against one database never collide.
@@ -98,9 +102,9 @@ describeIfDb("Built-in accounts (e2e, no Supabase configured)", () => {
   }
 
   beforeAll(async () => {
-    for (const key of [...SUPABASE_KEYS, "OPENKT_GOOGLE_CLIENT_IDS", "OPENKT_MEMORY_ENGINE"]) savedEnv[key] = process.env[key];
+    for (const key of [...SUPABASE_KEYS, ...Object.keys(LIMITS), "OPENKT_GOOGLE_CLIENT_IDS", "OPENKT_MEMORY_ENGINE"]) savedEnv[key] = process.env[key];
     pool = new Pool({ connectionString: DATABASE_URL });
-    app = await bootApp({ OPENKT_GOOGLE_CLIENT_IDS: `other.apps.googleusercontent.com, ${GOOGLE_CLIENT_ID}`, OPENKT_MEMORY_ENGINE: "local" });
+    app = await bootApp({ ...LIMITS, OPENKT_GOOGLE_CLIENT_IDS: `other.apps.googleusercontent.com, ${GOOGLE_CLIENT_ID}`, OPENKT_MEMORY_ENGINE: "local" });
   }, 60_000);
 
   afterAll(async () => {
@@ -222,11 +226,11 @@ describeIfDb("Built-in accounts (e2e, no Supabase configured)", () => {
     expect(bodies[2]).toEqual(bodies[0]);
   });
 
-  it("rate limit per EMAIL: the 11th attempt in 15 minutes is refused, from any address, with a generic message", async () => {
+  it("rate limit per EMAIL: the 11th failed login in 15 minutes is refused, from any address, with a generic message", async () => {
     const email = freshEmail("limited");
-    await signup(email); // counts as attempt 1 for this email
-    for (let i = 0; i < 9; i++) {
-      await post("/v1/auth/login", { email, password: "wrong-password-1" }).expect(401); // attempts 2..10, each from a new IP
+    await signup(email); // a successful sign-up does not count against the email
+    for (let i = 0; i < 10; i++) {
+      await post("/v1/auth/login", { email, password: "wrong-password-1" }).expect(401); // failures 1..10, each from a new IP
     }
     const blocked = await post("/v1/auth/login", { email, password: "wrong-password-1" }).expect(429);
     expect(blocked.body.error.code).toBe("rate_limited");
@@ -243,16 +247,35 @@ describeIfDb("Built-in accounts (e2e, no Supabase configured)", () => {
     expect(ghostBlocked.body.error).toMatchObject({ code: "rate_limited", message: RATE_LIMIT_MESSAGE });
   });
 
-  it("rate limit per IP: the 11th failed attempt from one address is refused, whatever the email", async () => {
+  it("rate limit per IP: failed logins past OPENKT_AUTH_MAX_FAILED_LOGINS_PER_IP are refused, whatever the email", async () => {
     const ip = freshIp();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
       await post("/v1/auth/login", { email: freshEmail("spray"), password: "wrong-password-1" }, ip).expect(401);
     }
     const blocked = await post("/v1/auth/login", { email: freshEmail("spray"), password: "wrong-password-1" }, ip).expect(429);
-    expect(blocked.body.error.message).toBe(RATE_LIMIT_MESSAGE);
-    await post("/v1/auth/signup", { email: freshEmail("spray"), password: PASSWORD, display_name: "S" }, ip).expect(429);
+    expect(blocked.body.error).toMatchObject({ code: "rate_limited", message: RATE_LIMIT_MESSAGE });
+    // Sign-ups have their own budget: a newcomer on that address still gets in.
+    await post("/v1/auth/signup", { email: freshEmail("spray"), password: PASSWORD, display_name: "S" }, ip).expect(201);
     // Someone else, elsewhere, is unaffected.
     await signup(freshEmail("elsewhere"));
+  });
+
+  it("a venue behind one address: every sign-up up to OPENKT_AUTH_MAX_SIGNUPS_PER_IP gets in, the next is refused", async () => {
+    const venue = freshIp();
+    const people: string[] = [];
+    for (let i = 0; i < 15; i++) {
+      const email = freshEmail("venue");
+      await post("/v1/auth/signup", { email, password: PASSWORD, display_name: `Guest ${i}` }, venue).expect(201);
+      people.push(email);
+    }
+    const refused = await post("/v1/auth/signup", { email: freshEmail("venue"), password: PASSWORD, display_name: "Late" }, venue).expect(429);
+    expect(refused.body.error).toMatchObject({ code: "rate_limited", message: RATE_LIMIT_MESSAGE });
+    // A 409 for a taken email counts as a sign-up too, so it cannot be used to probe past the limit.
+    await post("/v1/auth/signup", { email: people[0], password: PASSWORD, display_name: "Again" }, venue).expect(429);
+    // Sign-ups used none of the failed-login budget: everyone signs in from the same address.
+    for (const email of people) await post("/v1/auth/login", { email, password: PASSWORD }, venue).expect(200);
+    const rows = await pool.query(`select kind, count(*)::int as n from login_attempts where ip = $1 group by kind`, [venue]);
+    expect(rows.rows).toEqual([{ kind: "signup", n: 15 }]);
   });
 
   it("successful logins are not counted: an office behind one address is not locked out", async () => {

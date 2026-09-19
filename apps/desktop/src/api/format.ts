@@ -10,10 +10,17 @@ export const SOURCE_LABEL: Record<SessionSource, string> = {
   voice: 'voice',
   screenshot: 'screenshot',
   note: 'note',
+  codex: 'codex',
+  connector: 'import',
 };
 
 export function sourceLabel(s: SessionSource): string {
   return SOURCE_LABEL[s];
+}
+
+/** "cowork" for a Claude session that came through Cowork, "notion" for a Notion import; otherwise the source. */
+export function viaLabel(s: { source: SessionSource; via?: string }): string {
+  return s.via ? s.via.toLowerCase() : sourceLabel(s.source);
 }
 
 /** Colours per kind, from design/gen.py `KC`. `issue` is not in the mocks. */
@@ -71,7 +78,7 @@ export function offset(sec: number): string {
 /** Sidebar meta line: "meeting · 42 min", "claude code · openkt". */
 export function sessionListMeta(s: SessionListItem, space: Space | undefined): string {
   const tail = s.source === 'meeting' && s.durationSec ? duration(s.durationSec) : (space?.slug ?? '');
-  return tail ? `${sourceLabel(s.source)} · ${tail}` : sourceLabel(s.source);
+  return tail ? `${viaLabel(s)} · ${tail}` : viaLabel(s);
 }
 
 /** Header lock line: "sales team can read" · "only you". */
@@ -88,4 +95,32 @@ export function accessSummary(grants: Grant[]): string {
 
 export function roleLabel(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+/** "today" · "yesterday" · "2 days ago" · "3 weeks ago" · "4 months ago" — for version history. */
+export function timeAgo(iso: string, now: Date = new Date()): string {
+  const n = daysAgo(iso, now);
+  if (n <= 0) return 'today';
+  if (n === 1) return 'yesterday';
+  if (n < 14) return `${n} days ago`;
+  if (n < 63) return `${Math.round(n / 7)} weeks ago`;
+  if (n < 365) return `${Math.round(n / 30)} months ago`;
+  const years = Math.round(n / 365);
+  return `${years} ${years === 1 ? 'year' : 'years'} ago`;
+}
+
+export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
+
+/** "used 31 times this month" */
+export function usedThisMonth(count: number): string {
+  if (count <= 0) return 'not used yet this month';
+  if (count === 1) return 'used once this month';
+  return `used ${count} times this month`;
+}
+
+/** "Dr. Ekwueme" → "DE", "Sam Okoro" → "SO", "Dana" → "DA", "server-agent" → "SA". */
+export function initialsOf(name: string): string {
+  const words = name.replace(/\./g, '').split(/[\s-]+/).filter(Boolean);
+  if (words.length >= 2) return `${words[0]![0]}${words[words.length - 1]![0]}`.toUpperCase();
+  return (words[0] ?? '?').slice(0, 2).toUpperCase();
 }

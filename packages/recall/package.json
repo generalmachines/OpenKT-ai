@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Pure ranking functions for OpenKT recall (Spec 01 section 4): weights, fusion, abstain, diversity, budget, plus the rerank HTTP client.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "packages/recall" },
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/OpenKT-ai.git", "directory": "packages/recall" },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

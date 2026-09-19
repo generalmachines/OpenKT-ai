@@ -128,6 +128,9 @@ describe('Welcome — signing in', () => {
     expect(describeAuthError(e('rate-limited', 429, 'rate_limited'), 'signin')).toBe('Too many tries. Wait a few minutes and try again.');
     expect(describeAuthError(e('not-found', 404, 'provider_disabled'), 'google')).toBe('Google sign-in isn’t available here. Use your email and password.');
     expect(describeAuthError(e('network', 0, ''), 'signin')).toBe('Can’t reach OpenKT right now. Check your connection.');
+    // A 401 on sign-up is the server refusing to create accounts, never a wrong password.
+    expect(describeAuthError(e('unauthorized', 401, 'http_exception'), 'signup')).toBe('We couldn’t create your account right now. Please try again.');
+    expect(describeAuthError(e('unauthorized', 401, 'http_exception'), 'signup', true)).toBe('That server can’t create accounts. Choose “Use OpenKT instead”, or ask whoever runs it.');
     expect(describeAuthError(e('unauthorized', 401, 'unauthorized'), 'token')).toBe('That access token didn’t work. Check it and try again.');
     for (const msg of [describeAuthError(e('server', 500, 'internal'), 'signin'), describeAuthError(new Error('boom'), 'signin')]) expect(msg).not.toMatch(/server text|boom|500/);
   });

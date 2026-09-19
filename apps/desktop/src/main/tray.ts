@@ -7,6 +7,8 @@ export interface TrayActions {
   openApp(): void;
   /** Stub-only helper so the meeting prompt can be seen without a real call. */
   simulateMeeting?: () => void;
+  /** In-app updates: "Check for Updates…" (src/main/update/ipc.ts). */
+  checkForUpdates?: () => void;
 }
 
 let tray: Tray | null = null;
@@ -30,6 +32,7 @@ export function createTray(actions: TrayActions): Tray {
   if (actions.simulateMeeting) {
     items.push({ type: 'separator' }, { label: 'Simulate a meeting (stub engine)', click: actions.simulateMeeting });
   }
+  if (actions.checkForUpdates) items.push({ type: 'separator' }, { label: 'Check for Updates…', click: actions.checkForUpdates });
   items.push({ type: 'separator' }, { label: 'Quit OpenKT', role: 'quit' });
   tray.setContextMenu(Menu.buildFromTemplate(items));
   return tray;
@@ -42,8 +45,26 @@ export function destroyTray(): void {
 
 export function applyAppMenu(actions: TrayActions): void {
   const isMac = process.platform === 'darwin';
+  // The standard macOS app menu, plus "Check for Updates…" under "About OpenKT" (in-app updates).
+  const appMenu: Electron.MenuItemConstructorOptions = actions.checkForUpdates
+    ? {
+        label: 'OpenKT',
+        submenu: [
+          { role: 'about' },
+          { label: 'Check for Updates…', click: actions.checkForUpdates },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      }
+    : { role: 'appMenu' };
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    ...(isMac ? [appMenu] : []),
     {
       label: 'File',
       submenu: [
