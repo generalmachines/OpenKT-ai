@@ -39,6 +39,7 @@ import { SessionsModule } from "./modules/sessions/sessions.module";
 import { GrantsModule } from "./modules/grants/grants.module";
 import { AccessModule } from "./modules/access/access.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
+import { SkillsModule } from "./modules/skills/skills.module";
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     OauthModule,
     SessionsModule,
     GrantsModule,
+    SkillsModule,
     AccessModule,
     AccountsModule,
   ],
