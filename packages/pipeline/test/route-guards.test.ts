@@ -20,8 +20,8 @@ const pages = [
   {
     id: "page-1",
     sections: [
-      { title: "Overview", locked: false },
-      { title: "Pricing", locked: true },
+      { heading: "Overview", locked: false },
+      { heading: "Pricing", locked: true },
     ],
   },
 ];
@@ -78,8 +78,8 @@ describe("guardRoutes", () => {
       {
         id: "page-1",
         sections: [
-          { title: "Pricing", locked: true },
-          { title: "Updates", locked: true },
+          { heading: "Pricing", locked: true },
+          { heading: "Updates", locked: true },
         ],
       },
     ];
@@ -95,8 +95,14 @@ describe("guardRoutes", () => {
   });
 
   it("null proposal fields are treated the same as absent", () => {
-    const out = run([{ fact_id: "f1", action: "noop", page_id: null, section_title: null, new_page_title: null }]);
-    expect(out.unrouted).toEqual([{ fact_id: "f1", reason: "noop" }]);
+    expect(run([{ fact_id: "f2", action: "new_page", page_id: null, section_title: null, new_page_title: null }])).toEqual({
+      routes: [],
+      unrouted: [{ fact_id: "f2", reason: "bad_title" }],
+    });
+    expect(run([{ fact_id: "f1", action: "append", page_id: null, section_title: "Overview", new_page_title: null }])).toEqual({
+      routes: [],
+      unrouted: [{ fact_id: "f1", reason: "unknown_page" }],
+    });
   });
 
   it("bad titles → bad_title", () => {

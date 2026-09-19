@@ -25,7 +25,7 @@ export interface Route {
 export interface GuardRoutesInput {
   facts: (FactRef & { age_days: number })[];
   proposals: Proposal[];
-  pages: { id: string; sections: { title: string; locked: boolean }[] }[];
+  pages: { id: string; sections: { heading: string; locked: boolean }[] }[];
   unroutedTitles: string[];
   titleSimilarity: (a: string, b: string) => number;
 }
@@ -91,11 +91,11 @@ export function guardRoutes(input: GuardRoutesInput): {
     let title = proposal.section_title ?? "";
     let redirected = false;
 
-    const target = page.sections.find((s) => s.title === title);
+    const target = page.sections.find((s) => s.heading === title);
     if (target?.locked) {
       // Locked target → redirect to the page's `Updates` section. If `Updates`
       // is itself locked, the fact stays unrouted (Spec 02 §5).
-      const updates = page.sections.find((s) => s.title === "Updates");
+      const updates = page.sections.find((s) => s.heading === "Updates");
       if (updates?.locked) {
         unrouted.push({ fact_id: fact.id, reason: "locked" });
         continue;
