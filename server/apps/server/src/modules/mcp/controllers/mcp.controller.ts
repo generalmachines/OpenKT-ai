@@ -30,20 +30,33 @@ import { McpServerFactoryService } from "../services/mcp-server-factory.service"
 // Excluded from public Swagger because clients speak JSON-RPC, not REST,
 // and OpenAPI doesn't model it well. The JSON-RPC contract is documented
 // upstream by @modelcontextprotocol/sdk and the MCP spec.
-@Controller("mcp")
+@Controller()
 @UseGuards(BearerAuthGuard)
 @ApiBearerAuth("openkt-bearer")
 @ApiExcludeController()
 export class McpController {
   constructor(private readonly factory: McpServerFactoryService) {}
 
-  @All()
+  // /mcp, and /v1/mcp for configs written by older CLI builds (both excluded
+  // from the global prefix — UNPREFIXED_ROUTES in app.module.ts).
+  @All(["mcp", "v1/mcp"])
   async handle(
     @ActorContextParam() context: ActorContext,
     @Req() req: Request,
     @Res() res: Response,
     @Body() body: unknown,
   ): Promise<void> {
+    // GET opens the optional server-to-client SSE stream. This server is
+    // stateless and never sends unsolicited messages, so it says so with the
+    // 405 the transport spec allows, instead of holding an idle stream open
+    // until a proxy cuts it and the client reconnects.
+    // https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server
+    if (req.method === "GET") {
+      res.setHeader("Allow", "POST, DELETE");
+      res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed: this server does not offer an SSE stream on GET" }, id: null });
+      return;
+    }
+
     const { StreamableHTTPServerTransport } = await this.factory.sdk();
     // MCP Apps: does this client render ui:// cards? Read from the request
     // itself, or from the session id we handed out at initialize — see

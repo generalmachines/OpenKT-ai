@@ -16,7 +16,7 @@ import {
 // Sign-in state for the zero-install pages (/join/<code>, /connect).
 //
 // The session is an ordinary access token named `session:web`, valid one day,
-// kept in an HttpOnly, SameSite=Lax cookie whose Path is /connect and /join —
+// kept in an HttpOnly, SameSite=Lax cookie whose Path is /connect, /connect.html and /join —
 // so the browser sends it to these pages only, never to /v1 or /mcp (which do
 // not read cookies anyway). Signing out revokes the token.
 //
@@ -26,7 +26,8 @@ import {
 
 export const SESSION_COOKIE = "okt_web_session";
 export const CSRF_COOKIE = "okt_web_csrf";
-export const COOKIE_PATHS = ["/connect", "/join"] as const;
+// /connect covers the form posts under /connect/*; /connect.html is the page itself.
+export const COOKIE_PATHS = ["/connect", "/connect.html", "/join"] as const;
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 export const WEB_SESSION_TOKEN_NAME = `${SESSION_TOKEN_NAME_PREFIX}web`;
 

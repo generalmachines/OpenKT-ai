@@ -78,19 +78,19 @@ export function joinMissingPage(): Page {
   <p class="brand">OpenKT</p>
   <h1>This invite link does not work</h1>
   <p class="lede">It may have expired, been used up, or been deleted. Ask the person who sent it for a new one.</p>
-  <p class="fine"><a href="/connect">Go to OpenKT</a></p>
+  <p class="fine"><a href="/connect.html">Go to OpenKT</a></p>
 </main>`;
   return page(404, "Invite link not found — OpenKT", body);
 }
 
 // ── /connect, signed out ─────────────────────────────────────────────
 
-export function connectSignInPage(input: FormFields): Page {
+export function connectSignInPage(input: FormFields & { mcpUrl?: string }): Page {
   const body = `
 <main class="card">
   <p class="brand">OpenKT</p>
   <h1>Connect your AI tools to OpenKT</h1>
-  <p class="lede">Sign in to get the connection details for Claude, ChatGPT, Claude Code, Codex and Cursor, and to create or share a team.</p>
+  <p class="lede">Add this MCP server to your AI tool: <code>${esc(input.mcpUrl ?? "https://mcp.openkt.ai/mcp")}</code> — it signs you in by itself. Sign in here to create or share a team, or to get an access token for tools without browser sign-in.</p>
   ${errorBlock(input.error)}
   ${accountForm({ ...input, action: "/connect/signin", submitLabel: "Continue", defaultMode: "signin" })}
 </main>`;
@@ -153,6 +153,7 @@ export function connectPage(input: ConnectPageInput): Page {
 
   <section>
     <h2>1. The server</h2>
+    <p>Add this MCP server: <code>${esc(input.mcpUrl)}</code> — it signs you in by itself.</p>
     ${codeBlock("mcp-url", input.mcpUrl)}
     ${tokenBlock}
   </section>
@@ -373,6 +374,7 @@ section{border-top:1px solid var(--line);padding:18px 0 4px;margin-top:18px}
 section p{font-size:14px;color:var(--ink-2);margin:0 0 10px}
 .notice{margin:0 0 16px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent)}
 .notice p{margin:0 0 8px;font-size:14px;color:var(--ink)}
+.notice code.paste{display:block;margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere;user-select:all}
 .notice p:last-child{margin-bottom:0}
 .code{position:relative;margin:0 0 10px}
 .code pre{margin:0;padding:10px 70px 10px 12px;background:var(--code);border:1px solid var(--line);border-radius:10px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:auto}

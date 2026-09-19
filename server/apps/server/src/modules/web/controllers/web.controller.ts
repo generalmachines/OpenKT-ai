@@ -24,14 +24,17 @@ import {
   type TokenTool,
 } from "../views/pages";
 import { WebSessionService, type WebUser } from "../services/web-session.service";
+import { connectMarkdown, ONE_LINE_PROMPT } from "../views/connect-text";
+import { resolveIssuer } from "../../oauth/controllers/well-known.controller";
 
 // Zero-install pages on the API host, for people who never install the app:
 //
-//   GET  /                         → 302 /connect
+//   GET  /                         → 302 /connect.html (a browser) or /connect (anything else)
+//   GET  /connect, /llms.txt       text/markdown for AI agents: the MCP URL, per-client steps, the contract
 //   GET  /join/<code>              "<inviter> invited you to <team>" + sign up / sign in
-//   POST /join/<code>              signs in or up, joins the team, → 303 /connect
-//   GET  /connect                  sign-in form, or (signed in) how to connect every tool
-//   POST /connect/signin           sign in / sign up → 303 /connect
+//   POST /join/<code>              signs in or up, joins the team, → 303 /connect.html?joined=…
+//   GET  /connect.html             for people: sign-in form, or (signed in) how to connect every tool
+//   POST /connect/signin           sign in / sign up → 303 /connect.html
 //   POST /connect/signout
 //   POST /connect/token            a fresh access token `connect:<tool>`, shown once
 //   POST /connect/teams            create a team (space + editor join link)
@@ -57,6 +60,8 @@ const TeamForm = CsrfOnly.extend({ name: z.string().max(200).default("") });
 const UuidParam = z.object({ id: z.string().uuid() });
 
 const EXPIRED = "This page expired or was opened in another tab. Try again.";
+// The page for people. /connect itself is text for agents.
+const HUMAN_PAGE = "/connect.html";
 
 @Controller()
 @ApiExcludeController()
@@ -70,8 +75,20 @@ export class WebController {
   ) {}
 
   @Get()
-  root(@Res() res: Response): void {
-    res.redirect(302, "/connect");
+  root(@Req() req: Request, @Res() res: Response): void {
+    const wantsHtml = (req.headers.accept ?? "").includes("text/html");
+    res.redirect(302, wantsHtml ? HUMAN_PAGE : "/connect");
+  }
+
+  // ── /connect and /llms.txt: static text for agents ────────────────
+
+  @Get(["connect", "llms.txt"])
+  connectText(@Req() req: Request, @Res() res: Response): void {
+    res.status(200);
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(connectMarkdown({ mcpUrl: this.teams.mcpUrl(), origin: resolveIssuer(req) }));
   }
 
   // ── /join/<code> ───────────────────────────────────────────────────
@@ -102,7 +119,7 @@ export class WebController {
     try {
       const joined = await this.teams.join(this.contextFor(req, user.userId), code);
       if (input.mode !== "session") await this.session.start(req, res, user.userId);
-      res.redirect(303, `/connect?joined=${encodeURIComponent(joined.space.id)}`);
+      res.redirect(303, `${HUMAN_PAGE}?joined=${encodeURIComponent(joined.space.id)}`);
     } catch (err) {
       if (!(err instanceof DomainError)) throw err;
       // The link ran out while they were signing up: they have an account now.
@@ -111,12 +128,12 @@ export class WebController {
     }
   }
 
-  // ── /connect ──────────────────────────────────────────────────────
+  // ── /connect.html (for people) ────────────────────────────────────
 
-  @Get("connect")
+  @Get("connect.html")
   async connect(@Query() query: Record<string, unknown>, @Req() req: Request, @Res() res: Response): Promise<void> {
     const user = await this.session.current(req);
-    if (!user) return send(res, connectSignInPage({ csrf: this.session.csrfToken(req, res), mode: "signin" }));
+    if (!user) return send(res, connectSignInPage({ csrf: this.session.csrfToken(req, res), mode: "signin", mcpUrl: this.teams.mcpUrl() }));
     await this.renderConnect(req, res, user, { notice: await this.noticeFor(req, user, query) });
   }
 
@@ -124,27 +141,27 @@ export class WebController {
   async signIn(@Body() body: unknown, @Req() req: Request, @Res() res: Response): Promise<void> {
     const form = AccountForm.safeParse(body ?? {});
     const csrf = this.session.csrfToken(req, res);
-    if (!form.success) return send(res, connectSignInPage({ csrf, mode: "signin", error: "Something in the form was not valid." }));
+    if (!form.success) return send(res, connectSignInPage({ csrf, mcpUrl: this.teams.mcpUrl(), mode: "signin", error: "Something in the form was not valid." }));
     const input = form.data;
-    const keep = { csrf, mode: input.mode === "signup" ? "signup" : "signin", email: input.email?.trim(), displayName: input.display_name?.trim() } as const;
+    const keep = { csrf, mcpUrl: this.teams.mcpUrl(), mode: input.mode === "signup" ? "signup" : "signin", email: input.email?.trim(), displayName: input.display_name?.trim() } as const;
     if (!this.session.csrfOk(req, input.csrf)) return send(res, connectSignInPage({ ...keep, error: EXPIRED }));
     const signedIn = await this.signInOrUp(req, input);
     if ("error" in signedIn) return send(res, { ...connectSignInPage({ ...keep, error: signedIn.error }), status: signedIn.status });
     await this.session.start(req, res, signedIn.userId);
-    res.redirect(303, "/connect");
+    res.redirect(303, HUMAN_PAGE);
   }
 
   @Post("connect/signout")
   async signOut(@Body() body: unknown, @Req() req: Request, @Res() res: Response): Promise<void> {
     const form = CsrfOnly.safeParse(body ?? {});
     if (form.success && this.session.csrfOk(req, form.data.csrf)) await this.session.end(req, res);
-    res.redirect(303, "/connect");
+    res.redirect(303, HUMAN_PAGE);
   }
 
   @Post("connect/token")
   async createToken(@Body() body: unknown, @Req() req: Request, @Res() res: Response): Promise<void> {
     const user = await this.session.current(req);
-    if (!user) return res.redirect(303, "/connect");
+    if (!user) return res.redirect(303, HUMAN_PAGE);
     const form = TokenForm.safeParse(body ?? {});
     if (!form.success || !this.session.csrfOk(req, form.data.csrf)) {
       return this.renderConnect(req, res, user, { error: EXPIRED, status: 400 });
@@ -162,7 +179,7 @@ export class WebController {
   @Post("connect/teams")
   async createTeam(@Body() body: unknown, @Req() req: Request, @Res() res: Response): Promise<void> {
     const user = await this.session.current(req);
-    if (!user) return res.redirect(303, "/connect");
+    if (!user) return res.redirect(303, HUMAN_PAGE);
     const form = TeamForm.safeParse(body ?? {});
     if (!form.success || !this.session.csrfOk(req, form.data.csrf)) {
       return this.renderConnect(req, res, user, { error: EXPIRED, status: 400 });
@@ -172,13 +189,13 @@ export class WebController {
       return this.renderConnect(req, res, user, { error: "Give the team a name (up to 120 characters).", status: 400 });
     }
     const created = await this.teams.createTeam(this.contextFor(req, user.userId), name);
-    res.redirect(303, `/connect?created=${encodeURIComponent(created.space.id)}`);
+    res.redirect(303, `${HUMAN_PAGE}?created=${encodeURIComponent(created.space.id)}`);
   }
 
   @Post("connect/teams/:id/links")
   async newLink(@Param() params: unknown, @Body() body: unknown, @Req() req: Request, @Res() res: Response): Promise<void> {
     const user = await this.session.current(req);
-    if (!user) return res.redirect(303, "/connect");
+    if (!user) return res.redirect(303, HUMAN_PAGE);
     const id = UuidParam.safeParse(params);
     const form = CsrfOnly.safeParse(body ?? {});
     if (!id.success || !form.success || !this.session.csrfOk(req, form.data.csrf)) {
@@ -250,7 +267,12 @@ export class WebController {
     const teams = await this.teams.listTeams(this.contextFor(req, user.userId));
     if (joined) {
       const team = teams.find((t) => t.id === joined);
-      if (team) return `You joined <strong>${esc(team.name)}</strong> as ${esc(team.role)}. Connect a tool below, then ask it about the team.`;
+      if (team) {
+        return (
+          `You joined <strong>${esc(team.name)}</strong> as ${esc(team.role)}. Now paste this into your AI tool:` +
+          `<code class="paste">${esc(ONE_LINE_PROMPT(this.teams.mcpUrl(), resolveIssuer(req)))}</code>`
+        );
+      }
     }
     if (created) {
       const team = teams.find((t) => t.id === created);
