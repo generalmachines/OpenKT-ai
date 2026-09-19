@@ -10,8 +10,8 @@
 #                                           docker/Dockerfile.embedding changed since the running commit)
 #
 # Needs: git ≥ 2.39, jq, curl, flock, the AWS CLI with credentials that may write the artifact bucket and send
-# SSM commands to the Dokku host, and either `gh` signed in to the repository (the settings are read from its
-# GitHub environment `production`) or AWS_REGION, DOKKU_INSTANCE_ID, DEPLOY_ARTIFACT_BUCKET, PUBLIC_URL set.
+# SSM commands to the Dokku host, and either `gh` signed in to masti-ai/OpenKT-ai (override with OPENKT_REPO; the
+# settings are read from its GitHub environment `production`) or AWS_REGION, DOKKU_INSTANCE_ID, DEPLOY_ARTIFACT_BUCKET, PUBLIC_URL set.
 # Refuses a dirty working tree. One deploy at a time: /tmp/openkt-deploy.lock here, plus a host-wide lock that
 # also covers deploys from GitHub.
 set -euo pipefail
@@ -28,10 +28,14 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "Refusing to deploy from a dirty working tree:"; git status --short; exit 1
 fi
 
+# The repository whose GitHub environment `production` holds the deploy settings (renamed from
+# masti-ai/openkt-next on 2026-09-19; GitHub redirects the old name, but say the new one).
+OPENKT_REPO="${OPENKT_REPO:-masti-ai/OpenKT-ai}"
+
 setting() { # name → value from the environment, else from the GitHub environment `production`
   local v="${!1:-}"
   # `gh variable list --json` works on old gh releases too (`gh variable get` needs gh ≥ 2.47).
-  [ -n "${v}" ] || v="$(gh variable list --env production --json name,value \
+  [ -n "${v}" ] || v="$(gh variable list --repo "${OPENKT_REPO}" --env production --json name,value \
     --jq ".[] | select(.name == \"$1\") | .value" 2>/dev/null || true)"
   [ -n "${v}" ] || { echo "Missing setting $1 (export it, or sign in with gh)" >&2; exit 1; }
   printf '%s' "${v}"

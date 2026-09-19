@@ -81,6 +81,6 @@ def github(repo):
 
 if __name__ == "__main__":
     if "--github" in sys.argv:
-        repo = sys.argv[sys.argv.index("--github")+1] if len(sys.argv) > sys.argv.index("--github")+1 else "masti-ai/openkt-next"
+        repo = sys.argv[sys.argv.index("--github")+1] if len(sys.argv) > sys.argv.index("--github")+1 else "masti-ai/OpenKT-ai"
         github(repo)
     render(); print("rendered", len(ISSUES), "tasks;", len(idmap), "mapped to GitHub issues")

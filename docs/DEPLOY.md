@@ -28,7 +28,7 @@ There is no worker app yet: facts are embedded when saved (`OPENKT_INLINE_EMBED`
 | Variable | Purpose |
 |---|---|
 | `AWS_REGION` | Region of the instance and the SSM endpoint |
-| `AWS_ROLE_ARN` | The OIDC deploy role, trusted only for `repo:masti-ai/openkt-next:environment:production` |
+| `AWS_ROLE_ARN` | The OIDC deploy role, trusted only for the immutable subject `repo:masti-ai@267711818/OpenKT-ai@1376876585:environment:production` (the repository id stays when the repository is renamed; the old name `openkt-next` stays in the trust policy until a deploy under the new name has passed) |
 | `DOKKU_INSTANCE_ID` | The SSM-managed Dokku instance |
 | `DEPLOY_ARTIFACT_BUCKET` | Temporary source-archive bucket |
 | `PUBLIC_URL` | Where the post-deploy smoke test looks, e.g. `https://api.openkt.ai` |
