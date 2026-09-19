@@ -22,10 +22,14 @@ export function slugTag(raw: string): string | null {
     .replace(/[\u0300-\u036f]/g, "")
     .normalize("NFC")
     .toLowerCase();
-  const slug = folded
+  const dashed = folded
     .replace(/[^\p{L}\p{M}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/^-+|-+$/g, "");
+  // Cut to 32 characters (code points, not UTF-16 units — Postgres counts
+  // characters too), then trim a trailing dash.
+  const slug = Array.from(dashed)
     .slice(0, MAX_TAG_CHARS)
+    .join("")
     .replace(/-$/, "");
   if (slug === "" || KIND_NAMES.has(slug)) return null;
   return slug;

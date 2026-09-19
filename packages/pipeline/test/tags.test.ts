@@ -17,10 +17,12 @@ describe("slugTag", () => {
   });
 
   it("cuts a 50-char tag to 32 without a trailing dash", () => {
-    const raw = "a".repeat(20) + "-" + "b".repeat(29);
-    const out = slugTag(raw);
-    expect(out).toHaveLength(32);
-    expect(out?.endsWith("-")).toBe(false);
+    const raw = "a".repeat(31) + "-" + "b".repeat(18); // 50 chars, the dash is char 32
+    expect(slugTag(raw)).toBe("a".repeat(31));
+  });
+
+  it("cuts by code points, not UTF-16 units", () => {
+    expect(slugTag("a" + "𠀀".repeat(40))).toBe("a" + "𠀀".repeat(31));
   });
 
   it("keeps Thai and Devanagari tags intact (any script)", () => {
@@ -35,6 +37,8 @@ describe("slugTag", () => {
 
   it("non-letter runs collapse to one dash", () => {
     expect(slugTag("a  --  b!!c")).toBe("a-b-c");
+    expect(slugTag("a^b")).toBe("a-b");
+    expect(slugTag("a`b")).toBe("a-b");
   });
 });
 
@@ -51,6 +55,12 @@ describe("normaliseTags", () => {
     const low = (a: string, b: string) => (a === "northgate" && b === "customer-northgate" ? 0.84 : 0);
     const out = normaliseTags(["northgate"], vocab, low);
     expect(out).toEqual({ tags: ["northgate"], created: ["northgate"] });
+  });
+
+  it("similarity exactly 0.85 replaces with the vocab tag", () => {
+    const exact = (a: string, b: string) => (a === "northgate" && b === "customer-northgate" ? 0.85 : 0);
+    const out = normaliseTags(["northgate"], vocab, exact);
+    expect(out).toEqual({ tags: ["customer-northgate"], created: [] });
   });
 
   it("keeps a tag already in the vocabulary without creating it", () => {
