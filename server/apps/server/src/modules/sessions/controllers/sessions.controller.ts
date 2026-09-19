@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 
@@ -21,6 +21,7 @@ import {
   SESSION_SOURCES,
   SESSION_TURNS_MAX,
   SessionIdParamsSchema,
+  UpdateSessionSchema,
 } from "../contracts/session.contract";
 import { SessionsApplicationService } from "../services/sessions-application.service";
 
@@ -148,8 +149,13 @@ export class SessionsController {
   }
 
   @Get()
-  @ApiOperation({ summary: "List sessions for a project" })
+  @ApiOperation({
+    summary:
+      "List sessions in a space (default: the personal space), or with shared=true the sessions other " +
+      "people shared with you. Each carries my_role and the owner's name.",
+  })
   @ApiQuery({ name: "project_id", required: false, schema: { type: "string" } })
+  @ApiQuery({ name: "shared", required: false, schema: { type: "boolean", default: false } })
   @ApiQuery({ name: "status", required: false, schema: { type: "string", enum: ["open", "closed"] } })
   @ApiQuery({ name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 200, default: 50 } })
   @ApiQuery({ name: "offset", required: false, schema: { type: "integer", minimum: 0, default: 0 } })
@@ -157,6 +163,26 @@ export class SessionsController {
     const input = parseWithSchema(ListSessionsQuerySchema, query);
     const result = await this.sessionsApplicationService.list(context, input);
     return pagedResponse(result.data, result.meta);
+  }
+
+  @Patch(":id")
+  @ApiOperation({
+    summary: "Rename a session and/or move it into another space you can write (owner); its facts move with it",
+  })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", maxLength: 256 },
+        title: { type: "string", maxLength: 200, nullable: true },
+      },
+    },
+  })
+  async update(@ActorContextParam() context: ActorContext, @Param() params: unknown, @Body() body: unknown) {
+    const { id } = parseWithSchema(SessionIdParamsSchema, params);
+    const input = parseWithSchema(UpdateSessionSchema, body ?? {});
+    return okResponse(await this.sessionsApplicationService.update(context, id, input));
   }
 
   @Get(":id")

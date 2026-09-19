@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
-import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
+import { ForbiddenDomainError, NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
 
 import {
   SESSION_TURNS_MAX_BYTES,
@@ -13,6 +13,7 @@ import {
   type SessionListMeta,
   type SessionRecord,
   type SessionTurnRecord,
+  type UpdateSessionInput,
 } from "../contracts/session.contract";
 import { SessionRepository } from "../repositories/session.repository";
 import { ProjectScopeService } from "../../projects/services/project-scope.service";
@@ -23,6 +24,12 @@ import { GrantRepository } from "../../grants/repositories/grant.repository";
 import { JobQueueRepository } from "../../jobs/repositories/job-queue.repository";
 
 export type SessionRole = "owner" | "editor" | "reader";
+
+// A session in a list: who owns it (name only) and the caller's role on it.
+export type SessionListItem = SessionRecord & {
+  my_role: SessionRole;
+  owner: { id: string; name: string | null };
+};
 
 /** Spec 02 §2: a session with less user + assistant text than this is not processed at all. */
 export const MIN_SESSION_CHARS = 200;
@@ -147,17 +154,58 @@ export class SessionsApplicationService {
   async list(
     context: ActorContext,
     input: ListSessionsQuery,
-  ): Promise<{ data: SessionRecord[]; meta: SessionListMeta }> {
+  ): Promise<{ data: SessionListItem[]; meta: SessionListMeta }> {
+    const filters = { status: input.status, limit: input.limit, offset: input.offset };
+    if (input.shared) {
+      const userId = context.principal.userId;
+      if (!userId) throw new NotFoundDomainError("session");
+      return this.withRoles(context, await this.sessionRepository.listSharedWith(userId, filters));
+    }
     const projectId = await this.projectScopeService.resolveProjectIdOrSlug(
       context,
       input.project_id,
     );
     await this.projectScopeService.requireProjectAccess(context, projectId, "read");
-    return this.sessionRepository.listByProject(projectId, {
-      status: input.status,
-      limit: input.limit,
-      offset: input.offset,
+    return this.withRoles(context, await this.sessionRepository.listByProject(projectId, filters));
+  }
+
+  // PATCH /v1/sessions/:id — the session's owner renames it and/or moves it
+  // into another space they can write; the facts saved in it move with it.
+  async update(context: ActorContext, sessionId: string, input: UpdateSessionInput): Promise<SessionRecord> {
+    refuseSecrets("session title", input.title);
+    const session = await this.sessionRepository.findById(sessionId);
+    if (!session) throw new NotFoundDomainError("session");
+    const role = await this.roleOn(context, session);
+    if (role !== "owner") throw new ForbiddenDomainError("only the session's owner can change it");
+
+    let target: { projectId: string; orgId: string | null } | null = null;
+    if (input.project_id) {
+      const projectId = await this.projectScopeService.resolveProjectIdOrSlug(context, input.project_id);
+      if (projectId !== session.project_id) {
+        const access = await this.projectScopeService.requireProjectAccess(context, projectId, "write");
+        target = { projectId, orgId: access.orgId };
+      }
+    }
+    if (!target && input.title === undefined) return session;
+    return this.sessionRepository.update(sessionId, {
+      ...(target ? { projectId: target.projectId, orgId: target.orgId } : {}),
+      ...(input.title !== undefined ? { title: input.title } : {}),
     });
+  }
+
+  private async withRoles(
+    context: ActorContext,
+    page: { data: SessionRecord[]; meta: SessionListMeta },
+  ): Promise<{ data: SessionListItem[]; meta: SessionListMeta }> {
+    const names = await this.sessionRepository.ownerNames(page.data.map((s) => s.owner_user_id));
+    const data = await Promise.all(
+      page.data.map(async (session) => ({
+        ...session,
+        my_role: await this.roleOn(context, session),
+        owner: { id: session.owner_user_id, name: names.get(session.owner_user_id) ?? null },
+      })),
+    );
+    return { data, meta: page.meta };
   }
 
   // Spec 04: `GET /v1/sessions/:id` → the session, its facts and `my_role`.
