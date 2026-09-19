@@ -124,11 +124,28 @@ export const CloseSessionSchema = z.object({
 });
 export type CloseSessionInput = z.infer<typeof CloseSessionSchema>;
 
+// PATCH /v1/sessions/:id (the session's owner): move it into another space
+// the owner can write — its facts move with it — and/or rename it.
+export const UpdateSessionSchema = z
+  .object({
+    project_id: z.string().min(1).max(256).optional(),
+    title: z.string().max(200).nullable().optional(),
+  })
+  .refine((v) => v.project_id !== undefined || v.title !== undefined, {
+    message: "pass project_id and/or title",
+  });
+export type UpdateSessionInput = z.infer<typeof UpdateSessionSchema>;
+
 export const SessionIdParamsSchema = z.object({ id: UUID });
 export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
 
 export const ListSessionsQuerySchema = z.object({
   project_id: z.string().min(1).max(256).optional(),
+  // `shared=true`: the sessions other people shared with the caller one by
+  // one (a session grant), whatever space they are in — "Shared with you".
+  shared: z
+    .union([z.boolean(), z.enum(["true", "false"]).transform((value) => value === "true")])
+    .default(false),
   status: SessionStatusSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),

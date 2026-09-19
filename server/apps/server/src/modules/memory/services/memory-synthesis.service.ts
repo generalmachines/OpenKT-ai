@@ -137,6 +137,11 @@ export class MemorySynthesisService {
             -- In a shared space, never merge into (and so return) a
             -- teammate's personal memory.
             AND (m.owner_user_id = ${context.principal.userId}::uuid OR m.visibility <> 'personal')
+            -- Only within the session being saved into (or, with no session,
+            -- among facts saved outside any session): a save never lands on
+            -- another session's fact, so each session keeps what was said in
+            -- it (QA S4). The session was checked writable by the caller.
+            AND m.session_id IS NOT DISTINCT FROM ${input.session_id ?? null}::uuid
           ORDER BY m.embedding <=> ${vectorLiteral}::vector
           LIMIT ${TOP_K_NEIGHBORS}
         `,

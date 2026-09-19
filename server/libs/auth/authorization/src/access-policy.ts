@@ -165,7 +165,8 @@ export async function requireProjectAccess(
       owner_user_id: string;
       visibility: string;
     }>(
-      "select id, org_id, owner_user_id, visibility from projects where id = $1 limit 1",
+      // A deleted space (projects.deleted_at, migration 0046) is not found.
+      "select id, org_id, owner_user_id, visibility from projects where id = $1 and deleted_at is null limit 1",
       [projectId],
     );
     if (!projectRow) throw new NotFoundDomainError("project");
@@ -225,6 +226,7 @@ export async function requireProjectAccess(
     .from("projects")
     .select("id, org_id, owner_user_id, visibility")
     .eq("id", projectId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (projectError) {

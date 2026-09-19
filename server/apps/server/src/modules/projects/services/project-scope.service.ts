@@ -94,7 +94,7 @@ export class ProjectScopeService {
       }
 
       const project = await this.db.query.projects.findFirst({
-        where: and(eq(projects.orgId, org.id), eq(projects.slug, projectSlug)),
+        where: and(eq(projects.orgId, org.id), eq(projects.slug, projectSlug), isNull(projects.deletedAt)),
       });
       if (!project) {
         throw new NotFoundDomainError("project");
@@ -126,6 +126,7 @@ export class ProjectScopeService {
           eq(projects.ownerUserId, userId),
           eq(projects.slug, value),
           isNull(projects.orgId),
+          isNull(projects.deletedAt),
         ),
       )
       .limit(1);
@@ -135,7 +136,7 @@ export class ProjectScopeService {
       .select({ id: projects.id })
       .from(projects)
       .innerJoin(orgMembers, eq(orgMembers.orgId, projects.orgId))
-      .where(and(eq(projects.slug, value), eq(orgMembers.userId, userId)))
+      .where(and(eq(projects.slug, value), eq(orgMembers.userId, userId), isNull(projects.deletedAt)))
       .limit(1);
     if (orgMatch[0]) return orgMatch[0].id;
 
@@ -150,8 +151,9 @@ export class ProjectScopeService {
     const userId = context.principal.userId;
     if (!userId) throw new ValidationDomainError("user principal required");
 
+    // A deleted space (migration 0046) is not found.
     const project = await this.db.query.projects.findFirst({
-      where: eq(projects.id, projectId),
+      where: and(eq(projects.id, projectId), isNull(projects.deletedAt)),
     });
     if (!project) throw new NotFoundDomainError("project");
 
@@ -233,7 +235,7 @@ export class ProjectScopeService {
     if (!userId) return [];
 
     const primary = await this.db.query.projects.findFirst({
-      where: eq(projects.id, primaryProjectId),
+      where: and(eq(projects.id, primaryProjectId), isNull(projects.deletedAt)),
     });
     if (!primary) return [];
 
@@ -249,6 +251,7 @@ export class ProjectScopeService {
           and(
             eq(projects.orgId, primary.orgId),
             eq(projects.visibility, "org"),
+            isNull(projects.deletedAt),
             sql`(
               ${projects.ownerUserId} = ${userId}::uuid
               or exists (
@@ -282,6 +285,7 @@ export class ProjectScopeService {
             eq(projects.ownerUserId, userId),
             eq(projects.visibility, "personal"),
             isNull(projects.orgId),
+            isNull(projects.deletedAt),
           ),
         );
       return siblings.map((row) => row.id).filter((id) => id !== primaryProjectId);

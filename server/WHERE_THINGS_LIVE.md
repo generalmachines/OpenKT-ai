@@ -50,6 +50,8 @@ Rules that bite:
 - **Never name a table `sessions`.** Older databases already have an unrelated table with that name. Ours are `kt_sessions` and `kt_session_turns`.
 - The database says `projects` and `memories`; the product says spaces and facts. Keep the database words in SQL and in API paths.
 - Additive migrations only. Never edit a migration that has been merged.
+- **A deleted space is not found.** `DELETE /v1/projects/:id` sets `projects.deleted_at` (migration 0046) and archives its facts, removes its shares, pending shares, join links and queued jobs. Every read of `projects` filters `deleted_at IS NULL`: both `requireProjectAccess` implementations, `access/readable-sql.ts`, `AccessScopeService`, `ProjectScopeService` (slugs, ring), `DrizzleProjectRepository`, `SessionRepository.findById`, `GrantRepository.findResourceOwner`. A new query on `projects` must too.
+- `DELETE /v1/sessions/:id` archives the session's facts and deletes the session row (turns and jobs cascade; `memories.session_id` is set null). `DELETE /v1/memories/:id` archives (author or space editor); `?hard=true` stays author/org-admin only.
 - JSON request bodies may be up to 3 MB (a skill carries up to 1 MB of text). The limit is set once in `main.ts` with `app.useBodyParser("json", …)` — globally, never on a path.
 - There is one memory engine, `LocalMemoryEngine` (plain Postgres: pgvector + `tsvector`, fused in SQL). `OPENKT_MEMORY_ENGINE` accepts only `local`.
 - Removed features keep their tables: `memmachine_nodes`, `memory_external_refs`, `waitlist`, `project_code_graphs`, `org_secrets`, `service_health` still exist in the database (migrations are append-only) but have no Drizzle definition and no code. Do not reuse those names.

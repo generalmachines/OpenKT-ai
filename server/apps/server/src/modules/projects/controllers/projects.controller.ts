@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -50,15 +50,24 @@ const CreateProjectSchema = z
       .regex(/^[a-z0-9][a-z0-9-]{1,40}$/, "lowercase-kebab, 2-41 chars")
       .optional(),
     name: z.string().min(1).max(120),
+    description: z.string().max(2000).nullable().optional(),
     visibility: z.enum(["personal", "org", "public"]).default("personal"),
     org_id: z.string().uuid().nullable().default(null),
   })
   .transform((value) => ({
     slug: value.slug,
     name: value.name,
+    description: value.description ?? null,
     visibility: value.visibility,
     orgId: value.org_id,
   }));
+// PATCH /v1/projects/:id (owner): name and/or description.
+const UpdateProjectSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    description: z.string().max(2000).nullable().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.description !== undefined, { message: "pass name and/or description" });
 
 @Controller("projects")
 @UseGuards(SupabaseJwtGuard)
@@ -111,6 +120,7 @@ export class ProjectsController {
           pattern: "^[a-z0-9][a-z0-9-]{1,40}$",
         },
         name: { type: "string", minLength: 1, maxLength: 120 },
+        description: { type: "string", maxLength: 2000, nullable: true },
         visibility: { type: "string", enum: ["personal", "org", "public"], default: "personal" },
         org_id: { type: "string", format: "uuid", nullable: true, default: null },
       },
@@ -152,5 +162,44 @@ export class ProjectsController {
   ) {
     const input = parseWithSchema(ProjectIdSchema, params);
     return okResponse(await this.projectsApplicationService.getById(context, input.id));
+  }
+
+  @Patch(":id")
+  @ApiOperation({ summary: "Rename a space or change its description (owner)" })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 120 },
+        description: { type: "string", maxLength: 2000, nullable: true },
+      },
+    },
+  })
+  async update(@ActorContextParam() context: ActorContext, @Param() params: unknown, @Body() body: unknown) {
+    const { id } = parseWithSchema(ProjectIdSchema, params);
+    const patch = parseWithSchema(UpdateProjectSchema, body ?? {});
+    return okResponse(await this.projectsApplicationService.update(context, id, patch));
+  }
+
+  @Get(":id/members")
+  @ApiOperation({
+    summary: "Who is in a space: names and roles, for every member. Emails and pending shares stay in the owner's grants list.",
+  })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  async members(@ActorContextParam() context: ActorContext, @Param() params: unknown) {
+    const { id } = parseWithSchema(ProjectIdSchema, params);
+    return okResponse(await this.projectsApplicationService.members(context, id));
+  }
+
+  @Delete(":id")
+  @ApiOperation({
+    summary:
+      "Delete a space (owner; not the personal space). It is gone for everyone: its facts leave recall, its shares and join links go.",
+  })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  async delete(@ActorContextParam() context: ActorContext, @Param() params: unknown) {
+    const { id } = parseWithSchema(ProjectIdSchema, params);
+    return okResponse(await this.projectsApplicationService.delete(context, id));
   }
 }

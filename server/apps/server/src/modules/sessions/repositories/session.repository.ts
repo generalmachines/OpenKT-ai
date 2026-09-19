@@ -1,11 +1,11 @@
 import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
-import { and, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { ValidationDomainError } from "@openkt/core-errors";
 
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
-import { sessions, sessionTurns } from "../../../db/schema";
+import { grants, jobs, memories, pendingGrants, profiles, projects, sessions, sessionTurns } from "../../../db/schema";
 import type {
   CreateSessionInput,
   ListSessionsQuery,
@@ -72,9 +72,34 @@ export class SessionRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  // A session in a deleted space is not found (projects.deleted_at, 0046).
   async findById(sessionId: string): Promise<SessionRecord | null> {
-    const row = await this.db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
-    return row ? this.toRecord(row) : null;
+    const [row] = await this.db
+      .select({ s: sessions })
+      .from(sessions)
+      .innerJoin(projects, eq(projects.id, sessions.projectId))
+      .where(and(eq(sessions.id, sessionId), isNull(projects.deletedAt)))
+      .limit(1);
+    return row ? this.toRecord(row.s) : null;
+  }
+
+  // DELETE /v1/sessions/:id: its facts are archived (they leave recall and
+  // stay as evidence), its shares go, and the session with its transcript is
+  // deleted (turns and queued processing go with it by cascade).
+  async delete(sessionId: string): Promise<{ archivedFacts: number }> {
+    return this.db.transaction(async (tx) => {
+      const archived = await tx
+        .update(memories)
+        .set({ archived: true, updatedAt: new Date() })
+        .where(and(eq(memories.sessionId, sessionId), eq(memories.archived, false)))
+        .returning({ id: memories.id });
+      await tx.delete(grants).where(and(eq(grants.resourceType, "session"), eq(grants.resourceId, sessionId)));
+      await tx
+        .delete(pendingGrants)
+        .where(and(eq(pendingGrants.resourceType, "session"), eq(pendingGrants.resourceId, sessionId)));
+      await tx.delete(sessions).where(eq(sessions.id, sessionId));
+      return { archivedFacts: archived.length };
+    });
   }
 
   // Which of these sessions belong to this project.
@@ -116,6 +141,87 @@ export class SessionRepository {
         has_more: filters.offset + data.length < total,
       },
     };
+  }
+
+  // Sessions other people shared with this user one by one (a session
+  // grant), newest first. The grant's role rides along.
+  async listSharedWith(
+    userId: string,
+    filters: { status?: string; limit: number; offset: number },
+  ): Promise<{ data: SessionRecord[]; meta: SessionListMeta }> {
+    const conditions = [
+      eq(grants.resourceType, "session"),
+      eq(grants.subjectType, "user"),
+      eq(grants.subjectId, userId),
+      sql`${sessions.ownerUserId} <> ${userId}::uuid`,
+      isNull(projects.deletedAt),
+    ];
+    if (filters.status) conditions.push(eq(sessions.status, filters.status));
+    const where = and(...conditions);
+    const [totalRow] = await this.db
+      .select({ n: count() })
+      .from(sessions)
+      .innerJoin(grants, eq(grants.resourceId, sessions.id))
+      .innerJoin(projects, eq(projects.id, sessions.projectId))
+      .where(where);
+    const total = Number(totalRow?.n ?? 0);
+    const rows = await this.db
+      .select({ s: sessions })
+      .from(sessions)
+      .innerJoin(grants, eq(grants.resourceId, sessions.id))
+      .innerJoin(projects, eq(projects.id, sessions.projectId))
+      .where(where)
+      .orderBy(desc(sessions.startedAt))
+      .limit(filters.limit)
+      .offset(filters.offset);
+    const data = rows.map((row) => this.toRecord(row.s));
+    return {
+      data,
+      meta: { total, offset: filters.offset, limit: filters.limit, has_more: filters.offset + data.length < total },
+    };
+  }
+
+  // Display names of session owners (never emails: those are the owner's own).
+  async ownerNames(userIds: string[]): Promise<Map<string, string | null>> {
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return new Map();
+    const rows = await this.db
+      .select({ userId: profiles.userId, name: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.userId, ids));
+    return new Map(rows.map((row) => [row.userId, row.name]));
+  }
+
+  // Move a session (and the facts saved in it) into another space, and/or
+  // rename it. Queued processing follows it to the new space.
+  async update(
+    sessionId: string,
+    patch: { projectId?: string; orgId?: string | null; title?: string | null },
+  ): Promise<SessionRecord> {
+    const row = await this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(sessions)
+        .set({
+          ...(patch.projectId ? { projectId: patch.projectId, orgId: patch.orgId ?? null } : {}),
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(sessions.id, sessionId))
+        .returning();
+      if (patch.projectId) {
+        await tx
+          .update(memories)
+          .set({ projectId: patch.projectId, orgId: patch.orgId ?? null, updatedAt: new Date() })
+          .where(eq(memories.sessionId, sessionId));
+        await tx
+          .update(jobs)
+          .set({ projectId: patch.projectId })
+          .where(and(eq(jobs.sessionId, sessionId), eq(jobs.status, "queued")));
+      }
+      return updated;
+    });
+    if (!row) throw new ValidationDomainError("session update failed");
+    return this.toRecord(row);
   }
 
   // Appends turns at the next sequence numbers, in order, all or nothing.
