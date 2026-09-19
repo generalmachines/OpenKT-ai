@@ -33,21 +33,42 @@ OPENKT_OPENAI_EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B
 OPENAI_API_KEY=local
 ```
 
-(`openai` here only means "speak the OpenAI embeddings protocol"; nothing leaves the machine. Until built-in sign-in lands the server still wants the `SUPABASE_*` variables to be present; placeholders are fine when you only use access tokens.)
+(`openai` here only means "speak the OpenAI embeddings protocol"; nothing leaves the machine. No `SUPABASE_*` variable is needed — sign-in is built in. For Google sign-in add `OPENKT_GOOGLE_CLIENT_IDS=<your OAuth client id>`; behind a reverse proxy add `OPENKT_TRUST_PROXY=1`.)
 
 ```
 npm ci && npm run db:migrate && npm run build:api && npm run start:api
 ```
 
-## 4. Test users and the proof
+## 4. Accounts
+
+People sign up themselves, through the API (any client's sign-up screen calls the same route):
 
 ```
-cd scripts/test-server
-python3 seed-test-users.py | psql "$DATABASE_URL"      # writes tokens.env (never commit it)
-set -a; . ./tokens.env; set +a
-node ../live-proof.mjs                                  # 23 checks over REST + MCP; exits 1 on any failure
+curl -s http://127.0.0.1:3300/v1/auth/signup -H 'content-type: application/json' \
+  -d '{"email":"you@example.com","password":"a long passphrase","display_name":"You"}'
+# → { "data": { "token": "okt_pat_…", "expires_at": "…", "user": { "id", "email", "display_name" } } }
 ```
+
+That token is the session: send it as `Authorization: Bearer okt_pat_…` to every `/v1/*` route and to `/mcp`. `POST /v1/auth/login` signs in again, `POST /v1/auth/logout` revokes the token. Share a space with a teammate by email (`PUT /v1/projects/:id/grants {"email","role"}`); if they have no account yet, the share waits and applies the moment they sign up.
+
+## 5. The proof
+
+```
+OPENKT_LIVE_URL=http://127.0.0.1:3300 OPENKT_LIVE_SIGNUP=1 node scripts/live-proof.mjs
+# 38 checks over REST + MCP; exits 1 on any failure
+```
+
+With `OPENKT_LIVE_SIGNUP=1` the script signs its own users up through the API (five per run; sign-ups are limited to 10 per address per 15 minutes), runs the core proof, then the accounts block: share by email before and after the teammate exists, recall through that share, log out, tokens rejected.
 
 The proof is the product's promise: what the owner saves, a teammate with a grant retrieves — by meaning, with the author attached — and a stranger gets nothing, anywhere.
 
-Point the desktop app at `http://<host>:3300` and paste the owner's token on the Connect screen.
+`seed-test-users.py` remains for one case: you need three fixed users with tokens WITHOUT going through sign-up (a CI job, a database you reset often). It writes SQL to stdout and the raw tokens to `./tokens.env` (never commit it):
+
+```
+cd scripts/test-server
+python3 seed-test-users.py | psql "$DATABASE_URL"
+set -a; . ./tokens.env; set +a
+node ../live-proof.mjs                                  # the 23 core checks
+```
+
+Point the desktop app at `http://<host>:3300` and paste the token from sign-up on the Connect screen.

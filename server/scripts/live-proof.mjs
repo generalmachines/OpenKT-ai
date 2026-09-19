@@ -1,9 +1,25 @@
 // Live proof against the running server over real HTTP (REST + MCP). Exit 1 on any failure.
 // Usage: OPENKT_LIVE_URL=http://host:3300 OPENKT_LIVE_TOKEN=<A> OPENKT_LIVE_TOKEN_B=<teammate> OPENKT_LIVE_TOKEN_C=<stranger> node scripts/live-proof.mjs
 // The three tokens must belong to three different users; B and C must have no access to anything of A's.
+// OPENKT_LIVE_SIGNUP=1 adds the built-in-accounts block (sign up, share by email, log out). With it set and no
+// tokens given, A, B and C are signed up through the API too — a fresh server needs no seeding at all.
+// (Sign-ups are limited to 10 per address per 15 minutes; one run uses 5 without tokens, 2 with.)
 const BASE = process.env.OPENKT_LIVE_URL ?? "http://127.0.0.1:3300";
-const need = (k) => { const v = process.env[k]; if (!v) { console.error(`missing ${k}`); process.exit(2); } return v; };
-const T = { A: { token: need("OPENKT_LIVE_TOKEN") }, B: { token: need("OPENKT_LIVE_TOKEN_B") }, C: { token: need("OPENKT_LIVE_TOKEN_C") } };
+const SIGNUP = process.env.OPENKT_LIVE_SIGNUP === "1";
+const rand = () => Math.random().toString(36).slice(2, 10);
+const json = { "content-type": "application/json" };
+async function signUp(name) {
+  const email = `${name.toLowerCase().replace(/\W+/g, "-")}-${rand()}@live-proof.test`, password = `pw-${rand()}-${rand()}`;
+  const r = await fetch(BASE + "/v1/auth/signup", { method: "POST", headers: json, body: JSON.stringify({ email, password, display_name: name, client: "cli" }) });
+  const j = await r.json().catch(() => null);
+  if (r.status !== 201 || !j?.data?.token) { console.error(`sign-up of ${email} failed: ${r.status} ${JSON.stringify(j?.error ?? j)}`); process.exit(2); }
+  return { token: j.data.token, user_id: j.data.user.id, email, password, name };
+}
+const need = (k) => { const v = process.env[k]; if (!v) { console.error(`missing ${k} (or set OPENKT_LIVE_SIGNUP=1 to sign users up through the API)`); process.exit(2); } return v; };
+const tokensGiven = ["OPENKT_LIVE_TOKEN", "OPENKT_LIVE_TOKEN_B", "OPENKT_LIVE_TOKEN_C"].every((k) => process.env[k]);
+const T = SIGNUP && !tokensGiven
+  ? { A: await signUp("Proof Owner"), B: await signUp("Proof Teammate"), C: await signUp("Proof Stranger") }
+  : { A: { token: need("OPENKT_LIVE_TOKEN") }, B: { token: need("OPENKT_LIVE_TOKEN_B") }, C: { token: need("OPENKT_LIVE_TOKEN_C") } };
 for (const k of ["A", "B", "C"]) {
   const me = await fetch(BASE + "/v1/me", { headers: { authorization: `Bearer ${T[k].token}` } }).then((r) => r.json());
   if (!me?.data?.user_id) { console.error(`token ${k} was rejected`); process.exit(2); }
@@ -64,6 +80,34 @@ r = await api("C", "GET", `/v1/projects/${P}/grants`); check("Stranger C cannot 
 r = await api("A", "POST", "/v1/memories", { content: "Private: my salary negotiation target for Northgate account bonus is confidential.", kind: "note", visibility: "personal" }); check("A saves a personal note (no space)", r.status < 300);
 r = await api("B", "POST", "/v1/memories/recall", { query: "salary negotiation target" }); const bp = Array.isArray(r.data) ? r.data : (r.data?.items ?? []);
 check("B never sees A's personal note", !bp.some(i => /salary/i.test(JSON.stringify(i))), `items ${bp.length}`);
+
+// built-in accounts: sign up, share by email (before and after the teammate has an account), log out
+if (SIGNUP) {
+  const raw = (token, method, path, body) => fetch(BASE + path, { method, headers: { ...json, ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  T.S1 = await signUp("Signup Owner"); check("S1 signs up with email + password and gets a session token", /^okt_pat_/.test(T.S1.token), T.S1.email);
+  r = await api("S1", "GET", "/v1/me"); check("S1's session token works on /v1/me", r.status === 200 && r.data?.email === T.S1.email && r.data?.display_name === "Signup Owner");
+  r = await api("S1", "POST", "/v1/projects", { slug: "harbour-" + rand(), name: "Ops / Harbour", visibility: "personal" }); check("S1 creates a space", r.status < 300 && r.data?.id); const SP = r.data.id;
+  r = await api("S1", "POST", "/v1/memories", { content: "Decision: the Harbour warehouse moves to two shifts starting in March.", kind: "decision", project_id: SP, visibility: "project" }); check("S1 saves a fact in it", r.status < 300, `status ${r.status}`);
+  const s2Email = `signup-teammate-${rand()}@live-proof.test`;
+  r = await api("S1", "PUT", `/v1/projects/${SP}/grants`, { email: s2Email, role: "reader" }); check("S1 shares the space BY EMAIL with someone who has no account yet → pending", r.status === 200 && r.data?.pending === true && r.data?.email === s2Email, `status ${r.status}`);
+  const s2Password = `pw-${rand()}-${rand()}`;
+  let h = await raw(null, "POST", "/v1/auth/signup", { email: s2Email, password: s2Password, display_name: "Signup Teammate", client: "cli" }); let j = await h.json().catch(() => null);
+  check("S2 signs up with that email", h.status === 201 && !!j?.data?.token, `status ${h.status}`); T.S2 = { token: j?.data?.token, user_id: j?.data?.user?.id, email: s2Email };
+  r = await api("S1", "GET", `/v1/projects/${SP}/grants`); const g = (r.data ?? []).find((x) => x.subject_id === T.S2.user_id);
+  check("The pending share became a real grant, listed with S2's email and name", !!g && g.pending === false && g.subject?.email === s2Email && g.subject?.display_name === "Signup Teammate", JSON.stringify(g?.subject ?? null));
+  r = await api("S1", "PUT", `/v1/projects/${SP}/grants`, { email: s2Email.toUpperCase(), role: "reader" }); check("Sharing by email with a known account upserts the grant (not pending)", r.status === 200 && r.data?.pending === false && r.data?.subject_id === T.S2.user_id, `status ${r.status}`);
+  r = await api("S2", "POST", "/v1/memories/recall", { query: "how many shifts will the Harbour warehouse run?", project_id: SP, limit: 5 }); const sItems = Array.isArray(r.data) ? r.data : (r.data?.items ?? r.data?.memories ?? []);
+  check("S2 recalls S1's fact from the space shared by email", r.status === 200 && /two shifts/i.test(sItems[0]?.content ?? sItems[0]?.text ?? ""), (sItems[0]?.content ?? "").slice(0, 60));
+  r = await api("S2", "GET", `/v1/projects/${SP}/grants`); check("S2 (a reader) cannot list the grants or see S1's email", (r.status === 403 || r.status === 404) && !JSON.stringify(r).includes(T.S1.email), `status ${r.status}`);
+  h = await raw(null, "POST", "/v1/auth/login", { email: T.S1.email, password: "definitely-the-wrong-one" }); j = await h.json().catch(() => null); check("A wrong password is a generic 401", h.status === 401 && j?.error?.code === "invalid_credentials", j?.error?.message);
+  h = await raw(null, "POST", "/v1/auth/login", { email: T.S1.email, password: T.S1.password, client: "cli" }); j = await h.json().catch(() => null); check("S1 logs in again with the password → a second session", h.status === 200 && /^okt_pat_/.test(j?.data?.token ?? "") && j.data.token !== T.S1.token);
+  const second = j?.data?.token;
+  for (const [who, token] of [["S1", T.S1.token], ["S1 (second session)", second], ["S2", T.S2.token]]) {
+    h = await raw(token, "POST", "/v1/auth/logout"); const out = h.status; h = await raw(token, "GET", "/v1/me");
+    check(`${who} logs out and the token is rejected afterwards`, out === 204 && h.status === 401, `logout ${out}, then /v1/me ${h.status}`);
+  }
+  if (!tokensGiven) for (const k of ["A", "B", "C"]) await raw(T[k].token, "POST", "/v1/auth/logout");
+}
 
 console.log(`\n${results.length - failed}/${results.length} passed in ${Date.now() - t0} ms against ${BASE}`);
 process.exit(failed ? 1 : 0);

@@ -27,8 +27,11 @@ export const ANALYTICS_ROUTE_MAP: ReadonlyMap<string, RouteEventMatch> = new Map
   ["POST /v1/memories/enhance", { event: "memory.enhanced" }],
 
   ["POST /v1/auth/signup", { event: "auth.signup" }],
-  ["POST /v1/auth/password", { event: "auth.signin" }],
-  ["POST /v1/auth/magic-link", { event: "auth.magic_link_requested" }],
+  ["POST /v1/auth/login", { event: "auth.signin" }],
+  ["POST /v1/auth/google", { event: "auth.signin" }],
+  ["POST /v1/auth/supabase/signup", { event: "auth.signup" }],
+  ["POST /v1/auth/supabase/password", { event: "auth.signin" }],
+  ["POST /v1/auth/supabase/magic-link", { event: "auth.magic_link_requested" }],
 
   ["POST /v1/projects", { event: "project.created" }],
   ["DELETE /v1/projects/:id", { event: "project.deleted" }],

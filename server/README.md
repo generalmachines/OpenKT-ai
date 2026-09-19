@@ -48,13 +48,19 @@ ones you must set:
 | Variable | Used for |
 |---|---|
 | `DATABASE_URL` | Postgres with pgvector. |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Sign-in. Supabase is used for authentication only; no product data lives there. Personal access tokens (`okt_pat_…`) and OAuth for MCP clients are issued by this server. |
 | `RABBITMQ_URL` | The worker's queue when `OPENKT_QUEUE_BACKEND=rabbitmq` (the default). `OPENKT_QUEUE_BACKEND=sqs` uses Amazon SQS instead and needs `AWS_REGION` and `OPENKT_SQS_COMMAND_QUEUE_URL`. |
+
+Sign-in is built in — email + password works with nothing configured
+(`POST /v1/auth/signup`, `/v1/auth/login`; a session is an `okt_pat_…` access
+token). See the Auth section of `docs/specs/04-api-contract.md`.
 
 Optional, and degrading cleanly when unset:
 
 | Variable | Used for |
 |---|---|
+| `OPENKT_GOOGLE_CLIENT_IDS` | Comma-separated Google OAuth client ids. Turns on Google sign-in (`POST /v1/auth/google`). |
+| `OPENKT_TRUST_PROXY` | Express `trust proxy` (e.g. `1`). Set it behind a reverse proxy so the per-address sign-in limit sees real client addresses. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase sign-in, as an additional provider (all three or none). Authentication only; no product data lives there. |
 | `OPENKT_BGE_URL` (or `OPENKT_EMBEDDING_BACKEND=openai` + `OPENAI_API_KEY`) | Embeddings. Without them recall falls back to keyword search. |
 | `OPENKT_RERANK_URL` | A TEI/Cohere-style `/rerank` endpoint applied to the fused results. |
 | `OPENKT_DEFAULT_LLM_PROVIDER`, `OPENKT_DEFAULT_LLM_KEY`, `OPENKT_DEFAULT_LLM_BASE_URL`, `OPENKT_DEFAULT_LLM_MODEL` | The generation model (any OpenAI-compatible endpoint) used by the worker and the capture endpoint. |

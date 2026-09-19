@@ -246,6 +246,20 @@ describe("/v1/me + /v1/profile/me (e2e)", () => {
   // display_name — short-circuit that with an in-memory shim that reads
   // the same store.
   const drizzleStub = {
+    // PrincipalResolutionService upserts the profile row on every resolved
+    // JWT (`insert … on conflict do nothing`). The in-memory repository above
+    // owns the rows these tests assert on, so the upsert is a no-op here.
+    insert(_table: unknown) {
+      return {
+        values(_values: unknown) {
+          return {
+            async onConflictDoNothing(_target: unknown) {
+              return undefined;
+            },
+          };
+        },
+      };
+    },
     select(_columns: unknown) {
       return {
         from(_table: unknown) {

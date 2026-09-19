@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpException,
   HttpStatus,
   Param,
   Post,
@@ -25,7 +26,7 @@ import {
 import { z } from "zod";
 
 import type { ActorContext } from "@openkt/core-context";
-import { resolveSupabaseEnvironment } from "@openkt/data-supabase";
+import { isSupabaseConfigured, resolveSupabaseEnvironment } from "@openkt/data-supabase";
 
 import type { RequestWithContext } from "../../../common/http/request-with-context";
 import { okResponse } from "../../../common/http/ok-response";
@@ -48,10 +49,12 @@ function metaFromRequest(req: RequestWithContext): AuthRequestMeta {
   };
 }
 
-// /v1/auth/* — the public auth surface every client (CLI, dashboard,
-// future harnesses) talks to. Thin wrappers over Supabase Auth so the
-// CLI never sees a Supabase URL. Keeps Supabase as the identity engine
-// and Nest as the trust gate / contract owner.
+// The OPTIONAL Supabase sign-in surface: thin wrappers over Supabase Auth so
+// a client never sees a Supabase URL. The session routes live under
+// /v1/auth/supabase/* — /v1/auth/{signup,login,logout,password} belong to the
+// built-in accounts (modules/accounts), which need no third-party service.
+// With SUPABASE_* unset these Supabase-backed routes answer 404 `provider_disabled`.
+// Device-code and github/start keep their original paths.
 //
 // Audit: every endpoint stamps an `audit_log` row via
 // AuthApplicationService.writeAudit. Anonymous events (failed logins,
@@ -126,7 +129,16 @@ export class PublicAuthController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Post("password")
+  private requireSupabase(): void {
+    if (!isSupabaseConfigured(this.configService)) {
+      throw new HttpException(
+        { code: "provider_disabled", message: "Supabase sign-in is not enabled on this server" },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  @Post("supabase/password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Email + password login. Returns access token + refresh token.",
@@ -149,6 +161,7 @@ export class PublicAuthController {
   // typing the wrong password three times never hits it.
   @RateLimit({ key: "ip", name: "auth_signin", capacity: 60, refillPerSec: 1 })
   async password(@Body() body: unknown, @Req() req: RequestWithContext) {
+    this.requireSupabase();
     const input = parseWithSchema(PasswordLoginBody, body);
     return okResponse(
       await this.authApplicationService.passwordLogin(
@@ -159,7 +172,7 @@ export class PublicAuthController {
     );
   }
 
-  @Post("signup")
+  @Post("supabase/signup")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -182,6 +195,7 @@ export class PublicAuthController {
   // shouldn't lock a real signer-upper out.
   @RateLimit({ key: "ip", name: "auth_signup", capacity: 60, refillPerSec: 1 })
   async signup(@Body() body: unknown, @Req() req: RequestWithContext) {
+    this.requireSupabase();
     const input = parseWithSchema(SignupBody, body);
     return okResponse(
       await this.authApplicationService.signup(
@@ -192,7 +206,7 @@ export class PublicAuthController {
     );
   }
 
-  @Post("magic-link")
+  @Post("supabase/magic-link")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -210,6 +224,7 @@ export class PublicAuthController {
     },
   })
   async magicLink(@Body() body: unknown, @Req() req: RequestWithContext) {
+    this.requireSupabase();
     const input = parseWithSchema(MagicLinkBody, body);
     await this.authApplicationService.sendMagicLink(
       input.email,
@@ -218,7 +233,7 @@ export class PublicAuthController {
     return okResponse({ sent: true });
   }
 
-  @Post("refresh")
+  @Post("supabase/refresh")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Trade a refresh token for a fresh access token.",
@@ -231,6 +246,7 @@ export class PublicAuthController {
     },
   })
   async refresh(@Body() body: unknown, @Req() req: RequestWithContext) {
+    this.requireSupabase();
     const input = parseWithSchema(RefreshBody, body);
     return okResponse(
       await this.authApplicationService.refresh(
@@ -240,7 +256,7 @@ export class PublicAuthController {
     );
   }
 
-  @Post("logout")
+  @Post("supabase/logout")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -251,6 +267,7 @@ export class PublicAuthController {
     @Headers("authorization") authorization: string | undefined,
     @Req() req: RequestWithContext,
   ) {
+    this.requireSupabase();
     const bearer = (authorization ?? "").toLowerCase().startsWith("bearer ")
       ? (authorization ?? "").slice(7).trim()
       : "";
@@ -367,6 +384,7 @@ export class PublicAuthController {
       "Must be https:// or http://localhost.",
   })
   githubStart(@Query() query: unknown) {
+    this.requireSupabase();
     const { redirectTo } = parseWithSchema(GithubStartQuery, query ?? {});
     const environment = resolveSupabaseEnvironment(this.configService);
     const base = environment.url.replace(/\/+$/, "");

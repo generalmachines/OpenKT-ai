@@ -11,6 +11,7 @@ import { SupabaseJwtGuard } from "../../auth/guards/supabase-jwt.guard";
 import {
   GrantSubjectParamsSchema,
   PutGrantBodySchema,
+  PutGrantByEmailBodySchema,
   ResourceIdParamsSchema,
 } from "../contracts/grant.contract";
 import { GrantsApplicationService } from "../services/grants-application.service";
@@ -31,6 +32,32 @@ export class SessionGrantsController {
   async list(@ActorContextParam() context: ActorContext, @Param() params: unknown) {
     const { id } = parseWithSchema(ResourceIdParamsSchema, params);
     return okResponse(await this.grantsApplicationService.list(context, "session", id));
+  }
+
+  @Put()
+  @ApiOperation({
+    summary:
+      "Share by email (owner-only). A known email is granted the role now; an unknown one " +
+      "is kept as a pending share (`pending: true`) and becomes a grant when that email signs up.",
+  })
+  @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        email: { type: "string", format: "email" },
+        subject_id: { type: "string", format: "uuid" },
+        role: { type: "string", enum: ["reader", "editor", "owner"] },
+      },
+      required: ["role"],
+    },
+  })
+  async putByEmail(@ActorContextParam() context: ActorContext, @Param() params: unknown, @Body() body: unknown) {
+    const { id } = parseWithSchema(ResourceIdParamsSchema, params);
+    const { role, ...target } = parseWithSchema(PutGrantByEmailBodySchema, body);
+    return okResponse(
+      await this.grantsApplicationService.putByEmailOrSubject(context, "session", id, target, role),
+    );
   }
 
   @Put(":userId")

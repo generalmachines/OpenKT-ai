@@ -47,9 +47,10 @@ The database says `project` and `memory`; the API keeps those words in paths for
 ### Access
 | | |
 |---|---|
-| `GET /v1/projects/:id/grants` · `GET /v1/sessions/:id/grants` | owner/editor → `[{id, subject:{id,name,email}, role, inherited_from?}]` |
-| `PUT /v1/projects/:id/grants` · `PUT /v1/sessions/:id/grants` | `{subject_id \| email, role}` (owner). An unknown email creates an invite. Upsert. |
-| `DELETE /v1/grants/:grant_id` | owner. The last owner cannot be removed → 409. |
+| `GET /v1/projects/:id/grants` · `GET /v1/sessions/:id/grants` | owner → `[Grant \| PendingGrant]`. `Grant = {id, resource_type, resource_id, subject_id, role, created_by, created_at, pending:false, subject:{id, email, display_name}}`. `PendingGrant = {id, resource_type, resource_id, pending:true, email, role, created_by, created_at}` — a share waiting for that email to sign up. Anyone else → 403 (404 if the resource does not exist); **other people's emails are returned only here, only to the owner.** |
+| `PUT /v1/projects/:id/grants` · `PUT /v1/sessions/:id/grants` | `{email \| subject_id, role}` (owner), exactly one of the two. Known email → upsert, returns `Grant`. Unknown email → upsert, returns `PendingGrant`; it becomes a `Grant` when that email signs up or first signs in with Google. Emails compare lower-cased. |
+| `PUT /v1/projects/:id/grants/:userId` · `PUT /v1/sessions/:id/grants/:userId` | `{role}` (owner) → the bare grant row. Kept for clients that hold a user id. |
+| `DELETE /v1/projects/:id/grants/:id` · `DELETE /v1/sessions/:id/grants/:id` | owner → `{revoked}`. `:id` is the grantee's user id, or a `PendingGrant.id` to withdraw a waiting share. |
 | `GET /v1/me/connector-defaults` · `PUT /v1/me/connector-defaults/:source` | `{project_id?, grant_template:[{subject_id, role}]}` |
 
 ### Operations
@@ -98,10 +99,31 @@ If a tool fails, continue the user's task and mention it once.
 
 ## Auth
 
-- Built-in sign-in: email magic link + OIDC (Google, GitHub), issuing the server's own JWT. Supabase JWTs stay accepted while `OPENKT_SUPABASE_JWKS_URL` is set.
+Accounts are built in. A deployment needs no third-party auth service and nobody pastes a token.
+
+**A session is an access token.** Signing in mints an ordinary `okt_pat_…` token (name `session:<client>`, scopes read + write, valid 90 days). It is the one credential every `/v1/*` route and `/mcp` accept; logging out revokes it. There is no refresh token and no cookie.
+
+`Session = {token, expires_at, user:{id, email, display_name}}` · `client` = `desktop | web | cli` (default `desktop`).
+
+| Method + path | Body → Response |
+|---|---|
+| `GET /v1/auth/providers` | → `{password:true, google:{enabled, client_id?}}`. What a sign-in screen should show. `client_id` is the first configured Google client id. |
+| `POST /v1/auth/signup` | `{email, password, display_name, client?}` → `201 Session`. Creates the profile, the credentials and the personal space, and converts shares that were waiting for this email. Password: ≥ 10 characters, not the email, not one of the 100 most common → else 400 `weak_password` (the message says why). Email already registered → 409 `email_taken`. |
+| `POST /v1/auth/login` | `{email, password, client?}` → `200 Session`. Every failure — unknown email, wrong password, an account that only signs in with Google — is the same 401 `invalid_credentials` with the same message. |
+| `POST /v1/auth/google` | `{id_token, client?}` → `200 Session`. The Google ID token is verified locally: RS256 signature against Google's published keys (cached per `cache-control`), `iss` ∈ {`accounts.google.com`, `https://accounts.google.com`}, `aud` ∈ `OPENKT_GOOGLE_CLIENT_IDS`, `exp`, `email_verified === true`. Found by Google `sub`; else linked to the account with that email; else created (no password). Any rejection → 401 `invalid_credentials`. `OPENKT_GOOGLE_CLIENT_IDS` unset → 404 `provider_disabled`. |
+| `POST /v1/auth/logout` | bearer → `204`. Revokes the token the request was made with. |
+| `POST /v1/auth/password` | bearer, `{current_password, new_password}` → `204`. Signs out every OTHER session of the account (hand-made access tokens are untouched). Wrong current password → 401; `new_password` follows the signup rules. An account with no password yet (created through Google) may omit `current_password`. |
+| `GET /v1/me` | bearer → the profile, including `user_id`, `email`, `display_name`. |
+
+Rules:
+- **Brute-force limit:** 10 counted attempts per 15 minutes per email AND per client address → 429 `rate_limited`, one fixed message that never says which limit tripped or whether the email exists. Counted: every sign-up; every failed login, Google sign-in and password change. Successful logins are not counted. Behind a proxy set `OPENKT_TRUST_PROXY`.
+- **Passwords** are hashed with scrypt (N=2^15, r=8, p=1, 16-byte salt, 64-byte key), stored as `scrypt$N$r$p$<salt b64>$<hash b64>`, compared in constant time. A login for an unknown email still runs one scrypt, so timing does not reveal accounts.
+- **Linking Google to an existing account** marks the email verified. If it was not verified before (no verification mail exists yet), the account's password is cleared and its sessions are revoked: whoever registered the address first may not have owned it. The owner, now signed in through Google, can set a new password.
+- **Not built yet:** email-verification mail, password-reset mail, two-factor. Until verification mail exists, a password sign-up does not prove ownership of the address — and a share sent to an email goes to whoever holds the account with that email.
+- Supabase sign-in is optional. With `SUPABASE_URL` set, Supabase JWTs are accepted as bearers and the Supabase-backed routes answer under `/v1/auth/supabase/{password,signup,magic-link,refresh,logout}`. Unset, those routes are 404 `provider_disabled` and a bearer that is not an `okt_pat_…` token is 401.
 - OAuth 2.1 + PKCE for MCP clients: keep Dynamic Client Registration, add Client ID Metadata Documents.
 - PAT scopes are enforced: `context:read`, `context:write`, `admin`. A read-only token calling a write tool → 403 `insufficient_scope`.
 
 ## Configuration (environment)
 
-`DATABASE_URL` · `OPENKT_LLM_BASE_URL` `OPENKT_LLM_API_KEY?` `OPENKT_LLM_MODEL=qwen3.5-4b` · `OPENKT_EMBED_URL` `OPENKT_EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B` · `OPENKT_RERANK_URL?` · `OPENKT_PUBLIC_URL` · `OPENKT_BLOB_DIR | OPENKT_S3_*` · `OPENKT_ALLOW_REINDEX?` · `OPENKT_QUEUE_BACKEND=postgres|sqs|rabbitmq` (default `postgres`).
+`DATABASE_URL` · `OPENKT_GOOGLE_CLIENT_IDS?` (comma-separated; enables Google sign-in) · `OPENKT_TRUST_PROXY?` · `SUPABASE_URL?` + keys (optional, all or nothing) · `OPENKT_LLM_BASE_URL` `OPENKT_LLM_API_KEY?` `OPENKT_LLM_MODEL=qwen3.5-4b` · `OPENKT_EMBED_URL` `OPENKT_EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B` · `OPENKT_RERANK_URL?` · `OPENKT_PUBLIC_URL` · `OPENKT_BLOB_DIR | OPENKT_S3_*` · `OPENKT_ALLOW_REINDEX?` · `OPENKT_QUEUE_BACKEND=postgres|sqs|rabbitmq` (default `postgres`).
