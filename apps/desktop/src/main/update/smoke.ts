@@ -8,7 +8,7 @@
  *
  * Never runs for users.
  */
-import { app } from 'electron';
+import { app, powerSaveBlocker } from 'electron';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,9 @@ import { basename, dirname, join } from 'node:path';
 import { createUpdater } from './ipc';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const t0 = Date.now();
+/** Goes to the job's app log (`open --stdout`). */
+const log = (msg: string) => console.log(`[update-smoke +${((Date.now() - t0) / 1000).toFixed(1)}s] ${msg}`);
 
 function plistVersion(appPath: string): string {
   try {
@@ -28,9 +31,16 @@ function plistVersion(appPath: string): string {
 export async function runUpdateSmoke(): Promise<void> {
   const out = process.env['OPENKT_SMOKE_OUT'] || join(tmpdir(), 'openkt-update-smoke.json');
   const result: Record<string, unknown> = { ok: false, version: app.getVersion(), pid: process.pid, steps: [] as string[] };
-  const step = (s: string) => (result['steps'] as string[]).push(s);
+  const step = (s: string) => {
+    (result['steps'] as string[]).push(s);
+    log(s);
+  };
+  // No window is open in this run: without this macOS App-Naps the process and the download crawls.
+  powerSaveBlocker.start('prevent-app-suspension');
+  log(`start ${app.getVersion()} pid ${process.pid}`);
   let target = `${out}.n.json`;
   const finish = (code: number) => {
+    log(`finish ${code} → ${target}${result['error'] ? ` (${String(result['error'])})` : ''}`);
     writeFileSync(target, JSON.stringify(result, null, 2));
     app.exit(code);
   };
@@ -41,6 +51,15 @@ export async function runUpdateSmoke(): Promise<void> {
 
   try {
     const { updater } = await createUpdater();
+    let lastPct = -10;
+    updater.onChange((st) => {
+      const p = st.progress;
+      const pct = p && p.totalBytes ? Math.floor((p.receivedBytes / p.totalBytes) * 100) : -1;
+      if (st.phase !== 'downloading' || pct >= lastPct + 10) {
+        if (st.phase === 'downloading') lastPct = pct;
+        log(`phase ${st.phase}${pct >= 0 && st.phase === 'downloading' ? ` ${pct}%` : ''}${st.error ? ` error: ${st.error}` : ''}`);
+      }
+    });
     const outcome = updater.launch();
     result['outcome'] = outcome.kind;
     result['appPath'] = updater.location().ok ? (updater.location() as { appPath: string }).appPath : null;

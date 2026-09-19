@@ -3,7 +3,7 @@
  * the launch-time checks (pending-verify, "Move to Applications", "Go back to the previous version"),
  * the 30 s / 6 h schedule and the healthy-start timer. Nothing here runs in tests.
  */
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, powerSaveBlocker } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { IpcChannel, UpdateStatusDto } from '../../shared/ipc';
@@ -116,6 +116,22 @@ export async function createUpdater(): Promise<{ updater: Updater; build: BuildI
 
 let instance: Updater | null = null;
 
+/**
+ * A menu-bar app with no window open is App-Napped by macOS: timers stall and a background download crawls.
+ * Hold `prevent-app-suspension` only while the updater is downloading, verifying or installing.
+ */
+export function keepAwakeWhileBusy(updater: Updater): void {
+  let id: number | null = null;
+  updater.onChange((s) => {
+    const busy = s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying' || s.phase === 'installing';
+    if (busy && id === null) id = powerSaveBlocker.start('prevent-app-suspension');
+    if (!busy && id !== null) {
+      powerSaveBlocker.stop(id);
+      id = null;
+    }
+  });
+}
+
 /** "Check for Updates…" (app menu, tray): open About and ask the feed now. */
 export function checkForUpdatesFromMenu(openMain: (route: string) => unknown): void {
   void openMain('/settings/about');
@@ -205,6 +221,7 @@ export async function registerUpdateIpc(windows: () => BrowserWindow[]): Promise
 
   const updater = await ready;
   instance = updater;
+  keepAwakeWhileBusy(updater);
   updater.onChange((s) => {
     for (const w of windows()) if (!w.isDestroyed()) w.webContents.send('update:event' satisfies IpcChannel, s);
   });

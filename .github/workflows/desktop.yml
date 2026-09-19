@@ -442,6 +442,10 @@ jobs:
           echo "── swap.log"; cat "$HOME/Library/Application Support/OpenKT/updates/swap.log" || true
           echo "── app log"; tail -60 "$APPLOG" || true
           echo "── $APPS"; ls -la "$APPS"
+          echo "── updates folder"; ls -laR "$HOME/Library/Application Support/OpenKT/updates" 2>/dev/null | head -40 || true
+          for pid in $(pgrep -f "Smoke Apps/OpenKT.app/Contents/MacOS/OpenKT" || true); do
+            echo "── still running: pid $pid — main-thread sample"; sample "$pid" 2 2>/dev/null | head -60 || true
+          done
           jq -e '.ok == true' "$OUT.n.json"
           jq -e '.ok == true' "$OUT"
           # The running bundle now reports N+1 — app.getVersion() and Info.plist — and the old copy is gone.
