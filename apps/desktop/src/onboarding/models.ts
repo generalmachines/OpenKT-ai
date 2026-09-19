@@ -11,9 +11,9 @@ export type { ModelRole, ModelRow, ModelsSetupInfoDto };
 /** Each model in the app's words: what it does for the person, never what it is. */
 export const ROLE_COPY: Record<ModelRole, { name: string; why: string }> = {
   embed: { name: 'Search', why: 'finds your notes by what they mean' },
-  llm: { name: 'Understanding', why: 'reads what you save and pulls out what matters' },
+  llm: { name: 'Understanding', why: 'reads what you write, say and capture, and pulls out what matters' },
   whisper: { name: 'Speech', why: 'turns what you say into text' },
-  mmproj: { name: 'Images', why: 'describes what is in a screenshot' },
+  mmproj: { name: 'Images', why: 'lets it see what is in a screenshot' },
 };
 
 export const ROLE_ORDER: readonly ModelRole[] = ['embed', 'llm', 'whisper', 'mmproj'];
@@ -103,25 +103,28 @@ export interface ModelsSetupState {
   percent: number;
   /** Why the last start stopped, when it did (`low_disk`, a message). */
   failure: string | null;
+  /** The person's choice: everything, or the models one feature needs (those go first). */
+  download(roles?: ModelRole[]): Promise<void>;
   pause(): Promise<void>;
+  /** Continues the models that were queued. */
   resume(): Promise<void>;
-  /** Re-reads free space, then starts again (joins a run already in flight). */
+  /** After a failure: re-reads free space, then continues. */
   retry(): Promise<void>;
+  /** Re-reads free space and what is on disk. Never starts anything. */
+  recheck(): Promise<void>;
 }
 
 /**
- * Live model state. `autoStart` (the first-run screen) starts the download on entry — unless
- * everything is there, the person paused it, or the disk is too full, which is said instead.
+ * Live model state. Nothing here starts a download on its own: the person chooses, on the
+ * first-run screen, in Settings → Models, or where a feature needs its model.
  */
-export function useModelsSetup(opts: { autoStart?: boolean } = {}): ModelsSetupState {
+export function useModelsSetup(): ModelsSetupState {
   const [rows, setRows] = useState<ModelRow[] | null | undefined>(undefined);
   const [info, setInfo] = useState<ModelsSetupInfoDto | null | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
   const alive = useRef(true);
-  const autoStarted = useRef(false);
   /** Progress that arrived before the first read; applied on top of it. */
   const early = useRef(new Map<ModelRole, ModelRow>());
-  const autoStart = opts.autoStart === true;
 
   const read = useCallback(async () => {
     const [r, i] = await Promise.all([modelsSetup.status(), modelsSetup.setupInfo()]);
@@ -135,14 +138,6 @@ export function useModelsSetup(opts: { autoStart?: boolean } = {}): ModelsSetupS
     return { r, i };
   }, []);
 
-  const run = useCallback(async () => {
-    setFailure(null);
-    const err = await modelsSetup.ensure();
-    if (!alive.current) return;
-    setFailure(err === 'paused' ? null : err);
-    await read();
-  }, [read]);
-
   useEffect(() => {
     alive.current = true;
     const off = modelsSetup.onProgress((row) =>
@@ -151,17 +146,12 @@ export function useModelsSetup(opts: { autoStart?: boolean } = {}): ModelsSetupS
         return merge(prev, row);
       }),
     );
-    void read().then(({ r, i }) => {
-      if (!autoStart || autoStarted.current || !r || r.length === 0) return;
-      if (r.every((m) => m.state === 'ready') || i?.paused || (i && !i.enoughDisk)) return;
-      autoStarted.current = true;
-      void run();
-    });
+    void read();
     return () => {
       alive.current = false;
       off();
     };
-  }, [autoStart, read, run]);
+  }, [read]);
 
   // Once every model is on disk, read again so the facts (free space, paused) match.
   const allReady = Boolean(rows?.length && rows.every((r) => r.state === 'ready'));
@@ -169,15 +159,34 @@ export function useModelsSetup(opts: { autoStart?: boolean } = {}): ModelsSetupS
     if (allReady) void read();
   }, [allReady, read]);
 
+  const download = useCallback(
+    async (roles?: ModelRole[]) => {
+      setFailure(null);
+      setInfo((prev) => (prev ? { ...prev, paused: false, chosen: true } : prev));
+      const err = await modelsSetup.ensure(roles);
+      if (!alive.current) return;
+      setFailure(err === 'paused' ? null : err);
+      await read();
+    },
+    [read],
+  );
+
   const pause = useCallback(async () => {
     const i = await modelsSetup.pause();
     if (alive.current && i) setInfo(i);
   }, []);
 
   const resume = useCallback(async () => {
+    setFailure(null);
     setInfo((prev) => (prev ? { ...prev, paused: false } : prev));
-    await run();
-  }, [run]);
+    await modelsSetup.resume();
+    if (alive.current) await read();
+  }, [read]);
+
+  const recheck = useCallback(async () => {
+    const { i } = await read();
+    if (alive.current) setFailure(i && !i.enoughDisk ? LOW_DISK : null);
+  }, [read]);
 
   const retry = useCallback(async () => {
     const { i } = await read();
@@ -185,16 +194,32 @@ export function useModelsSetup(opts: { autoStart?: boolean } = {}): ModelsSetupS
       if (alive.current) setFailure(LOW_DISK);
       return;
     }
-    await run();
-  }, [read, run]);
+    await resume();
+  }, [read, resume]);
 
-  return { rows, info, phase: setupPhase(rows, info, failure), percent: rows ? percent(rows) : 0, failure, pause, resume, retry };
+  return { rows, info, phase: setupPhase(rows, info, failure), percent: rows ? percent(rows) : 0, failure, download, pause, resume, retry, recheck };
 }
 
-/** For the voice pill: is speech ready, and if not, how far along is the whole setup. Unknown counts as ready. */
-export async function speechReadiness(): Promise<{ ready: boolean; percent: number }> {
+export const rowPercent = (r: Pick<ModelRow, 'state' | 'receivedBytes' | 'totalBytes'>): number =>
+  r.state === 'ready' ? 100 : r.totalBytes > 0 ? Math.min(99, Math.floor((r.receivedBytes / r.totalBytes) * 100)) : 0;
+
+/** Bytes still to fetch for one model. */
+export const rowRemaining = (r: Pick<ModelRow, 'state' | 'receivedBytes' | 'totalBytes'>): number => (r.state === 'ready' ? 0 : Math.max(0, r.totalBytes - r.receivedBytes));
+
+export interface SpeechReadiness {
+  ready: boolean;
+  /** The whole setup, for "Finishing setup — N%". */
+  percent: number;
+  /** Something is transferring right now. */
+  downloading: boolean;
+  /** What the speech model still needs, for "Download the speech model (574 MB)". */
+  speechBytes: number;
+}
+
+/** For the voice pill: is speech ready, and if not, whether it is on its way. Unknown (no desktop app) counts as ready. */
+export async function speechReadiness(): Promise<SpeechReadiness> {
   const rows = await modelsSetup.status();
   const whisper = rows?.find((r) => r.role === 'whisper');
-  if (!rows || !whisper || whisper.state === 'ready') return { ready: true, percent: 100 };
-  return { ready: false, percent: percent(rows) };
+  if (!rows || !whisper || whisper.state === 'ready') return { ready: true, percent: 100, downloading: false, speechBytes: 0 };
+  return { ready: false, percent: percent(rows), downloading: rows.some((r) => r.state === 'downloading' || r.state === 'verifying'), speechBytes: rowRemaining(whisper) };
 }

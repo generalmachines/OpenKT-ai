@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DownloadController, FOLLOW_ROLES, LOW_DISK, REQUIRED_ROLES } from '../../src/main/models/controller';
 import type { DownloadOptions } from '../../src/main/models/downloader';
 import { GIB, chooseModels, loadManifest, type ModelRole } from '../../src/main/models/manifest';
-import { DISK_HEADROOM_BYTES, diskCheck, freeBytes, remainingBytes, setupInfo } from '../../src/main/models/setup';
+import { chosenRoles, DISK_HEADROOM_BYTES, diskCheck, freeBytes, remainingBytes, setupInfo, withChoice } from '../../src/main/models/setup';
 import { DOWNLOAD_ORDER, ModelStore, type ModelsProgress, type ModelStatus } from '../../src/main/models/store';
 
 const manifest = loadManifest();
@@ -29,6 +29,26 @@ function fakeEnsure() {
   return { ensure, calls };
 }
 
+describe('what people are shown before they choose', () => {
+  it('every model in the manifest names its open-source model, its licence and its Hugging Face card', () => {
+    for (const [id, m] of Object.entries(manifest.models)) {
+      expect(m.name, id).toBeTruthy();
+      expect(m.model, id).toMatch(/^[\w.-]+\/[\w.-]+$/);
+      expect(['Apache-2.0', 'MIT'], id).toContain(m.license);
+    }
+    expect(manifest.models['llm-4b']).toMatchObject({ name: 'Qwen3.5-4B', model: 'Qwen/Qwen3.5-4B', license: 'Apache-2.0' });
+    expect(manifest.models['whisper-turbo']).toMatchObject({ model: 'openai/whisper-large-v3-turbo', license: 'MIT' });
+  });
+
+  it('status carries them to the screen: name, licence, the model card and where the file comes from', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'okt-about-'));
+    const store = new ModelStore({ dir, plan: chooseModels(manifest, 16 * GIB) });
+    const [llm, whisper] = await store.status(['llm', 'whisper']);
+    expect(llm).toMatchObject({ name: 'Qwen3.5-4B', license: 'Apache-2.0', card: 'https://huggingface.co/Qwen/Qwen3.5-4B', source: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF' });
+    expect(whisper).toMatchObject({ name: 'Whisper large-v3-turbo', license: 'MIT', card: 'https://huggingface.co/openai/whisper-large-v3-turbo', source: 'https://huggingface.co/ggerganov/whisper.cpp' });
+  });
+});
+
 describe('every model a feature needs is in the one download', () => {
   it('search, understanding, speech (the transcriber’s model) and images — nothing is fetched lazily elsewhere', () => {
     expect([...REQUIRED_ROLES, ...FOLLOW_ROLES].sort()).toEqual([...DOWNLOAD_ORDER].sort());
@@ -44,86 +64,135 @@ describe('every model a feature needs is in the one download', () => {
 });
 
 describe('DownloadController', () => {
-  it('resolves once search + understanding are on disk, then fetches speech and images in the same run', async () => {
+  const started = (calls: { roles: readonly ModelRole[] }[]) => calls.map((c) => c.roles.join(','));
+  const settle = async () => {
+    for (let i = 0; i < 5; i += 1) await tick();
+  };
+
+  it('nothing is fetched until asked; a full download goes one file at a time and resolves once search + understanding are there', async () => {
     const { ensure, calls } = fakeEnsure();
     const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true });
-    const started = c.start();
-    await tick();
-    await tick();
-    expect(calls[0]!.roles).toEqual(REQUIRED_ROLES);
+    await settle();
+    expect(ensure).not.toHaveBeenCalled();
+    let resolved = false;
+    const all = c.start().then((r) => ((resolved = true), r));
+    await settle();
+    expect(started(calls)).toEqual(['embed']);
     calls[0]!.release();
-    expect(await started).toEqual({ ok: true });
-    await tick();
-    expect(calls[1]!.roles).toEqual(FOLLOW_ROLES);
-    expect(c.running).toBe(true);
+    await settle();
+    expect(started(calls)).toEqual(['embed', 'llm']);
+    expect(resolved).toBe(false);
     calls[1]!.release();
-    await tick();
+    expect(await all).toEqual({ ok: true });
+    await settle();
+    expect(started(calls)).toEqual(['embed', 'llm', 'whisper']);
+    calls[2]!.release();
+    await settle();
+    calls[3]!.release();
+    await settle();
+    expect(started(calls)).toEqual(['embed', 'llm', 'whisper', 'mmproj']);
     expect(c.running).toBe(false);
+    expect(c.queued).toEqual([]);
   });
 
-  it('a second start joins the run in flight (onboarding, Settings and first launch share it)', async () => {
+  it('a feature asking for its model (voice → speech) gets just that, and it resolves when that file is on disk', async () => {
     const { ensure, calls } = fakeEnsure();
     const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true });
-    const a = c.start({ auto: true });
-    const b = c.start();
-    expect(a).toBe(b);
-    await tick();
-    await tick();
+    const speech = c.start({ roles: ['whisper'] });
+    await settle();
+    expect(started(calls)).toEqual(['whisper']);
     calls[0]!.release();
-    await a;
-    await tick();
-    // one run: the required half once, then the follow-on half — never a second required download
-    expect(calls.map((c) => c.roles)).toEqual([REQUIRED_ROLES, FOLLOW_ROLES]);
+    expect(await speech).toEqual({ ok: true });
+    await settle();
+    expect(ensure).toHaveBeenCalledTimes(1);
   });
 
-  it('does not start when the disk is too full, and says why', async () => {
+  it('asked for while everything downloads, a feature’s model goes next (after the file in flight)', async () => {
+    const { ensure, calls } = fakeEnsure();
+    const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true });
+    void c.start();
+    await settle();
+    const speech = c.start({ roles: ['whisper'] });
+    expect(c.queued).toEqual(['whisper', 'embed', 'llm', 'mmproj']);
+    calls[0]!.release(); // embed, already in flight, finishes first
+    await settle();
+    expect(started(calls)).toEqual(['embed', 'whisper']);
+    calls[1]!.release();
+    expect(await speech).toEqual({ ok: true });
+  });
+
+  it('a second start joins the run in flight — never a second download of the same file', async () => {
+    const { ensure, calls } = fakeEnsure();
+    const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true });
+    const a = c.start({ auto: true, roles: ['embed', 'llm', 'whisper', 'mmproj'] });
+    const b = c.start();
+    await settle();
+    for (let i = 0; i < 4; i += 1) {
+      calls[i]!.release();
+      await settle();
+    }
+    expect(await a).toEqual({ ok: true });
+    expect(await b).toEqual({ ok: true });
+    expect(started(calls)).toEqual(['embed', 'llm', 'whisper', 'mmproj']);
+  });
+
+  it('does not start when the disk cannot hold what was asked for, and says why', async () => {
     const { ensure } = fakeEnsure();
-    const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => false });
-    expect(await c.start()).toEqual({ ok: false, error: LOW_DISK });
+    const asked: (readonly ModelRole[])[] = [];
+    const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async (roles) => (asked.push(roles), false) });
+    expect(await c.start({ roles: ['whisper'] })).toEqual({ ok: false, error: LOW_DISK });
+    expect(asked).toEqual([['whisper']]);
     expect(ensure).not.toHaveBeenCalled();
   });
 
-  it('pause stops the transfer and reads as paused (not failed); resume starts again; first-launch auto-start never overrides a pause', async () => {
+  it('pause stops the transfer and reads as paused (not failed); a later launch never overrides it; resume continues the same models', async () => {
     const { ensure, calls } = fakeEnsure();
     const log = vi.fn();
     const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true, log });
-    const run = c.start();
-    await tick();
-    await tick();
+    const run = c.start({ roles: ['whisper'] });
+    await settle();
     c.pause();
     expect(calls[0]!.signal.aborted).toBe(true);
     expect(await run).toEqual({ ok: false, error: 'paused' });
     expect(c.paused).toBe(true);
     expect(log).not.toHaveBeenCalled();
-
-    expect(await c.start({ auto: true })).toEqual({ ok: false, error: 'paused' });
-    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(await c.start({ auto: true, roles: ['whisper'] })).toEqual({ ok: false, error: 'paused' });
 
     const again = c.resume();
     expect(c.paused).toBe(false);
-    await tick();
-    await tick();
-    await tick();
-    expect(ensure).toHaveBeenCalledTimes(2);
+    await settle();
+    expect(started(calls)).toEqual(['whisper', 'whisper']); // the speech model again — not everything
     calls[1]!.release();
     expect(await again).toEqual({ ok: true });
   });
 
-  it('a failure is reported with its message and logged; Retry is simply start()', async () => {
+  it('a failure is reported with its message and logged; the file stays first in line, so Retry (resume) continues it', async () => {
     const { ensure, calls } = fakeEnsure();
     const log = vi.fn();
     const c = new DownloadController({ ensure, emit: () => undefined, enoughDisk: async () => true, log });
     const run = c.start();
-    await tick();
-    await tick();
+    await settle();
     calls[0]!.fail(new Error('gave up after 5 attempts'));
     expect(await run).toEqual({ ok: false, error: 'gave up after 5 attempts' });
     expect(log).toHaveBeenCalledWith('[models] download failed: gave up after 5 attempts');
-    const retry = c.start();
-    await tick();
-    await tick();
-    calls[1]!.release();
+    expect(c.queued).toEqual(['embed', 'llm', 'whisper', 'mmproj']);
+    const retry = c.resume();
+    await settle();
+    expect(started(calls)).toEqual(['embed', 'embed']);
+    for (let i = 1; i < 5; i += 1) {
+      calls[i]!.release();
+      await settle();
+    }
     expect(await retry).toEqual({ ok: true });
+  });
+});
+
+describe('the choice is remembered', () => {
+  it('reads the saved choice defensively and adds new choices to it', () => {
+    expect(chosenRoles(null)).toEqual([]);
+    expect(chosenRoles({ roles: ['whisper', 'nope', 7] })).toEqual(['whisper']);
+    expect(withChoice(['whisper'], ['embed', 'llm', 'whisper', 'mmproj'])).toEqual(['embed', 'llm', 'whisper', 'mmproj']);
+    expect(withChoice([], ['whisper'])).toEqual(['whisper']);
   });
 });
 

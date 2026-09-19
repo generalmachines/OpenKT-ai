@@ -32,15 +32,15 @@ function Step({ n, title, detail, state }: { n: number; title: string; detail: s
 }
 
 function modelsDetail(setup: ModelsSetupState, past: boolean): string {
-  const size = setup.rows?.length ? `About ${formatBytes(totals(setup.rows).total)}, once.` : 'A one-time download.';
-  if (!past || setup.phase === 'checking') return `${size} It runs on this Mac.`;
+  const size = setup.rows?.length ? `${formatBytes(totals(setup.rows).total)}` : 'A one-time download';
+  if (!past || setup.phase === 'checking') return `Open-source models, ${size}. They run on this Mac — your choice.`;
   switch (setup.phase) {
     case 'ready':
       return 'Ready on this Mac.';
     case 'downloading':
       return `Downloading — ${setup.percent}%. Keep going.`;
     case 'idle':
-      return `${setup.percent}% so far. Finish it in Settings → Models.`;
+      return 'Not downloaded. Settings → Models has it.';
     case 'paused':
       return `Paused at ${setup.percent}%. Resume in Settings → Models.`;
     case 'unavailable':
@@ -64,7 +64,7 @@ export function OnboardingFlow({ connectTools }: { connectTools: (onDone: () => 
   const [progress, setProgress] = useState<OnboardingProgress>(() => beginProgress());
   const n = step === undefined ? progress.step : Number(step);
   const valid = isStep(n);
-  const setup = useModelsSetup({ autoStart: n === 4 });
+  const setup = useModelsSetup();
   const [perms, setPerms] = useState<PermissionsStatusDto | null>(null);
 
   useEffect(() => {
@@ -136,7 +136,7 @@ export function OnboardingFlow({ connectTools }: { connectTools: (onDone: () => 
       </aside>
       {now === 2 && <PermissionsStep onContinue={() => next(2)} onNothingToAllow={nothingToAllow} />}
       {now === 3 && connectTools(() => next(3))}
-      {now === 4 && <ModelsStep setup={setup} onContinue={() => next(4)} />}
+      {now === 4 && <ModelsStep setup={setup} onContinue={() => next(4)} onLater={() => later(4)} />}
       {now === 5 && <TryItStep setup={setup} onFinish={(tried) => (tried > 0 ? next(5) : later(5))} />}
     </div>
   );

@@ -2,7 +2,7 @@ import { NavLink, Navigate, useParams } from 'react-router-dom';
 import { Account, Workspace } from './Workspace';
 import { Connectors } from './Connectors';
 import { Hotkeys } from './Hotkeys';
-import { Models } from './Models';
+import { Models, ModelsChip } from './Models';
 import { Permissions, PermissionsChip } from './Permissions';
 
 const SECTIONS = [
@@ -31,6 +31,7 @@ export function Settings() {
           <NavLink key={id} to={`/settings/${id}`} className={`setnav__item${id === active ? ' is-active' : ''}`}>
             {label}
             {id === 'permissions' && <PermissionsChip section={active} />}
+            {id === 'models' && <ModelsChip section={active} />}
           </NavLink>
         ))}
       </nav>

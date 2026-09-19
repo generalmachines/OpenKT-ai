@@ -17,7 +17,19 @@ export interface FakeRow {
   receivedBytes: number;
   state: 'missing' | 'partial' | 'downloading' | 'verifying' | 'ready' | 'error';
   error?: string;
+  name?: string;
+  license?: string;
+  card?: string;
+  source?: string;
 }
+
+/** As main reports them from models.manifest.json (a 16 GB Mac). */
+const ABOUT: Record<Role, Pick<FakeRow, 'name' | 'license' | 'card' | 'source'>> = {
+  embed: { name: 'Qwen3-Embedding-0.6B', license: 'Apache-2.0', card: 'https://huggingface.co/Qwen/Qwen3-Embedding-0.6B', source: 'https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF' },
+  llm: { name: 'Qwen3.5-4B', license: 'Apache-2.0', card: 'https://huggingface.co/Qwen/Qwen3.5-4B', source: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF' },
+  whisper: { name: 'Whisper large-v3-turbo', license: 'MIT', card: 'https://huggingface.co/openai/whisper-large-v3-turbo', source: 'https://huggingface.co/ggerganov/whisper.cpp' },
+  mmproj: { name: 'Qwen3.5-4B vision', license: 'Apache-2.0', card: 'https://huggingface.co/Qwen/Qwen3.5-4B', source: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF' },
+};
 
 const SIZES: Record<Role, number> = { embed: 639_150_592, llm: 2_740_937_888, whisper: 574_041_195, mmproj: 672_423_616 };
 
@@ -25,7 +37,7 @@ export function rows(state: FakeRow['state'] | Partial<Record<Role, Partial<Fake
   return (['embed', 'llm', 'whisper', 'mmproj'] as const).map((role) => {
     const over = typeof state === 'string' ? { state } : (state[role] ?? {});
     const s = over.state ?? 'missing';
-    return { role, id: role, file: `${role}.gguf`, path: '', totalBytes: SIZES[role], receivedBytes: s === 'ready' ? SIZES[role] : 0, state: s, ...over };
+    return { role, id: role, file: `${role}.gguf`, path: '', totalBytes: SIZES[role], receivedBytes: s === 'ready' ? SIZES[role] : 0, state: s, ...ABOUT[role], ...over };
   });
 }
 
@@ -33,8 +45,8 @@ export interface FakeOptions {
   perms?: Partial<PermissionsStatusDto>;
   rows?: FakeRow[];
   info?: Partial<ModelsSetupInfoDto>;
-  /** What models.ensure resolves with. */
-  ensure?: () => Promise<{ ok: boolean; error?: string }>;
+  /** What models.ensure resolves with (it gets the roles a feature asked for, or none for everything). */
+  ensure?: (roles?: string[]) => Promise<{ ok: boolean; error?: string }>;
   hotkeys?: { id: string; registered: boolean; fallbackAccelerator: string | null; display: string }[];
 }
 
@@ -53,6 +65,7 @@ export function installFirstRun(o: FakeOptions = {}) {
     totalMemBytes: 16 * GiB,
     smallModel: false,
     paused: false,
+    chosen: false,
     bundled: { runtime: true, transcriber: true, textReader: true },
     ...o.info,
   };
@@ -81,7 +94,7 @@ export function installFirstRun(o: FakeOptions = {}) {
     },
     models: {
       status: vi.fn(async () => ({ models: modelRows.map((r) => ({ ...r })) })),
-      ensure: vi.fn(o.ensure ?? (async () => ({ ok: true }))),
+      ensure: vi.fn(o.ensure ?? (async (_roles?: string[]) => ({ ok: true }))),
       onProgress: vi.fn((l: (p: unknown) => void) => {
         progressListeners.add(l);
         return () => void progressListeners.delete(l);

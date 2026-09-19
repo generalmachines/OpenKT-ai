@@ -7,7 +7,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiProvider } from '../../src/api/hooks';
 import { MockClient } from '../../src/api/mock';
 import { AppRoutes } from '../../src/app/AppRoutes';
@@ -144,63 +144,108 @@ describe('step 2 — permissions', () => {
 });
 
 describe('step 4 — on-device AI', () => {
-  it('starts the download on entry, says the total up front, and renders real progress', async () => {
+  it('is a choice: each open-source model with its job, licence and model card, the total — and nothing starts until asked', async () => {
     const fake = installFirstRun();
     renderApp('/onboarding/4');
-    await waitFor(() => expect(fake.bridge.models.ensure).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText('About 4.6 GB — this happens once.')).toBeInTheDocument();
-    expect(screen.getByText('80.0 GB free on this Mac')).toBeInTheDocument();
-    act(() => fake.progress({ role: 'embed', state: 'ready', receivedBytes: 639_150_592 }));
-    act(() => fake.progress({ role: 'llm', state: 'downloading', receivedBytes: 1_370_468_944, bytesPerSec: 20e6 }));
-    const llm = screen.getByRole('progressbar', { name: 'Understanding download' });
-    expect(llm).toHaveAttribute('aria-valuenow', '50');
-    expect(screen.getByRole('progressbar', { name: 'Search download' })).toHaveAttribute('aria-valuenow', '100');
-    expect(screen.getByText(/50% · 1\.4 GB of 2\.7 GB/)).toBeInTheDocument();
-    expect(screen.getByText(/20\.0 MB\/s · about 2 min left/)).toBeInTheDocument();
-    // what is inside the app vs downloaded once
-    expect(screen.getByText('The AI runtime')).toBeInTheDocument();
-    expect(screen.getByText('The transcriber')).toBeInTheDocument();
-    expect(screen.getByText('The text reader')).toBeInTheDocument();
-    // the person can move on while it downloads
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+    expect(await screen.findByText('4.6 GB in total, downloaded once.')).toBeInTheDocument();
+    expect(screen.getByText('Everything runs on this Mac — nothing is sent to a cloud model.')).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'Models on this Mac' });
+    const llm = within(list).getByRole('link', { name: 'Qwen3.5-4B' });
+    expect(llm).toHaveAttribute('href', 'https://huggingface.co/Qwen/Qwen3.5-4B');
+    expect(llm).toHaveAttribute('target', '_blank');
+    expect(within(list).getByRole('link', { name: 'Whisper large-v3-turbo' })).toHaveAttribute('href', 'https://huggingface.co/openai/whisper-large-v3-turbo');
+    expect(within(list).getByRole('link', { name: 'Qwen3-Embedding-0.6B' })).toBeInTheDocument();
+    expect(within(list).getByRole('link', { name: 'Qwen3.5-4B vision' })).toBeInTheDocument();
+    expect(within(list).getAllByText(/· Apache-2\.0/)).toHaveLength(3);
+    expect(within(list).getByText(/· MIT/)).toBeInTheDocument();
+    for (const job of ['Search', 'Understanding', 'Speech', 'Images']) expect(within(list).getByText(job)).toBeInTheDocument();
+    expect(within(list).getByText('2.7 GB')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download models (4.6 GB)' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled();
+    expect(screen.getByText('llama.cpp · MIT')).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fake.bridge.models.ensure).not.toHaveBeenCalled();
   });
 
-  it('pause and resume', async () => {
+  it('"Download models" starts it — everything — and then shows real progress; the person can carry on', async () => {
     const user = userEvent.setup();
     const fake = installFirstRun({ ensure: () => new Promise(() => undefined) });
     renderApp('/onboarding/4');
-    await screen.findByText('About 4.6 GB — this happens once.');
+    await user.click(await screen.findByRole('button', { name: 'Download models (4.6 GB)' }));
+    expect(fake.bridge.models.ensure).toHaveBeenCalledWith(undefined);
+    act(() => fake.progress({ role: 'embed', state: 'ready', receivedBytes: 639_150_592 }));
+    act(() => fake.progress({ role: 'llm', state: 'downloading', receivedBytes: 1_370_468_944, bytesPerSec: 20e6 }));
+    expect(screen.getByRole('progressbar', { name: 'Understanding download' })).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByRole('progressbar', { name: 'Search download' })).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByText(/50% · 1\.4 GB of 2\.7 GB/)).toBeInTheDocument();
+    expect(screen.getByText(/20\.0 MB\/s · about 2 min left/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Download models/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+  });
+
+  it('"Later" moves on without downloading; the rail says later, and Settings → Models keeps a Download entry with a reminder chip', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun();
+    renderApp('/onboarding/4');
+    await user.click(await screen.findByRole('button', { name: 'Later' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Try it' })).toBeInTheDocument();
+    expect(railStep('Set up on-device AI')).toHaveClass('step--later');
+    expect(within(railStep('Set up on-device AI')).getByText('Later — Settings → Models.')).toBeInTheDocument();
+    expect(readProgress()?.skipped).toEqual([4]);
+    expect(fake.bridge.models.ensure).not.toHaveBeenCalled();
+  });
+
+  it('Settings → Models before a download: a clear "Download on-device AI" entry, a chip in the nav, and the sidebar entry', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun({ ensure: () => new Promise(() => undefined) });
+    localStorage.setItem('openkt.onboarded', '1');
+    renderApp('/settings/models');
+    expect(await screen.findByText('Download on-device AI', { selector: '.card__title' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('On-device AI not downloaded')).toHaveTextContent('not set up');
+    expect(screen.getByRole('link', { name: 'Download on-device AI, 4.6 GB' })).toHaveAttribute('href', '/settings/models');
+    await user.click(screen.getByRole('button', { name: 'Download models (4.6 GB)' }));
+    expect(fake.bridge.models.ensure).toHaveBeenCalledWith(undefined);
+  });
+
+  it('pause and resume (resume continues the same models)', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun({ ensure: () => new Promise(() => undefined) });
+    renderApp('/onboarding/4');
+    await user.click(await screen.findByRole('button', { name: 'Download models (4.6 GB)' }));
     act(() => fake.progress({ role: 'embed', state: 'downloading', receivedBytes: 100e6, bytesPerSec: 5e6 }));
     await user.click(await screen.findByRole('button', { name: 'Pause' }));
     expect(fake.bridge.models.pause).toHaveBeenCalled();
     act(() => fake.progress({ role: 'embed', state: 'partial', receivedBytes: 100e6 }));
     expect(await screen.findByText(/paused at \d+% · what arrived is kept/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Resume' }));
-    expect(fake.bridge.models.ensure).toHaveBeenCalledTimes(2);
+    expect(fake.bridge.models.resume).toHaveBeenCalled();
+    expect(fake.bridge.models.ensure).toHaveBeenCalledTimes(1);
   });
 
-  it('an error says so in plain words and "Try again" starts again', async () => {
+  it('an error says so in plain words and "Try again" continues', async () => {
     const user = userEvent.setup();
-    const fake = installFirstRun({ ensure: async () => ({ ok: false, error: 'gave up on https://huggingface.co/x after 5 attempts: fetch failed' }) });
+    const fake = installFirstRun({ info: { chosen: true } });
     fake.setRows(rows({ embed: { state: 'error', receivedBytes: 300e6, error: 'gave up on https://huggingface.co/x after 5 attempts: fetch failed' } }));
     renderApp('/onboarding/4');
     expect(await screen.findByText('The download stopped. Check the internet connection, then try again.')).toBeInTheDocument();
-    expect(screen.queryByText(/huggingface/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/gave up/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(fake.bridge.models.ensure).toHaveBeenCalledTimes(2);
+    expect(fake.bridge.models.resume).toHaveBeenCalled();
   });
 
-  it('low disk: checked before starting, nothing starts, and it says how much room is needed', async () => {
+  it('low disk: checked before anything starts, Download stays off, and it says how much room is needed', async () => {
     const user = userEvent.setup();
     const fake = installFirstRun({ info: { enoughDisk: false, freeBytes: 2e9, neededBytes: 5.7e9 } });
     renderApp('/onboarding/4');
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Not enough space on this Mac');
-    expect(alert).toHaveTextContent('OpenKT needs 5.7 GB free to finish and there is 2.0 GB');
-    expect(fake.bridge.models.ensure).not.toHaveBeenCalled();
+    expect(alert).toHaveTextContent('OpenKT needs 5.7 GB free for these models and there is 2.0 GB');
+    expect(screen.getByRole('button', { name: 'Download models (4.6 GB)' })).toBeDisabled();
     fake.info.enoughDisk = true;
     await user.click(within(alert).getByRole('button', { name: 'Check again' }));
-    await waitFor(() => expect(fake.bridge.models.ensure).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('button', { name: 'Download models (4.6 GB)' })).toBeEnabled();
+    expect(fake.bridge.models.ensure).not.toHaveBeenCalled();
   });
 
   it('an 8 GB Mac is told it gets the smaller model', async () => {
@@ -253,12 +298,29 @@ describe('step 5 — try it', () => {
     expect(readProgress()?.tried).toEqual(['voice']);
   });
 
-  it('while speech is still downloading the card says "Finishing setup — N%" instead of failing', async () => {
+  it('while speech is downloading the card says how far instead of failing', async () => {
     installFirstRun({ perms: { microphone: 'granted' }, rows: rows({ embed: { state: 'ready' }, llm: { state: 'ready' }, whisper: { state: 'downloading', receivedBytes: 287_020_597 } }) });
     renderApp('/onboarding/5');
     const card = await screen.findByRole('listitem', { name: 'Say something' });
-    expect(await within(card).findByText(/Finishing setup — \d+%/)).toBeInTheDocument();
+    expect(await within(card).findByText(/^Downloading the speech model — \d+%\.$/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Start' })).toBeDisabled();
+  });
+
+  it('while something else downloads first, "Finishing setup — N%"', async () => {
+    installFirstRun({ perms: { microphone: 'granted' }, rows: rows({ embed: { state: 'ready' }, llm: { state: 'downloading', receivedBytes: 1e9 } }) });
+    renderApp('/onboarding/5');
+    const card = await screen.findByRole('listitem', { name: 'Say something' });
+    expect(await within(card).findByText(/Finishing setup — \d+%/)).toBeInTheDocument();
+  });
+
+  it('models put off for later: the card says voice needs the speech model and offers just that', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun({ perms: { microphone: 'granted' }, ensure: () => new Promise(() => undefined) });
+    renderApp('/onboarding/5');
+    const card = await screen.findByRole('listitem', { name: 'Say something' });
+    expect(await within(card).findByText('Voice needs the speech model (574 MB). It is downloaded once and runs on this Mac.')).toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Download speech model (574 MB)' }));
+    expect(fake.bridge.models.ensure).toHaveBeenCalledWith(['whisper']);
   });
 
   it('"Capture what you see" asks for Screen Recording first when it is off', async () => {
@@ -328,7 +390,7 @@ describe('the rest of the app while it downloads', () => {
       </ApiProvider>,
     );
     expect(await screen.findByText(/Finishing setup — \d+%\. Voice notes work as soon as the speech model is on this Mac\./)).toBeInTheDocument();
-    expect(screen.getByText('finishing setup')).toBeInTheDocument();
+    expect(screen.getByText('speech not on this Mac yet')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
   });
 
@@ -349,7 +411,35 @@ describe('the rest of the app while it downloads', () => {
     expect(await screen.findByRole('list', { name: 'Models on this Mac' })).toBeInTheDocument();
     expect(screen.queryByText('Qwen3-Reranker-0.6B')).not.toBeInTheDocument();
     expect(screen.queryByText('Use my own endpoint')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Download 4\.0 GB/ })).toBeInTheDocument();
+    expect(screen.getByText('4.0 GB left of 4.6 GB, downloaded once.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download models (4.0 GB)' })).toBeInTheDocument();
+  });
+
+  it('the voice pill, with the speech model not on this Mac: says so and offers just the speech model', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun({ rows: rows({ embed: { state: 'ready' }, llm: { state: 'ready' } }) });
+    const voice = { begin: vi.fn(async () => 'v1'), end: async () => ({}), cancel: () => undefined, chunk: () => undefined };
+    Object.assign(fake.bridge, { voice });
+    render(
+      <ApiProvider client={new MockClient()}>
+        <VoiceCapture onClose={() => undefined} recorder={async () => ({ stop: async () => undefined, cancel: () => undefined })} lingerMs={0} />
+      </ApiProvider>,
+    );
+    expect(await screen.findByText(/Voice needs the speech model \(574 MB\)\. It is downloaded once and runs on this Mac — nothing is sent to a cloud model\./)).toBeInTheDocument();
+    expect(voice.begin).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Download the speech model (574 MB)' }));
+    expect(fake.bridge.models.ensure).toHaveBeenCalledWith(['whisper']);
+    expect(await screen.findByText('The speech model is on this Mac. Press ⌃⌥Space to talk.')).toBeInTheDocument();
+  });
+
+  it('New note, with the on-device AI not on this Mac: one line saying why, and the download right there', async () => {
+    const user = userEvent.setup();
+    const fake = installFirstRun({ ensure: () => new Promise(() => undefined) });
+    localStorage.setItem('openkt.onboarded', '1');
+    renderApp('/new');
+    const note = await screen.findByText(/Pulling out the key points needs the on-device AI/);
+    await user.click(within(note.closest('p')!).getByRole('button', { name: 'Download (4.6 GB)' }));
+    expect(fake.bridge.models.ensure).toHaveBeenCalledWith(undefined);
   });
 });
 

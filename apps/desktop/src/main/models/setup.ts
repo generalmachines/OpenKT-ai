@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs';
 import { statfs } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { GIB, chooseTier } from './manifest';
+import { GIB, chooseTier, type ModelRole } from './manifest';
 import type { ModelStatus } from './store';
 
 /** Room kept free beyond the download itself, so a Mac is never filled to the brim. */
@@ -26,6 +26,8 @@ export interface SetupInfo {
   /** ≤ 8 GB of memory: the smaller model line-up. */
   smallModel: boolean;
   paused: boolean;
+  /** The person chose to download (everything, or a feature's model). Before that nothing is fetched. */
+  chosen: boolean;
   /** Inside the app, nothing to download. false = missing from this build (a development build, usually). */
   bundled: { runtime: boolean; transcriber: boolean; textReader: boolean };
 }
@@ -62,6 +64,7 @@ export interface SetupInputs {
   modelsDir: string;
   totalMemBytes: number;
   paused: boolean;
+  chosen?: boolean;
   binaries: { runtime: string; transcriber: string; textReader: string };
   stat?: StatFs;
   exists?: (path: string) => boolean;
@@ -79,6 +82,20 @@ export async function setupInfo(i: SetupInputs): Promise<SetupInfo> {
     totalMemBytes: i.totalMemBytes,
     smallModel: chooseTier(i.totalMemBytes) === '2b',
     paused: i.paused,
+    chosen: i.chosen === true,
     bundled: { runtime: exists(i.binaries.runtime), transcriber: exists(i.binaries.transcriber), textReader: exists(i.binaries.textReader) },
   };
+}
+
+const ROLES: readonly ModelRole[] = ['embed', 'llm', 'whisper', 'mmproj'];
+
+/** The saved choice (`{ roles: [...] }`, userData/models-choice.json), read defensively: unknown roles are dropped. */
+export function chosenRoles(saved: unknown): ModelRole[] {
+  const roles = (saved as { roles?: unknown } | null)?.roles;
+  return Array.isArray(roles) ? ROLES.filter((r) => roles.includes(r)) : [];
+}
+
+/** A new choice adds to the old one: someone who first fetched speech and then everything has chosen everything. */
+export function withChoice(previous: readonly ModelRole[], added: readonly ModelRole[]): ModelRole[] {
+  return ROLES.filter((r) => previous.includes(r) || added.includes(r));
 }

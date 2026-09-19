@@ -7,7 +7,7 @@ import { CAPTURE_SIGNAL, fileCapture, modelsPending } from '../../capture/save';
 import { Key } from '../../components/bits';
 import { Icon, type IconName } from '../../components/Icon';
 import { usePermissions } from '../../components/PermissionsList';
-import { finishingSetup, type ModelsSetupState } from '../../onboarding/models';
+import { finishingSetup, formatBytes, rowPercent, rowRemaining, type ModelsSetupState } from '../../onboarding/models';
 import { markTried, readProgress, type TryItCard } from '../../onboarding/state';
 import { actionFor } from '../../shared/permissions';
 
@@ -178,21 +178,30 @@ export function TryItStep({ setup, onFinish }: { setup: ModelsSetupState; onFini
   // ── say something ──
   const whisper = setup.rows?.find((r) => r.role === 'whisper');
   const speechPending = Boolean(whisper && whisper.state !== 'ready');
+  // Speech not on this Mac and nothing downloading (Later, or paused): offer just the speech model, right here.
+  const offerSpeech = Boolean(whisper && speechPending && setup.phase !== 'downloading');
   const micOff = perms?.microphone === 'denied' || perms?.microphone === 'restricted';
   const voiceStatus = !desktop
     ? 'Needs OpenKT for Mac.'
-    : speechPending
-      ? `${finishingSetup(setup.percent)}. Speech works as soon as its model is on this Mac.`
-      : micOff
+    : offerSpeech && whisper
+      ? `Voice needs the speech model (${formatBytes(rowRemaining(whisper))}). It is downloaded once and runs on this Mac.`
+      : speechPending && whisper?.state === 'downloading'
+        ? `Downloading the speech model — ${rowPercent(whisper)}%.`
+        : speechPending
+          ? `${finishingSetup(setup.percent)}. Speech works as soon as its model is on this Mac.`
+          : micOff
         ? 'The microphone is off for OpenKT.'
         : waiting === 'voice'
           ? 'Talk, then press the keys again (or Save) — this card ticks itself.'
           : taken.has('voice')
             ? 'Another app uses these keys, so use Start.'
             : 'Or press the keys from any app.';
-  const voiceAction = micOff
-    ? { label: 'Open System Settings', onClick: () => void openSettings('microphone'), dark: false }
-    : { label: 'Start', onClick: () => void start('voice'), disabled: !desktop || speechPending };
+  const voiceAction =
+    offerSpeech && whisper
+      ? { label: `Download speech model (${formatBytes(rowRemaining(whisper))})`, onClick: () => void setup.download(['whisper']) }
+      : micOff
+        ? { label: 'Open System Settings', onClick: () => void openSettings('microphone'), dark: false }
+        : { label: 'Start', onClick: () => void start('voice'), disabled: !desktop || speechPending };
 
   // ── capture what you see ──
   const screen = perms?.screen ?? 'unsupported';
@@ -220,7 +229,7 @@ export function TryItStep({ setup, onFinish }: { setup: ModelsSetupState; onFini
       <h2 className="onb__h2">Try it</h2>
       <p className="lede onb__lede">Three small things, for real. Each one is saved to your private space, where only you can see it.</p>
       <ul className="plain tryits">
-        <TryCard icon="mic" title="Say something" how="Press the keys, talk, press them again. You’ll see the words, then a note is saved." keys={VOICE_KEYS} done={titleOf('voice')} status={voiceStatus} action={voiceAction} />
+        <TryCard icon="mic" title="Say something" how="Press the keys, talk, press them again. You’ll see the words, then a note is saved." keys={offerSpeech ? undefined : VOICE_KEYS} done={titleOf('voice')} status={voiceStatus} action={voiceAction} />
         <TryCard icon="shot" title="Capture what you see" how="Drag over anything on screen. Its text is read on this Mac and saved." keys={SHOT_KEYS} done={titleOf('screenshot')} status={shotStatus} action={shotAction} />
         <TryCard
           icon="note"

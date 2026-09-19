@@ -131,9 +131,17 @@ function fakeFirstRun() {
       ready: { embed: ready, llm: ready, whisper: ready, mmproj: ready },
       sidebar: { embed: ready, llm: ['downloading', 0.71] },
     }[mode] ?? {};
+  const hf = (m) => `https://huggingface.co/${m}`;
+  const tier = mode === 'small' ? '2B' : '4B';
+  const about = {
+    embed: { name: 'Qwen3-Embedding-0.6B', license: 'Apache-2.0', card: hf('Qwen/Qwen3-Embedding-0.6B') },
+    llm: { name: `Qwen3.5-${tier}`, license: 'Apache-2.0', card: hf(`Qwen/Qwen3.5-${tier}`) },
+    whisper: mode === 'small' ? { name: 'Whisper small', license: 'Apache-2.0', card: hf('openai/whisper-small') } : { name: 'Whisper large-v3-turbo', license: 'MIT', card: hf('openai/whisper-large-v3-turbo') },
+    mmproj: { name: `Qwen3.5-${tier} vision`, license: 'Apache-2.0', card: hf(`Qwen/Qwen3.5-${tier}`) },
+  };
   const rows = ['embed', 'llm', 'whisper', 'mmproj'].map((role) => {
     const [state, f] = at[role] ?? ['missing', 0];
-    return { role, id: role, file: `${role}.gguf`, path: '', totalBytes: sizes[role], receivedBytes: Math.round(sizes[role] * f), state, ...(state === 'error' ? { error: 'gave up after 5 attempts: fetch failed' } : {}) };
+    return { role, id: role, file: `${role}.gguf`, path: '', totalBytes: sizes[role], receivedBytes: Math.round(sizes[role] * f), state, ...about[role], ...(state === 'error' ? { error: 'gave up after 5 attempts: fetch failed' } : {}) };
   });
   const total = rows.reduce((n, r) => n + r.totalBytes, 0);
   const remaining = rows.reduce((n, r) => n + (r.state === 'ready' ? 0 : r.totalBytes - r.receivedBytes), 0);
@@ -146,6 +154,7 @@ function fakeFirstRun() {
     totalMemBytes: (mode === 'small' ? 8 : 16) * GiB,
     smallModel: mode === 'small',
     paused: mode === 'small',
+    chosen: !['fresh', 'lowdisk', 'later'].includes(mode),
     bundled: { runtime: true, transcriber: true, textReader: true },
   };
   const none = { microphone: 'not-determined', screen: 'not-determined', accessibility: 'not-determined', systemAudio: 'not-determined', relaunchSuggested: false };
@@ -375,7 +384,7 @@ const SHOTS = [
       await audioFlowed(p);
       await stopVoice(p);
       await p.getByRole('button', { name: 'Save', exact: true }).click();
-      await p.getByText(/Context will be extracted/).waitFor();
+      await p.getByText(/key points are pulled out/).waitFor();
     },
     null,
     fakeCaptureIpc,
@@ -400,11 +409,13 @@ const SHOTS = [
   // ── first run on a Mac (fake bridge: fakeFirstRun) ──
   ['35-onboarding-2-permissions', '/onboarding/2?perms=fresh', APP, async (p) => p.getByRole('button', { name: 'Allow: Microphone' }).waitFor(), 'Onboarding.dc.html', fakeFirstRun],
   ['36-onboarding-2-permissions-relaunch', '/onboarding/2?perms=mixed', APP, async (p) => p.getByRole('button', { name: 'Relaunch OpenKT' }).waitFor(), null, fakeFirstRun],
-  ['37-onboarding-4-models-downloading', '/onboarding/4?fake=downloading', APP, async (p) => p.getByText(/MB\/s/).waitFor(), null, fakeFirstRun],
+  ['37-onboarding-4-models-choice', '/onboarding/4?fake=fresh', APP, async (p) => p.getByRole('button', { name: 'Download models (4.6 GB)' }).waitFor(), null, fakeFirstRun],
+  ['37b-onboarding-4-models-downloading', '/onboarding/4?fake=downloading', APP, async (p) => p.getByText(/MB\/s/).waitFor(), null, fakeFirstRun],
   ['38-onboarding-4-models-low-disk', '/onboarding/4?fake=lowdisk', APP, async (p) => p.getByRole('alert').waitFor(), null, fakeFirstRun],
   ['39-onboarding-4-models-small-mac-paused', '/onboarding/4?fake=small', APP, async (p) => p.getByRole('button', { name: 'Resume' }).waitFor(), null, fakeFirstRun],
   ['40-onboarding-4-models-error', '/onboarding/4?fake=error', APP, async (p) => p.getByRole('button', { name: 'Try again' }).waitFor(), null, fakeFirstRun],
-  ['41-onboarding-5-try-it', '/onboarding/5?fake=tryit&perms=tryit', APP, async (p) => p.getByText(/Finishing setup/).waitFor(), null, fakeFirstRun],
+  ['41-onboarding-5-try-it', '/onboarding/5?fake=tryit&perms=tryit', APP, async (p) => p.getByText(/Downloading the speech model/).waitFor(), null, fakeFirstRun],
+  ['41b-onboarding-5-try-it-models-later', '/onboarding/5?fake=later&perms=settings', APP, async (p) => p.getByRole('button', { name: /Download speech model/ }).waitFor(), null, fakeFirstRun],
   [
     '42-onboarding-5-try-it-writing',
     '/onboarding/5?fake=ready&perms=settings',
@@ -419,8 +430,12 @@ const SHOTS = [
   ['43-onboarding-5-try-it-done', '/onboarding/5?fake=tried&perms=settings', APP, async (p) => p.getByText('2 of 3 tried. The menu bar has all of these any time.').waitFor(), null, fakeFirstRun],
   ['44-settings-permissions', '/settings/permissions?perms=settings&fake=ready&onboarded=1', APP, async (p) => p.getByRole('button', { name: 'Open System Settings: Accessibility' }).waitFor(), null, fakeFirstRun],
   ['45-settings-models-live', '/settings/models?fake=downloading&onboarded=1', APP, async (p) => p.getByText(/MB\/s/).waitFor(), 'Models.dc.html', fakeFirstRun],
+  ['45b-settings-models-not-downloaded', '/settings/models?fake=fresh&onboarded=1', APP, async (p) => p.getByRole('button', { name: 'Download models (4.6 GB)' }).waitFor(), 'Models.dc.html', fakeFirstRun],
   ['46-sidebar-setup-progress', `${S}?fake=sidebar&onboarded=1`, APP, async (p) => p.getByRole('link', { name: /Setting up on-device AI/ }).waitFor(), null, fakeFirstRun],
-  ['47-overlay-voice-finishing-setup', '/overlay/voice?fake=tryit', VOICE_WIN, async (p) => p.getByText(/Finishing setup/).waitFor(), null, fakeFirstRun],
+  ['46b-sidebar-download-entry', `${S}?fake=fresh&onboarded=1`, APP, async (p) => p.getByRole('link', { name: /Download on-device AI/ }).waitFor(), null, fakeFirstRun],
+  ['47-overlay-voice-finishing-setup', '/overlay/voice?fake=sidebar', VOICE_WIN, async (p) => p.getByText(/Finishing setup/).waitFor(), null, fakeFirstRun],
+  ['48-overlay-voice-needs-speech', '/overlay/voice?fake=later', VOICE_WIN, async (p) => p.getByRole('button', { name: /Download the speech model/ }).waitFor(), null, fakeFirstRun],
+  ['49-new-note-models-offer', '/new?fake=fresh&onboarded=1', APP, async (p) => p.getByText(/Pulling out the key points/).waitFor(), null, fakeFirstRun],
 ];
 
 async function waitForServer(url, ms = 30_000) {

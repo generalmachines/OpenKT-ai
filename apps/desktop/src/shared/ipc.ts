@@ -83,6 +83,8 @@ export interface ModelsSetupInfoDto {
   /** ≤ 8 GB of memory: the smaller models are used. */
   smallModel: boolean;
   paused: boolean;
+  /** The person has chosen to download (all, or a feature's model). Nothing is fetched before that. */
+  chosen: boolean;
   /** Helpers inside the app. false = missing from this build. */
   bundled: { runtime: boolean; transcriber: boolean; textReader: boolean };
 }
@@ -129,6 +131,11 @@ export interface ModelStatusDto {
   receivedBytes: number;
   state: ModelStateDto;
   error?: string;
+  /** The open-source model, as shown before download: its name, licence (SPDX), model card and download source. */
+  name?: string;
+  license?: string;
+  card?: string;
+  source?: string;
 }
 
 /** Pushed at most 4×/s per file while downloading, plus one final event per file. */
@@ -257,12 +264,16 @@ export interface OpenKTBridge {
   };
   models: {
     status(): Promise<LocalAiStatusDto>;
-    /** Downloads whatever is missing (embeddings first). Resolves when embeddings + LLM are on disk. Safe to call repeatedly. */
-    ensure(): Promise<ModelsEnsureResult>;
+    /**
+     * The person's choice to download. No roles: everything missing (embeddings first); resolves when
+     * embeddings + LLM are on disk. With roles (a feature asking for its model, e.g. ['whisper']):
+     * those go first and it resolves when they are on disk. Safe to call repeatedly; joins a run in flight.
+     */
+    ensure(roles?: ModelRoleDto[]): Promise<ModelsEnsureResult>;
     onProgress(listener: (progress: ModelsProgressDto) => void): () => void;
     // ── first run (begin) ──
     setupInfo(): Promise<ModelsSetupInfoDto>;
-    /** Stops the transfer and keeps what arrived. `ensure()` and `resume()` continue from there. */
+    /** Stops the transfer and keeps what arrived. `resume()` continues the same models from there. */
     pause(): Promise<ModelsSetupInfoDto>;
     resume(): Promise<ModelsSetupInfoDto>;
     // ── first run (end) ──

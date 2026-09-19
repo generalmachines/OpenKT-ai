@@ -5,6 +5,7 @@ import { localAi } from '../api/bridge';
 import { useClient, useQuery } from '../api/hooks';
 import { Key, KindChip } from '../components/bits';
 import { Icon } from '../components/Icon';
+import { ModelsOffer } from '../components/ModelsOffer';
 import { Select } from '../components/Select';
 
 interface Draft {
@@ -166,6 +167,8 @@ export function NewNote() {
             />
           </>
         )}
+        {/* first run: extraction needs the on-device AI; say so and offer it when it is not on this Mac */}
+        {!draft && <ModelsOffer needs="a note" />}
         {error && (
           <p className="state mono" role="alert">
             {error}
