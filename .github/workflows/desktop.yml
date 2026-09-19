@@ -468,3 +468,47 @@ jobs:
           retention-days: 14
 
   # ── end in-app updates ──
+
+  # ── e2e journey on the PACKAGED app (added by qa/e2e-loop; findings: e2e/artifacts/summary.json) ──
+  # The same journey as ci.yml's desktop-e2e, but against the DMG the build job produced, installed the
+  # way a tester installs it, on a runner with a real GUI session. Allowed to fail: it reports.
+  # Not exercised here (they need TCC grants a runner cannot give): the fn / Control+Alt+Space voice
+  # hotkey (Accessibility, Input Monitoring), voice notes and meetings (Microphone), screenshots
+  # (Screen Recording). Model downloads are switched off (OPENKT_NO_AUTO_MODELS=1 in the harness).
+  e2e-packaged:
+    name: e2e journey (packaged app, live server) — allowed to fail
+    needs: [build]
+    runs-on: macos-14
+    timeout-minutes: 25
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenKT-mac-arm64-dmg
+          path: dmg
+      - name: Install from the DMG
+        run: |
+          hdiutil attach "$(ls dmg/*.dmg | head -1)" -nobrowse -readonly -mountpoint /Volumes/openkt-e2e
+          mkdir -p "$HOME/Applications"
+          cp -R /Volumes/openkt-e2e/OpenKT.app "$HOME/Applications/"
+          hdiutil detach /Volumes/openkt-e2e
+      - name: Journey
+        working-directory: apps/desktop
+        env:
+          OPENKT_E2E_SERVER: https://api.openkt.ai
+          OPENKT_E2E_ACCOUNTS: ${{ vars.OPENKT_E2E_ACCOUNTS }}
+        run: OPENKT_E2E_APP="$HOME/Applications/OpenKT.app/Contents/MacOS/OpenKT" npm run e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-packaged-artifacts
+          path: apps/desktop/e2e/artifacts
+          retention-days: 14
+          if-no-files-found: warn
+  # ── end e2e journey ─────────────────────────────────────────────────────────────────────────────────
