@@ -12,18 +12,23 @@ const gate = (facts: ExtractedFact[], turns: Turn[], overlap: Turn[] = []) =>
   quoteGate(facts, { turns, overlap });
 
 describe("normalise", () => {
-  it("matches the agents normaliser rules and lowercases", () => {
-    expect(normalise("  “A\u200B  quote”—here…  ")).toBe('"a quote"-here...');
+  it("matches the agents normaliser rules", () => {
+    expect(normalise("  “A\u200B  quote”—here…  ")).toBe('"A quote"-here...');
   });
 });
 
 describe("quoteGate", () => {
-  it("keeps a quote differing only by curly quotes, case, and double spaces", () => {
-    const input = fact('She said "HELLO  WORLD" today.');
-    expect(gate([input], [turn(7, "She said “hello world” today.")])).toEqual({
+  it("keeps a quote differing only by curly quotes, double spaces, zero-width, em dash, and ellipsis", () => {
+    const input = fact('She said "hello  world" - today...');
+    expect(gate([input], [turn(7, "She said “hello\u200B world” — today…")])).toEqual({
       kept: [{ ...input, turn_seq: 7 }],
       dropped: [],
     });
+  });
+
+  it("matches case-sensitively", () => {
+    expect(gate([fact("Northgate Runs 14 Stores")], [turn(1, "northgate runs 14 stores today")]).dropped)
+      .toEqual([{ index: 0, reason: "quote_not_found" }]);
   });
 
   it("does not match a quote across two turns", () => {
@@ -36,15 +41,21 @@ describe("quoteGate", () => {
       .toEqual([{ index: 0, reason: "quote_only_in_overlap" }]);
   });
 
-  it("rejects 11 normalised characters and permits 12", () => {
-    const result = gate([fact("12345678901"), fact("123456789012")], [turn(4, "123456789012")]);
+  it("rejects 7 normalised characters and permits 8", () => {
+    const result = gate([fact("1234567"), fact("12345678")], [turn(4, "12345678")]);
     expect(result.dropped).toEqual([{ index: 0, reason: "quote_too_short" }]);
-    expect(result.kept).toEqual([{ ...fact("123456789012"), turn_seq: 4 }]);
+    expect(result.kept).toEqual([{ ...fact("12345678"), turn_seq: 4 }]);
   });
 
   it("checks secrets before quote length and search", () => {
     const secret = "AKIA1234567890ABCDEF";
     expect(gate([fact("missing", secret)], []).dropped)
+      .toEqual([{ index: 0, reason: "secret" }]);
+  });
+
+  it("rejects a secret in the quote", () => {
+    const secret = "AKIA1234567890ABCDEF";
+    expect(gate([fact(secret)], [turn(1, secret)]).dropped)
       .toEqual([{ index: 0, reason: "secret" }]);
   });
 
@@ -63,7 +74,7 @@ describe("quoteGate", () => {
   });
 
   it("preserves original fact indexes in dropped results", () => {
-    expect(gate([fact("too short"), fact("another absent quote")], []).dropped).toEqual([
+    expect(gate([fact("short!!"), fact("another absent quote")], []).dropped).toEqual([
       { index: 0, reason: "quote_too_short" },
       { index: 1, reason: "quote_not_found" },
     ]);
