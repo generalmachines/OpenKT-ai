@@ -96,7 +96,10 @@ function splitIntoPieces(content: string, maxChars: number): string[] {
         for (let i = 0; i < s.length; i += maxChars) pieces.push(s.slice(i, i + maxChars));
       }
     }
-    if (sep) pieces.push(sep);
+    // The separator can be a huge run of blank lines — hard-split it too.
+    if (sep) {
+      for (let i = 0; i < sep.length; i += maxChars) pieces.push(sep.slice(i, i + maxChars));
+    }
   }
   return pieces;
 }
@@ -149,7 +152,8 @@ export function chunkTurns(turns: Turn[], opts?: ChunkTurnsOptions): Chunk[] {
   if (current.length > 0) chunks.push({ turns: current });
 
   return chunks.map((c, i) => {
-    const overlap = i === 0 ? [] : chunks[i - 1]!.turns.slice(-overlapTurns);
+    // `slice(-0)` would return the whole array — guard the 0 case.
+    const overlap = i === 0 || overlapTurns <= 0 ? [] : chunks[i - 1]!.turns.slice(-overlapTurns);
     const lines: string[] = [];
     if (overlap.length > 0) {
       lines.push(OVERLAP_MARKER);

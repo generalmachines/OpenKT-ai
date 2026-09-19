@@ -30,6 +30,20 @@ describe("chunkTurns", () => {
     expect(parts.every((p, i) => p.seq === 1 && p.part === i + 1)).toBe(true);
   });
 
+  it("overlapTurns 0 gives no overlap", () => {
+    const turns = Array.from({ length: 10 }, (_, i) => turn(i + 1, "a".repeat(1000)));
+    const chunks = chunkTurns(turns, { overlapTurns: 0 });
+    expect(chunks[1]!.overlap).toEqual([]);
+    expect(chunks[1]!.text).not.toContain("[context — already processed]");
+  });
+
+  it("a turn of 7,000 newlines still splits into parts that fit", () => {
+    const content = "\n".repeat(7000);
+    const parts = chunkTurns([turn(1, content)]).flatMap((c) => c.turns);
+    for (const p of parts) expect(p.content.length).toBeLessThanOrEqual(6000);
+    expect(parts.map((p) => p.content).join("")).toBe(content);
+  });
+
   it("system turns never appear", () => {
     const chunks = chunkTurns([
       turn(1, "hello", "system"),
