@@ -10,7 +10,7 @@ import { SessionRepository } from "../repositories/session.repository";
 
 // Idle-close sweep — M1 "Sessions" (architecture.md §4: "Idle sessions
 // close themselves"). Runs a plain `setInterval` (same pattern as
-// apps/worker's DailyRollupService / HealthMonitorService — there is
+// apps/worker's DailyRollupService — there is
 // no @nestjs/schedule in this codebase yet) that closes any `open`
 // session whose `last_activity_at` is older than the idle threshold.
 //
