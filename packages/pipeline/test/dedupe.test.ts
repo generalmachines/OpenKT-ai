@@ -48,6 +48,14 @@ describe("decideDuplicate", () => {
     ]);
     expect(out).toEqual({ action: "new" });
   });
+
+  it("ignores neighbours whose similarity is not a finite number", () => {
+    const out = decideDuplicate([neighbour("n1", 0.5), neighbour("n2", Number.NaN)]);
+    expect(out).toEqual({ action: "new" });
+    const ask = decideDuplicate([neighbour("n1", 0.9), neighbour("n2", Number.NaN)]);
+    if (ask.action !== "ask_agent") throw new Error("expected ask_agent");
+    expect(ask.candidates.map((c) => c.id)).toEqual(["n1"]);
+  });
 });
 
 describe("guardSupersede", () => {
@@ -64,6 +72,39 @@ describe("guardSupersede", () => {
     ]);
     expect(out.rejected).toEqual([{ id: "ghost", reason: "unknown_id" }]);
     expect(out.supersedes).toEqual([]);
+  });
+
+  it("an unparseable target date → reason bad_date", () => {
+    const out = guardSupersede(newFact, { duplicate_of: null, supersedes: ["n1"] }, [
+      neighbour("n1", 0.9, { created_at: "sometime last week" }),
+    ]);
+    expect(out.rejected).toEqual([{ id: "n1", reason: "bad_date" }]);
+  });
+
+  it("dates are compared as instants, not text", () => {
+    // "2025-12-31T23:00:00-02:00" is the instant 2026-01-01T01:00:00Z —
+    // textually earlier than the new fact's date, in fact later.
+    const out = guardSupersede(
+      { ...newFact, created_at: "2026-01-01T00:00:00Z" },
+      { duplicate_of: null, supersedes: ["n1"] },
+      [neighbour("n1", 0.9, { created_at: "2025-12-31T23:00:00-02:00" })],
+    );
+    expect(out.rejected).toEqual([{ id: "n1", reason: "not_older" }]);
+  });
+
+  it("repeated ids are de-duplicated before the cap", () => {
+    const candidates = ["a", "b", "c"].map((id) => neighbour(id, 0.9));
+    const out = guardSupersede(newFact, { duplicate_of: null, supersedes: ["a", "a", "b", "c"] }, candidates);
+    expect(out.supersedes).toEqual(["a", "b", "c"]);
+    expect(out.rejected).toEqual([]);
+  });
+
+  it("the cap counts only ids that survive the guards", () => {
+    const candidates = ["a", "b", "c", "d"].map((id) => neighbour(id, 0.9));
+    // 4 proposed, one unknown → 3 valid → allowed.
+    const out = guardSupersede(newFact, { duplicate_of: null, supersedes: ["a", "b", "c", "ghost"] }, candidates);
+    expect(out.supersedes).toEqual(["a", "b", "c"]);
+    expect(out.rejected).toEqual([{ id: "ghost", reason: "unknown_id" }]);
   });
 
   it("a fact not older than the new one → reason not_older", () => {

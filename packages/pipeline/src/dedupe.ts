@@ -17,7 +17,12 @@ export function decideDuplicate(neighbours: Neighbour[]): DuplicateDecision {
   if (neighbours.length === 0) return { action: "new" };
 
   const firstProject = neighbours[0]!.project_id;
-  const pool = neighbours.filter((n) => n.project_id === firstProject);
+  const pool = neighbours.filter(
+    (n) =>
+      n.project_id === firstProject &&
+      typeof n.similarity === "number" &&
+      Number.isFinite(n.similarity),
+  );
   if (pool.length === 0) return { action: "new" };
 
   const best = pool.reduce((a, b) => (b.similarity > a.similarity ? b : a));
@@ -69,23 +74,26 @@ export function guardSupersede(
     return { duplicate_of: duplicateOf, supersedes: [], rejected };
   }
 
-  // More than 3 supersedes → reject all.
-  if (agentAnswer.supersedes.length > MAX_SUPERSEDES) {
-    return {
-      duplicate_of: null,
-      supersedes: [],
-      rejected: agentAnswer.supersedes.map((id) => ({ id, reason: "suspicious_supersede" })),
-    };
-  }
+  const newTime = Date.parse(newFact.created_at);
 
-  const supersedes: string[] = [];
+  // Pass 1: the guards, with repeated ids de-duplicated.
+  const valid: string[] = [];
+  const seen = new Set<string>();
   for (const id of agentAnswer.supersedes) {
+    if (seen.has(id)) continue;
+    seen.add(id);
     const target = byId.get(id);
     if (!target) {
       rejected.push({ id, reason: "unknown_id" });
       continue;
     }
-    if (target.created_at >= newFact.created_at) {
+    const targetTime = Date.parse(target.created_at);
+    // "Older" compares created_at as instants, never as text (Spec 02 §3).
+    if (Number.isNaN(targetTime) || Number.isNaN(newTime)) {
+      rejected.push({ id, reason: "bad_date" });
+      continue;
+    }
+    if (targetTime >= newTime) {
       rejected.push({ id, reason: "not_older" });
       continue;
     }
@@ -98,8 +106,20 @@ export function guardSupersede(
       rejected.push({ id, reason: "protected_target" });
       continue;
     }
-    supersedes.push(id);
+    valid.push(id);
   }
 
-  return { duplicate_of: null, supersedes, rejected };
+  // Pass 2: the cap counts only ids that survived the guards.
+  if (valid.length > MAX_SUPERSEDES) {
+    return {
+      duplicate_of: null,
+      supersedes: [],
+      rejected: [
+        ...rejected,
+        ...valid.map((id) => ({ id, reason: "suspicious_supersede" })),
+      ],
+    };
+  }
+
+  return { duplicate_of: null, supersedes: valid, rejected };
 }
