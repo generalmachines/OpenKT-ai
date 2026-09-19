@@ -88,18 +88,56 @@ class Io {
   mapFile(key: string): string {
     return join(this.home, 'state', 'sessions', key);
   }
+  /** Which OpenKT session of this conversation is current: 1, then 2 after the first closed while idle, … */
+  generation(key: string): number {
+    const n = Number(existsSync(`${this.mapFile(key)}.gen`) ? readFileSync(`${this.mapFile(key)}.gen`, 'utf8').trim() : 1);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+  }
   async session(key: string, create: Obj | null, timeoutMs: number): Promise<string | null> {
     const file = this.mapFile(key);
     if (existsSync(file)) return readFileSync(file, 'utf8').trim() || null;
     if (!create) return null;
-    const res = await this.http('POST', '/v1/sessions', create, timeoutMs);
-    const id = str(pick(res.json ?? {}, 'data.id'));
-    if (res.status >= 200 && res.status < 300 && id) {
+    return this.open(key, create, this.generation(key), timeoutMs);
+  }
+  /**
+   * POST /v1/sessions for generation `gen` and remember the session. The server answers a known (source, external_id)
+   * with that session (Spec 04); a closed one means the conversation went idle, so it goes on in the next generation
+   * (external_id `<id>#2`, …). Also the status of the last call, for callers deciding whether to keep a write.
+   */
+  async open(key: string, create: Obj, gen: number, timeoutMs: number): Promise<string | null> {
+    for (let g = gen, tries = 0; tries < 3; g++, tries++) {
+      const res = await this.http('POST', '/v1/sessions', withGeneration(create, g), timeoutMs);
+      this.lastStatus = res.status;
+      const id = str(pick(res.json ?? {}, 'data.id'));
+      if (!(res.status >= 200 && res.status < 300) || !id) return null;
+      if (str(pick(res.json ?? {}, 'data.status')) === 'closed') continue;
+      const file = this.mapFile(key);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, id);
+      if (g > 1) writeFileSync(`${file}.gen`, String(g));
       return id;
     }
     return null;
+  }
+  lastStatus = 0;
+  /** At the start (or resume) of a conversation: its session, open — never a closed one. */
+  async ensureOpen(key: string, create: Obj, timeoutMs: number): Promise<string | null> {
+    if (existsSync(this.mapFile(key)) && create['external_id']) return this.open(key, create, this.generation(key), timeoutMs);
+    return this.session(key, create, timeoutMs);
+  }
+  /** Once `closedSid` closed: the session another hook already moved this conversation to, else the next generation. */
+  async rotate(key: string, create: Obj | null, closedSid: string, timeoutMs: number): Promise<string | null> {
+    const current = existsSync(this.mapFile(key)) ? readFileSync(this.mapFile(key), 'utf8').trim() : '';
+    if (current && current !== closedSid) return current;
+    if (!create) return null;
+    return this.open(key, create, this.generation(key) + 1, timeoutMs);
+  }
+  /** A write to `sid` refused because the session closed while idle: send it to the next session, once. */
+  async afterClosed(key: string, create: Obj | null, sid: string, method: string, path: string, body: unknown, res: { status: number; json: Obj | null }, timeoutMs: number): Promise<{ status: number; json: Obj | null }> {
+    if (!sid || !create || res.status !== 409 || str(pick(res.json ?? {}, 'error.code')) !== 'session_closed') return res;
+    const next = await this.rotate(key, create, sid, timeoutMs);
+    if (!next) return { status: retryable(this.lastStatus) ? 0 : res.status, json: null };
+    return this.http(method, path.replace(':sid', next), body, timeoutMs);
   }
   queue(key: string, create: Obj | null, method: string, path: string, body: unknown): void {
     const dir = join(this.home, 'outbox');
@@ -117,15 +155,18 @@ class Io {
   }
   async send(key: string, create: Obj | null, method: string, path: string, body: unknown): Promise<number> {
     let p = path;
+    let sid = '';
+    const timeout = this.deps.writeTimeoutMs ?? 1500;
     if (p.includes(':sid')) {
-      const sid = await this.session(key, create, this.deps.writeTimeoutMs ?? 1500);
+      sid = (await this.session(key, create, timeout)) ?? '';
       if (!sid) {
         this.queue(key, create, method, path, body);
         return 0;
       }
       p = p.replace(':sid', sid);
     }
-    const res = await this.http(method, p, body, this.deps.writeTimeoutMs ?? 1500);
+    let res = await this.http(method, p, body, timeout);
+    res = await this.afterClosed(key, create, sid, method, path, body, res, timeout);
     if (res.status >= 200 && res.status < 300) return res.status;
     if (retryable(res.status)) this.queue(key, create, method, path, body);
     return res.status;
@@ -138,9 +179,11 @@ class Io {
       const file = join(dir, name);
       const fields = Object.fromEntries(readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => [l.slice(0, l.indexOf(' ')), l.slice(l.indexOf(' ') + 1)]));
       const create = fields['create'] && fields['create'] !== '-' ? (JSON.parse(fields['create']) as Obj) : null;
-      let path = fields['path'] ?? '';
+      const template = fields['path'] ?? '';
+      let path = template;
+      let sid = '';
       if (path.includes(':sid')) {
-        const sid = await this.session(fields['key'] ?? '', create, this.deps.writeTimeoutMs ?? 5000);
+        sid = (await this.session(fields['key'] ?? '', create, this.deps.writeTimeoutMs ?? 5000)) ?? '';
         if (!sid) {
           if (!create) {
             rmSync(file, { force: true });
@@ -151,7 +194,8 @@ class Io {
         path = path.replace(':sid', sid);
       }
       const body = fields['body'] && fields['body'] !== '-' ? fields['body'] : undefined;
-      const res = await this.http(fields['method'] ?? 'POST', path, body, this.deps.writeTimeoutMs ?? 5000);
+      let res = await this.http(fields['method'] ?? 'POST', path, body, this.deps.writeTimeoutMs ?? 5000);
+      res = await this.afterClosed(fields['key'] ?? '', create, sid, fields['method'] ?? 'POST', template, body, res, this.deps.writeTimeoutMs ?? 5000);
       if ((res.status >= 200 && res.status < 300) || !retryable(res.status)) {
         rmSync(file, { force: true });
         if (path.endsWith('/close')) rmSync(this.mapFile(fields['key'] ?? ''), { force: true });
@@ -159,6 +203,15 @@ class Io {
     }
   }
 }
+
+/** The create body of generation `gen`: external_id `<id>` becomes `<id>#gen` (gen ≥ 2). */
+function withGeneration(create: Obj, gen: number): Obj {
+  const ext = str(create['external_id']);
+  return ext && gen > 1 ? { ...create, external_id: `${ext}#${gen}` } : create;
+}
+
+/** The session's source: the tool's own name when the server knows it (Spec 04 sources), else connector. */
+const TOOL_SOURCES = new Set(['claude-code', 'codex', 'cursor', 'gemini', 'windsurf', 'opencode', 'vscode', 'claude-desktop']);
 
 function retryable(status: number): boolean {
   return status === 0 || status >= 500 || status === 401 || status === 403 || status === 408 || status === 429;
@@ -268,8 +321,12 @@ export async function runHook(tool: string, event: HookEvent, stdinJson: string,
   const cwd = str(pick(input, 'cwd', 'workspace_roots.0')) || deps.cwd || '';
   const key = `${safeKey(tool)}__${safeKey(csid)}`;
   const space = cwd ? resolveSpace(deps.env, cwd) : '';
+  // The tool's own conversation id is the session's external_id (the same one twice → the same session); a
+  // parent-pid stand-in is not, since pids are reused.
+  const ext = str(pick(input, 'session_id', 'conversation_id', 'trajectory_id', 'sessionId'));
   const create: Obj = {
-    source: tool === 'claude-code' ? 'claude-code' : 'connector',
+    ...(ext && ext.length <= 200 ? { external_id: ext } : {}),
+    source: TOOL_SOURCES.has(tool) ? tool : 'connector',
     client: tool,
     title: basename(cwd) || `${tool} session`,
     metadata: { cwd, client_session_id: csid, via: 'openkt-connect' },
@@ -282,7 +339,8 @@ export async function runHook(tool: string, event: HookEvent, stdinJson: string,
     switch (event) {
       case 'session-start': {
         if (!creds.token) return ok(emit(tool, event, ''));
-        const created = existsSync(io.mapFile(key)) ? Promise.resolve(null) : io.session(key, create, 1500);
+        // Create the session, or check the remembered one is still open, while the brief is fetched.
+        const created = io.ensureOpen(key, create, 1500);
         const prime = await io.http('POST', '/v1/prime', withSpace({ with_briefing: true }), recallTimeout);
         let ctx = '';
         if (prime.status >= 200 && prime.status < 300) {

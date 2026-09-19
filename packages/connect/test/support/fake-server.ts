@@ -19,6 +19,12 @@ export interface FakeOptions {
   memories?: Array<Record<string, unknown>>;
 }
 
+/** The session sources the server accepts (server SESSION_SOURCES). */
+export const SESSION_SOURCES = [
+  'claude-code', 'codex', 'cursor', 'gemini', 'windsurf', 'opencode', 'vscode', 'claude-desktop', 'claude-ai', 'claude',
+  'cowork', 'chatgpt', 'hermes', 'mcp', 'voice', 'screenshot', 'meeting', 'note', 'connector',
+];
+
 /** Just enough of the OpenKT API (Spec 04 shapes, {data,error,meta} envelope) for the hook script and runHook. */
 export class FakeServer {
   readonly requests: Recorded[] = [];
@@ -90,15 +96,23 @@ export class FakeServer {
     const b = (body ?? {}) as Record<string, unknown>;
 
     if (method === 'POST' && path === '/v1/sessions') {
+      if (!SESSION_SOURCES.includes(String(b['source']))) return send(400, { code: 'validation_error', message: 'source' });
+      const view = (s: { id: string; project_id: string; status: string; body: Record<string, unknown> }) => ({
+        id: s.id, project_id: s.project_id, status: s.status, source: s.body['source'], client: s.body['client'], title: s.body['title'], external_id: s.body['external_id'] ?? null,
+      });
+      // Spec 04: the same (source, external_id) for the same owner → 200 with the existing session.
+      const known = b['external_id'] ? [...this.sessions.values()].find((x) => x.body['source'] === b['source'] && x.body['external_id'] === b['external_id']) : undefined;
+      if (known) return send(200, view(known));
       const id = randomUUID();
       const s = { id, project_id: String(b['project_id'] ?? 'personal-space'), status: 'open', turns: [], body: b };
       this.sessions.set(id, s);
-      return send(201, { id, project_id: s.project_id, status: 'open', source: b['source'], client: b['client'], title: b['title'] });
+      return send(201, view(s));
     }
     let m = /^\/v1\/sessions\/([^/]+)\/turns$/.exec(path);
     if (method === 'POST' && m) {
       const s = this.sessions.get(m[1]!);
       if (!s) return send(404, { code: 'not_found', message: 'session' });
+      if (s.status === 'closed') return send(409, { code: 'session_closed', message: 'This session is closed; open a new session to add turns.' });
       s.turns.push({ role: String(b['role']), content: String(b['content']) });
       return send(201, { id: randomUUID(), session_id: s.id, seq: s.turns.length, role: b['role'], content: b['content'] });
     }
