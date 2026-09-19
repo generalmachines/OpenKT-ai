@@ -29,6 +29,11 @@ export class ProjectsApplicationService {
     if (input.orgId) {
       await requireOrgAccess(context, input.orgId, "write");
     }
+    // `personal` names the personal space (ProjectScopeService); a second
+    // org-less space with that slug would read as it to every client.
+    if (!input.orgId && input.slug === "personal") {
+      throw new ValidationDomainError("the slug `personal` is reserved for your personal space");
+    }
     const slug = input.slug ?? (await this.freeSlug(context, input.name, input.orgId));
     return this.projectRepository.create(context, { ...input, slug });
   }

@@ -7,6 +7,8 @@ export interface ProjectRecord {
   visibility: "personal" | "org" | "public";
   orgId: string | null;
   ownerUserId: string;
+  // The owner's personal space (one per person). Never inferred from the slug.
+  isPersonal: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -209,10 +209,10 @@ export function parseJoinCode(input: string): string | null {
   return JoinCodeSchema.safeParse(candidate).success ? candidate : null;
 }
 
-// The personal space: org-less, `personal`, and named `personal` (see
-// ProjectScopeService.resolvePersonalProjectId). Team spaces never take that slug.
-export function isPersonalSpace(project: Pick<ProjectRecord, "visibility" | "orgId" | "slug">): boolean {
-  return project.visibility === "personal" && project.orgId === null && project.slug === "personal";
+// The personal space is the one marked `is_personal` (see
+// ProjectScopeService.resolvePersonalProjectId), never inferred from its slug.
+export function isPersonalSpace(project: Pick<ProjectRecord, "isPersonal">): boolean {
+  return project.isPersonal;
 }
 
 function requireUser(context: ActorContext): string {
