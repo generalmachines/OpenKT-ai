@@ -9,6 +9,7 @@ import { isSmoke, runSmoke } from './local-ai/smoke';
 import { registerNetIpc } from './net';
 import { registerPermissionsIpc } from './permissions/ipc';
 import { checkSystemConflicts, guardCapture, registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
+import { registerConnectIpc } from './connect/ipc'; // connect tools (packages/connect)
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
 // ── in-app updates ──
@@ -107,6 +108,7 @@ if (!app.requestSingleInstanceLock()) {
     registerNetIpc();
     registerAuthIpc(() => void openMainWindow());
     void registerUpdateIpc(allWindows); // in-app updates
+    registerConnectIpc(); // connect tools: tick to connect Claude Code, Codex, Cursor, … (src/main/connect)
     capture.onEvent(broadcast);
     capture.onMeetingDetected((meeting) => {
       pendingMeeting = meeting;

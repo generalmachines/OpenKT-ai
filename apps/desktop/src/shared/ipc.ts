@@ -5,6 +5,11 @@
  * src/preload/index.ts and checked against `IpcChannel` there.
  */
 
+// ── connect tools (begin) ──
+import type { ConnectBridge } from './connect';
+export type * from './connect';
+// ── connect tools (end) ──
+
 export type OverlayKind = 'voice' | 'meeting' | 'screenshot';
 
 /** Events pushed from the capture module to any window that listens. */
@@ -79,8 +84,20 @@ export type IpcChannel =
   | 'update:move-to-applications'
   | 'update:rollback'
   | 'update:seen'
-  | 'update:event';
+  | 'update:event'
   // ── end in-app updates ──
+  // ── connect tools (begin) ── main: src/main/connect, package: packages/connect
+  | 'connect:list'
+  | 'connect:plan'
+  | 'connect:apply'
+  | 'connect:undo'
+  | 'connect:guide'
+  | 'connect:detect-web'
+  | 'connect:test'
+  | 'connect:folders'
+  | 'connect:map-folder'
+  | 'connect:share-sign-in';
+  // ── connect tools (end) ──
 
 // ── first run: permissions + on-device AI setup (begin) ── main: src/main/permissions, src/main/models/setup.ts
 import type { PermissionKind, PermissionsStatusDto } from './permissions';
@@ -358,6 +375,10 @@ export interface OpenKTBridge {
       cancel(): Promise<void>;
     };
   };
+  // ── connect tools (begin) ──
+  /** Connect AI tools on this Mac (packages/connect). Errors come back as `{error}` values. */
+  connect: ConnectBridge;
+  // ── connect tools (end) ──
   /** OS-keychain-encrypted strings (the access token). */
   secureStore: {
     get(key: string): Promise<string | null>;

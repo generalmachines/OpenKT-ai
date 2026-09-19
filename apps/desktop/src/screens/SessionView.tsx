@@ -7,11 +7,11 @@ import type { ContextItem, Session } from '../api/types';
 import { AccessPanel } from '../components/AccessPanel';
 import { ErrorNote, Key, KindChip, Loading } from '../components/bits';
 import { Icon, SOURCE_ICON } from '../components/Icon';
+import { useConnectedToolCount } from './settings/ConnectorsData';
 
 const TABS = ['summary', 'context', 'transcript', 'access'] as const;
 type Tab = (typeof TABS)[number];
 
-const AI_TOOLS = new Set(['claude-code', 'cursor', 'chatgpt', 'claude', 'hermes']);
 
 function ContextRow({ item, detail }: { item: ContextItem; detail?: boolean }) {
   return (
@@ -86,7 +86,7 @@ export function SessionView() {
   const context = useQuery((c) => c.listContext(id), [id]);
   const grants = useQuery((c) => c.listGrants({ type: 'session', id }), [id]);
   const spaces = useQuery((c) => c.listSpaces(), []);
-  const connectors = useQuery((c) => c.listConnectors(), []);
+  const connectedTools = useConnectedToolCount(); // tools connected on this Mac (packages/connect)
   const voice = voiceKeys(useHotkeys());
 
   if (tab && !(TABS as readonly string[]).includes(tab)) return <Navigate to={`/sessions/${id}`} replace />;
@@ -108,7 +108,7 @@ export function SessionView() {
   const s = session.data;
   const items = context.data ?? [];
   const spaceName = spaces.data?.find((x) => x.id === s.spaceId)?.name ?? '';
-  const tools = (connectors.data ?? []).filter((c) => c.connected && AI_TOOLS.has(c.source)).length;
+  const tools = connectedTools ?? 0;
   const where = s.extractedOn === 'device' ? 'extracted on this Mac' : s.extractedOn === 'none' ? 'saved as written' : 'extracted on your server';
 
   return (
