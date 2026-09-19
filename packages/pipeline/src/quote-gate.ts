@@ -13,9 +13,10 @@ export function normalise(text: string): string {
     .replace(/[\u2010-\u2015\u2212]/g, "-")
     .replace(/\u2026/g, "...")
     .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+    .trim();
 }
+
+export const MIN_QUOTE_CHARS = 8;
 
 type KeptFact = ExtractedFact & { turn_seq: number };
 type DropReason = "quote_not_found" | "quote_only_in_overlap" | "quote_too_short" | "secret";
@@ -36,7 +37,7 @@ export function quoteGate(
     }
 
     const quote = normalise(fact.quote);
-    if (quote.length < 12) {
+    if (quote.length < MIN_QUOTE_CHARS) {
       dropped.push({ index, reason: "quote_too_short" });
       return;
     }
