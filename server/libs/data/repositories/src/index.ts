@@ -1,6 +1,5 @@
 export * from "./invite.repository";
 export * from "./llm-config.repository";
-export * from "./memory.repository";
 export * from "./org.repository";
 export * from "./outbox.repository";
 export * from "./profile.repository";
