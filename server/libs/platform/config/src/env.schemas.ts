@@ -89,6 +89,13 @@ const baseEnvironmentSchema = z.object({
   // unset, the key is derived from OPENKT_INTERNAL_SERVICE_TOKEN, then
   // OPENKT_MCP_SERVICE_KEY, then DATABASE_URL — values every replica shares.
   OPENKT_FORM_SECRET: z.string().min(16).optional(),
+  // Sign-in limits (LoginAttemptsService). Failed logins: per email and per IP
+  // in 15 minutes. Sign-ups: per IP in an hour — generous, because a whole
+  // venue can share one address. Successful logins and sign-ups never count
+  // against an email.
+  OPENKT_AUTH_MAX_FAILED_LOGINS_PER_EMAIL: z.coerce.number().int().min(1).default(10),
+  OPENKT_AUTH_MAX_FAILED_LOGINS_PER_IP: z.coerce.number().int().min(1).default(100),
+  OPENKT_AUTH_MAX_SIGNUPS_PER_IP: z.coerce.number().int().min(1).default(300),
   // Supabase sign-in — optional, all-or-nothing (see ensureSupabaseIsAllOrNothing).
   SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL").optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
