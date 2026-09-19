@@ -9,6 +9,8 @@ import { Onboarding } from '../screens/Onboarding';
 import { PageView } from '../screens/PageView';
 import { SessionView } from '../screens/SessionView';
 import { Settings } from '../screens/settings/Settings';
+import { SkillEdit } from '../screens/skill/SkillEditor';
+import { SkillView } from '../screens/skill/SkillView';
 import { Skills } from '../screens/Skills';
 import { SpaceView } from '../screens/SpaceView';
 import { SpacesList } from '../screens/SpacesList';
@@ -53,6 +55,9 @@ export function AppRoutes() {
           <Route path="/spaces/:id/:tab?" element={<SpaceView />} />
           <Route path="/pages/:id" element={<PageView />} />
           <Route path="/skills" element={<Skills />} />
+          <Route path="/skills/:id" element={<SkillView />} />
+          <Route path="/skills/:id/edit" element={<SkillEdit />} />
+          <Route path="/skills/:id/versions/:version" element={<SkillView />} />
           <Route path="/settings/:section?" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

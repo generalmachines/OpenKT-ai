@@ -7,6 +7,7 @@
  * actually loaded and that nothing overflows horizontally.
  *
  * CHROMIUM_PATH overrides the browser binary (no browser is downloaded).
+ * `--only=<text>` shoots just the shots whose name contains it.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,6 +19,8 @@ import { chromium } from 'playwright-core';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'shots');
 const dev = process.argv.includes('--dev');
+/** `--only=skill` shoots just the matching names (and keeps the other PNGs). */
+const only = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length) ?? '';
 const port = dev ? 5173 : 4173;
 const base = `http://localhost:${port}`;
 const executablePath =
@@ -280,6 +283,56 @@ const SHOTS = [
   ['12-space-access', '/spaces/sp-northgate/access', APP, null, null],
   ['13-page', '/pages/p-northgate-pricing', APP, null, 'Page.dc.html'],
   ['14-skills', '/skills', APP, null, 'Skills.dc.html'],
+  [
+    '14b-new-skill-dialog',
+    '/skills',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'New skill' }).click();
+      await p.getByLabel('Name').fill('Answer a pricing question');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  ['14c-skill-read', '/skills/sk-marketing', APP, null, 'Skill.dc.html'],
+  ['14d-skill-source', '/skills/sk-marketing', APP, async (p) => p.getByRole('button', { name: 'Source' }).click(), null],
+  ['14e-skill-reference-file', '/skills/sk-marketing', APP, async (p) => p.getByRole('button', { name: /references\/voice\.md/ }).click(), null],
+  ['14f-skill-edit', '/skills/sk-marketing/edit', APP, async (p) => p.getByLabel('Edit SKILL.md').waitFor(), 'Skill-Edit.dc.html'],
+  [
+    '14g-skill-edit-invalid',
+    '/skills/sk-marketing/edit',
+    APP,
+    async (p) => {
+      const editor = p.getByLabel('Edit SKILL.md');
+      await editor.fill(`# Sharpen a marketing message\n\nRewrite the draft so it sounds like us.\n`);
+      await p.getByRole('alert').waitFor();
+    },
+    null,
+  ],
+  ['14h-skill-version-view', '/skills/sk-marketing/versions/3', APP, async (p) => p.getByRole('button', { name: 'Restore this version' }).waitFor(), null],
+  [
+    '14i-skill-run-sheet',
+    '/skills/sk-marketing',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Run', exact: true }).click();
+      await p.getByLabel('Your input').fill('We’re thrilled to unveil our revolutionary AI-powered planogram engine that seamlessly empowers retailers!');
+    },
+    null,
+  ],
+  ['14j-skill-reader', '/skills/sk-followup', APP, null, null],
+  [
+    '14k-skill-share',
+    '/skills/sk-pr',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Share' }).click();
+      await p.getByLabel('Invite by email').fill('dana@northgate.com');
+      await p.getByRole('button', { name: 'Invite', exact: true }).click();
+      await p.getByText('Invited — hasn’t joined yet').waitFor();
+    },
+    null,
+  ],
   ['15-settings-connectors', '/settings/connectors', APP, null, 'Connectors.dc.html'],
   ['16-settings-connectors-menu', '/settings/connectors', APP, async (p) => p.getByRole('button', { name: /New ChatGPT sessions/ }).click(), null],
   ['17-settings-access-defaults', '/settings/access', APP, null, null],
@@ -343,6 +396,7 @@ const SHOTS = [
   ['33-overlay-screenshot', '/overlay/screenshot', SHOT_WIN, async (p) => p.getByRole('textbox', { name: 'Title' }).waitFor(), 'Capture-Screenshot.dc.html', fakeCaptureIpc],
   ['34-overlay-screenshot-nothing', '/overlay/screenshot?fake=nothing', SHOT_WIN, async (p) => p.getByRole('button', { name: 'Close' }).waitFor(), null, fakeCaptureIpc],
   ['27-session-summary-960x640', S, { width: 960, height: 640 }, null, null],
+  ['27b-skill-edit-960x640', '/skills/sk-marketing/edit', { width: 960, height: 640 }, async (p) => p.getByLabel('Edit SKILL.md').waitFor(), null],
   // ── first run on a Mac (fake bridge: fakeFirstRun) ──
   ['35-onboarding-2-permissions', '/onboarding/2?perms=fresh', APP, async (p) => p.getByRole('button', { name: 'Allow: Microphone' }).waitFor(), 'Onboarding.dc.html', fakeFirstRun],
   ['36-onboarding-2-permissions-relaunch', '/onboarding/2?perms=mixed', APP, async (p) => p.getByRole('button', { name: 'Relaunch OpenKT' }).waitFor(), null, fakeFirstRun],
@@ -395,8 +449,9 @@ function audit() {
     const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     // crushed flex children: text-bearing element squeezed to nothing
     if (hasText && (r.width < 2 || r.height < 2)) problems.push(`${label} is crushed to ${Math.round(r.width)}×${Math.round(r.height)}`);
-    // clipped text, unless the element opts into an ellipsis
-    if (hasText && cs.textOverflow !== 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== 'visible')
+    // clipped text, unless the element opts into an ellipsis (a code box that scrolls sideways is not clipping)
+    const scrollsSideways = el.matches('textarea, pre') && (cs.overflowX === 'auto' || cs.overflowX === 'scroll');
+    if (hasText && !scrollsSideways && cs.textOverflow !== 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== 'visible')
       problems.push(`${label} clips its text (${el.scrollWidth} > ${el.clientWidth})`);
     // anything sticking out past the right edge of the window
     if (r.width > 0 && r.right > window.innerWidth + 1 && !el.closest('.sr-only')) problems.push(`${label} extends ${Math.round(r.right - window.innerWidth)}px past the window`);
@@ -407,7 +462,7 @@ function audit() {
 async function main() {
   if (!existsSync(executablePath)) throw new Error(`Chromium not found at ${executablePath}. Set CHROMIUM_PATH.`);
   if (!dev && !existsSync(join(root, 'dist/index.html'))) throw new Error('dist/ is missing — run `npm run build:renderer` first.');
-  rmSync(out, { recursive: true, force: true });
+  if (!only) rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
 
   const vite = join(root, 'node_modules/.bin/vite');
@@ -418,7 +473,7 @@ async function main() {
     await waitForServer(base);
     const browser = await chromium.launch({ executablePath, args: ['--autoplay-policy=no-user-gesture-required'] });
     const report = [];
-    for (const [name, route, viewport, steps, artboard, init] of SHOTS) {
+    for (const [name, route, viewport, steps, artboard, init] of SHOTS.filter(([name]) => !only || name.includes(only))) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' });
       const page = await context.newPage();
       if (init) await page.addInitScript(init);
@@ -448,7 +503,7 @@ async function main() {
       console.log(`${problems.length ? '✗' : '✓'} ${name}  ${route}${problems.length ? `\n    ${problems.join('\n    ')}` : ''}`);
     }
     await browser.close();
-    writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+    if (!only) writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(`\n${report.length} screenshots → ${out}`);
   } finally {
     server.kill();
