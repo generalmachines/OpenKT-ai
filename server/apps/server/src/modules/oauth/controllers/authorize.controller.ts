@@ -280,7 +280,7 @@ function clearFormCookie(req: Request, res: Response): void {
   res.clearCookie(FORM_COOKIE_NAME, { httpOnly: true, sameSite: "lax", secure: isHttps(req), path: "/oauth" });
 }
 
-function isHttps(req: Request): boolean {
+export function isHttps(req: Request): boolean {
   const forwarded = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim();
   return (forwarded ?? req.protocol) === "https";
 }
@@ -305,7 +305,7 @@ export function readCookie(req: Request, name: string): string | undefined {
 // AccountsService throws HttpException({code, message}); turn the ones a
 // person can act on into a sentence for the page. Anything else is a real
 // server error and propagates.
-function accountErrorMessage(error: unknown): { status: number; text: string } | null {
+export function accountErrorMessage(error: unknown): { status: number; text: string } | null {
   if (!(error instanceof HttpException)) return null;
   const response = error.getResponse() as { code?: string; message?: string } | string;
   const code = typeof response === "object" ? response.code : undefined;

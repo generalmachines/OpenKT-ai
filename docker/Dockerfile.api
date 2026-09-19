@@ -20,6 +20,8 @@ COPY server/package.json build-info.jso[n] ./
 # The MCP Apps cards (one self-contained HTML file, built and committed in packages/mcp-cards). The server
 # reads it from ../packages/mcp-cards/dist/ relative to its working directory.
 COPY packages/mcp-cards/dist/openkt-cards.html /app/packages/mcp-cards/dist/openkt-cards.html
+# The paste-in setup prompt shown on /connect (read from ../plugin/ the same way).
+COPY plugin/SETUP-PROMPT.md /app/plugin/SETUP-PROMPT.md
 # The migration runner reads the SQL files from this relative path.
 COPY --from=build /app/server/apps/server/src/db/migrations ./apps/server/src/db/migrations
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4100

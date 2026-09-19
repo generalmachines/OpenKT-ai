@@ -40,6 +40,8 @@ import { GrantsModule } from "./modules/grants/grants.module";
 import { AccessModule } from "./modules/access/access.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
 import { SkillsModule } from "./modules/skills/skills.module";
+import { TeamsModule } from "./modules/teams/teams.module";
+import { WebModule } from "./modules/web/web.module";
 
 @Module({
   imports: [
@@ -79,6 +81,8 @@ import { SkillsModule } from "./modules/skills/skills.module";
     SkillsModule,
     AccessModule,
     AccountsModule,
+    TeamsModule,
+    WebModule,
   ],
   providers: [
     {
