@@ -85,6 +85,10 @@ const baseEnvironmentSchema = z.object({
   // come from the proxy's address and the per-IP sign-in limit is shared by
   // everyone. Leave unset when clients connect directly.
   OPENKT_TRUST_PROXY: z.string().min(1).optional(),
+  // Signs the CSRF token on the OAuth sign-in page (/oauth/authorize). Optional:
+  // unset, the key is derived from OPENKT_INTERNAL_SERVICE_TOKEN, then
+  // OPENKT_MCP_SERVICE_KEY, then DATABASE_URL — values every replica shares.
+  OPENKT_FORM_SECRET: z.string().min(16).optional(),
   // Supabase sign-in — optional, all-or-nothing (see ensureSupabaseIsAllOrNothing).
   SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL").optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
