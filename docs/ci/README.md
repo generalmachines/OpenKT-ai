@@ -6,9 +6,10 @@ GitHub Actions is **disabled** for this repository. The owner decided to run CI 
 |---|---|---|
 | Server deploy on push to `main` | CodeBuild `openkt-ai-deploy` (us-east-1), `.codebuild/deploy.yml` | live |
 | Pull-request checks (packages, desktop unit tests on Linux, server, plugin manifests) | CodeBuild `openkt-ai-pr-checks` (us-east-1), `.codebuild/pr-checks.yml` | live, reports the `openkt-ai-pr-checks` status |
-| macOS app: DMG + zip, published to the S3 update feed | `.codebuild/desktop-release.yml` | **prepared, not connected**: needs a Mac the owner has to approve |
+| openkt.ai landing page (`apps/site`, static) → Cloudflare Pages `openkt-landing` | CodeBuild `openkt-ai-site` (us-east-1), `.codebuild/site.yml` | live |
+| macOS app: DMG + zip, published to the S3 update feed | `.codebuild/desktop-release.yml` runs `scripts/mac-release.sh`, the same script a person runs on their own Mac | **prepared, not connected**: needs a Mac the owner has to approve. Until then, `scripts/mac-release.sh` on the owner's Mac is the free way |
 
-Source access for all projects goes through the CodeConnections GitHub connection `openkt-github` (us-east-1, GitHub App). Source download takes about 4 s. Before this, `openkt-landing-build` used the account-wide GitHub token, and its source download took about a minute or hung.
+Source access for all projects goes through the CodeConnections GitHub connection `openkt-github` (us-east-1, GitHub App). Source download takes about 4 s. The old `openkt-landing-build` (superseded by `openkt-ai-site`, webhook off) seemed to spend a minute or more in DOWNLOAD_SOURCE. That time was actually CodeBuild copying Node 22 with `n` for `runtime-versions: nodejs: 22`. The buildspecs here put the image's own Node 22 first on PATH instead.
 
 ## macOS builds: the options
 
@@ -26,7 +27,7 @@ Apple silicon Macs on AWS are dedicated hosts with a **24-hour minimum** per all
 - **EC2 Mac hosts** bill from allocation until release, and cannot be released inside the first 24 hours.
 - **EBS** comes on top of either option. The app build needs about 100 GB of gp3, about $8 / month at us-east-1 rates (approximate).
 
-**Cheapest way that works:** allocate one `mac2` host in us-east-1 only on release days. Run `.codebuild/desktop-release.yml`'s commands on it, as a CodeBuild fleet or directly over SSM, then release the host after 24 h. That costs **$15.60 per release day**. A CodeBuild fleet is simpler to operate (webhook-triggered, logs and status like the other projects) but costs at least $28.80 per day it exists.
+**Cheapest way that works:** allocate one `mac2` host in us-east-1 only on release days. Run `scripts/mac-release.sh` on it over SSM (or connect `.codebuild/desktop-release.yml` to a CodeBuild fleet), then release the host after 24 h. That costs **$15.60 per release day**. A CodeBuild fleet is simpler to operate (webhook-triggered, logs and status like the other projects) but costs at least $28.80 per day it exists.
 
 **Quota:** this account's EC2 quota for every Mac host type in us-east-1 is **0** (`Running Dedicated mac2 Hosts` = 0, quota code `L-5D8DADF5`). A quota increase has to be requested and granted before any host can be allocated, and AWS can take hours to days to grant it.
 

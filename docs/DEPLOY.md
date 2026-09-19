@@ -6,8 +6,9 @@ The hosted OpenKT server runs on a Dokku host in AWS. **CI runs on AWS CodeBuild
 |---|---|---|---|
 | `openkt-ai-deploy` | push to `main`, paths above | `.codebuild/deploy.yml` | `codebuild-openkt-ai-deploy`: its log group, `ci/*` in the artifact bucket, `ssm:SendCommand` to the one instance + `AWS-RunShellScript`, read command results, the GitHub connection |
 | `openkt-ai-pr-checks` | pull request opened / updated / reopened; from a fork only after a maintainer approves | `.codebuild/pr-checks.yml` | `codebuild-openkt-ai-pr-checks`: its log group and the GitHub connection, nothing else |
+| `openkt-ai-site` | push to `main` touching `apps/site/` or `.codebuild/site.yml` | `.codebuild/site.yml`: `wrangler pages deploy` to Cloudflare Pages `openkt-landing`, then checks openkt.ai serves `apps/site/index.html` | `codebuild-openkt-ai-site`: its log group, the GitHub connection, SSM parameter `/openkt-ai/cloudflare-pages-token` |
 
-Both check out the code through the CodeConnections GitHub connection `openkt-github` (us-east-1) and report a commit status on GitHub (`openkt-ai-deploy`, `openkt-ai-pr-checks`). Logs: CloudWatch `/aws/codebuild/<project>`; the console lists every build. `scripts/deploy-from-box.sh` never deploys backwards: when production already runs the commit or a newer one it stops (`FORCE_DEPLOY=1` overrides). Desktop builds need a macOS machine and are not connected yet; see `docs/ci/README.md`.
+All three check out the code through the CodeConnections GitHub connection `openkt-github` (us-east-1) and report a commit status on GitHub (`openkt-ai-deploy`, `openkt-ai-pr-checks`, `openkt-ai-site`). Logs: CloudWatch `/aws/codebuild/<project>`; the console lists every build. `scripts/deploy-from-box.sh` never deploys backwards: when production already runs the commit or a newer one it stops (`FORCE_DEPLOY=1` overrides). Desktop builds need a macOS machine and are not connected yet; see `docs/ci/README.md`.
 
 ## Why it is built this way
 
