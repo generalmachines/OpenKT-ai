@@ -41,11 +41,9 @@ export function isSkippedNote(md: string): boolean {
   return parseFrontmatter(md).attrs["openkt"] === "false";
 }
 
-/** The note's `openkt-space` frontmatter value, when set (overrides the container's space). */
-export function frontmatterSpace(md: string): string | undefined {
-  const space = parseFrontmatter(md).attrs["openkt-space"];
-  return space === undefined || space === "" ? undefined : space;
-}
+// No `openkt-space` frontmatter routing: one container maps to one space
+// (Spec 05 §4 — decided on #112). The app files every item from a container
+// into that container's space; a note never routes itself elsewhere.
 
 export function sha256Hex(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");

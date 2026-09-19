@@ -3,7 +3,6 @@ import {
   MAX_BODY_CHARS,
   TRUNCATION_MARKER,
   createObsidianConnector,
-  frontmatterSpace,
   isSkippedNote,
   noteToTurns,
   parseFrontmatter,
@@ -139,16 +138,17 @@ describe("frontmatter helpers", () => {
     expect(body).toBe("---\nnever closed");
   });
 
-  it("frontmatterSpace returns openkt-space when set", () => {
-    expect(frontmatterSpace(WITH_FRONTMATTER)).toBe("product-notes");
-    expect(frontmatterSpace(NO_HEADINGS)).toBeUndefined();
-    expect(frontmatterSpace("---\nopenkt-space:\n---\nx")).toBeUndefined();
-  });
-
   it("a malformed frontmatter value line is ignored, not thrown", () => {
     const { attrs, body } = parseFrontmatter("---\nno-colon-line\ngood: yes\n---\nbody");
     expect(attrs).toEqual({ good: "yes" });
     expect(body).toBe("body");
+  });
+
+  it("openkt-space is not parsed for routing (one container → one space, #112)", () => {
+    // the helper is gone; the attribute, if present, is ignored
+    const { attrs } = parseFrontmatter(WITH_FRONTMATTER);
+    expect(attrs["openkt-space"]).toBe("product-notes");
+    expect(Object.keys(attrs)).not.toContain("space");
   });
 });
 
