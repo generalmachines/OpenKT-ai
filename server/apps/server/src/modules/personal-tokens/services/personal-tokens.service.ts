@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, like, ne, or, sql } from "drizzle-orm";
 
 import {
   NotFoundDomainError,
@@ -19,6 +19,9 @@ import {
 // distinctive so secret scanners + grep over codebases catch leaked
 // tokens. 32 random bytes (~256 bits) is plenty of entropy.
 export const TOKEN_PREFIX = "okt_pat_";
+// Sign-in sessions of the built-in accounts ARE access tokens, told apart only
+// by their name: `session:desktop`, `session:web`, `session:cli`.
+export const SESSION_TOKEN_NAME_PREFIX = "session:";
 const RAW_BYTES = 32;
 
 export interface IssuedToken {
@@ -122,6 +125,29 @@ export class PersonalTokensService {
       throw new NotFoundDomainError("token not found or already revoked");
     }
     this.logger.log(`[pat] revoked id=${tokenId} user=${userId}`);
+  }
+
+  // Revoke every sign-in session of a user, optionally sparing one (the
+  // session that asked — a password change signs out everywhere else).
+  // Hand-made access tokens are left alone: the person named and placed those
+  // deliberately, and revokes them one by one under /v1/me/tokens.
+  async revokeSessions(userId: string, exceptTokenId?: string | null): Promise<number> {
+    const result = await this.db
+      .update(personalAccessTokens)
+      .set({ revokedAt: sql`now()` })
+      .where(
+        and(
+          eq(personalAccessTokens.userId, userId),
+          like(personalAccessTokens.name, `${SESSION_TOKEN_NAME_PREFIX}%`),
+          isNull(personalAccessTokens.revokedAt),
+          exceptTokenId ? ne(personalAccessTokens.id, exceptTokenId) : undefined,
+        ),
+      )
+      .returning({ id: personalAccessTokens.id });
+    if (result.length > 0) {
+      this.logger.log(`[pat] revoked ${result.length} session(s) user=${userId}`);
+    }
+    return result.length;
   }
 
   // Bearer resolver: takes a raw `okt_pat_…` token, returns the owning

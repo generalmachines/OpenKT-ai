@@ -24,6 +24,17 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
   app.useLogger(app.get(Logger));
+  // Behind a reverse proxy, `req.ip` is the proxy unless Express is told how
+  // many hops to trust — and the per-IP sign-in limit would be shared by
+  // everyone. OPENKT_TRUST_PROXY takes Express's own values: a hop count
+  // ("1"), "true", or a subnet list ("loopback, 10.0.0.0/8").
+  const trustProxy = process.env.OPENKT_TRUST_PROXY?.trim();
+  if (trustProxy) {
+    app.set(
+      "trust proxy",
+      /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === "true" ? true : trustProxy,
+    );
+  }
   // /mcp lives outside /v1 because the MCP protocol is versioned by
   // the SDK itself, not by our REST API. Canonical URL is
   // https://api.openkt.ai/mcp; the controller also registers /v1/mcp
