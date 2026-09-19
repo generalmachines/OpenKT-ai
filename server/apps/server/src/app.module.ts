@@ -19,7 +19,6 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { BriefingModule } from "./modules/briefing/briefing.module";
 import { BriefingsModule } from "./modules/briefings/briefings.module";
 import { CaptureModule } from "./modules/capture/capture.module";
-import { GraphModule } from "./modules/graph/graph.module";
 import { HealthModule } from "./modules/health/health.module";
 import { InternalModule } from "./modules/internal/internal.module";
 import { InvitesModule } from "./modules/invites/invites.module";
@@ -56,7 +55,6 @@ import { AccessModule } from "./modules/access/access.module";
     AuditModule,
     HealthModule,
     InternalModule,
-    GraphModule,
     MemoryModule,
     PrimeModule,
     OrgsModule,

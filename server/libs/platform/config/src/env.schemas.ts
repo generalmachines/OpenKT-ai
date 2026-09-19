@@ -144,11 +144,6 @@ const baseEnvironmentSchema = z.object({
   // compliance reasons — the existing token/latency accounting still
   // works, the new columns simply stay NULL.
   OPENKT_LLM_IO_CAPTURE: z.coerce.boolean().default(true),
-  // Direct Neo4j read for /v1/projects/:id/graph (optional — when unset,
-  // graph still returns memories + episodes + similarity, just no `mentions`).
-  OPENKT_MEMMACHINE_NEO4J_URI: z.string().min(1).optional(),
-  OPENKT_MEMMACHINE_NEO4J_USER: z.string().min(1).optional(),
-  OPENKT_MEMMACHINE_NEO4J_PASSWORD: z.string().min(1).optional(),
   // RabbitMQ management API (used by /v1/internal/rabbitmq-state). When
   // OPENKT_RABBITMQ_MGMT_URL is set the rabbitmq-state endpoint hits
   // ${url}/api/{exchanges,queues,consumers} with basic-auth from

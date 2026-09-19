@@ -35,7 +35,4 @@ export const ANALYTICS_ROUTE_MAP: ReadonlyMap<string, RouteEventMatch> = new Map
 
   ["POST /v1/orgs", { event: "org.created" }],
   ["POST /v1/orgs/:id/invites", { event: "org.invited" }],
-
-  // High-signal reads we explicitly want to track.
-  ["GET /v1/projects/:id/graph", { event: "graph.viewed", includeRead: true }],
 ]);
