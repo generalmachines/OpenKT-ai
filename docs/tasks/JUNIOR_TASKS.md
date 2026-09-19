@@ -1674,21 +1674,26 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 - packages/connectors/src/obsidian.ts as the pattern
 
 **Do exactly this**
-1. One file per product. Use only `provider.call(action, params)` — no direct HTTP, no product SDKs.
-2. Turn rules from Spec 05 §4: document → a turn per top-level section; email thread → a turn per message; ticket → description + a turn per comment.
-3. Flatten rich content to markdown with `turndown` (allowed dependency).
-4. Open one pull request per product.
+1. One file per product. Use only `provider.call(action, params)` — no direct HTTP, no product SDKs. Document the provider actions you call at the top of the file.
+2. Names must not clash across products, because `src/index.ts` re-exports every file: the factory is `create<Product>Connector`, the pure function is exported as `<product>ToSession` (the connector object still exposes it as `toSession`), and shared helpers are imported from `./obsidian.js`, never redefined. Add one `export * from "./<product>.js";` line to `src/index.ts`.
+3. Paginated listings are followed to the end: `backfill` returns one provider page per call (its cursor is the provider's), and `poll` walks every page until there is no `nextCursor`.
+4. Turn rules from Spec 05 §4: document → a turn per top-level section; email thread → a turn per message; ticket → description + a turn per comment. Nested content (child blocks, replies) is flattened into its parent's turn, never dropped.
+5. Flatten rich content to markdown with `turndown` (allowed dependency).
+6. Open one pull request per product.
 
 **Files you may touch**
 - `packages/connectors/src/<product>.ts`
 - `packages/connectors/test/<product>.test.ts`
 - fixtures of provider responses
+- packages/connectors/src/index.ts (one export line per product)
 - packages/connectors/package.json and package-lock.json (the `turndown` dependency only, in the first product's pull request)
 
 **Acceptance — every line must be true and tested**
 - [ ] `toSession` is pure and covered by fixtures for each product.
 - [ ] `backfill` pages through a fake provider with 3 pages and returns every item once.
 - [ ] Items over 200 KB are truncated with the marker turn.
+- [ ] `poll` finds a change on the last page of a 2-page listing.
+- [ ] `npm run typecheck -w @openkt/connectors` passes with the product's line in `src/index.ts`.
 
 **Out of scope**
 - Slack.
