@@ -14,7 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/server/dist ./dist
 COPY --from=build /app/server/node_modules ./node_modules
-COPY --from=build /app/server/package.json ./package.json
+# build-info.json ({commit, built_at}, served by GET /v1/meta) is written into the source archive by
+# deploy/dokku/ship.sh. The glob copies it when present and is a no-op for a plain `docker build`.
+COPY server/package.json build-info.jso[n] ./
 # The migration runner reads the SQL files from this relative path.
 COPY --from=build /app/server/apps/server/src/db/migrations ./apps/server/src/db/migrations
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4100
