@@ -1,6 +1,6 @@
 #!/bin/sh
 # openkt-hook.sh: connects an AI tool to OpenKT. Installed by packages/connect (openkt-connect).
-# openkt-hook-version: 1
+# openkt-hook-version: 2
 #
 #   openkt-hook.sh <tool> <event>   the tool's hook JSON on stdin; prints the tool's expected JSON (or nothing)
 #   openkt-hook.sh mcp              a stdio MCP server that forwards every message to <server>/mcp
@@ -21,7 +21,7 @@ umask 077
 LC_ALL=C
 export LC_ALL
 
-OKT_VERSION=1
+OKT_VERSION=2
 OKT_HOME=${OPENKT_HOME:-${HOME:-/tmp}/.openkt}
 OKT_AWK=${OPENKT_AWK:-awk}
 OKT_GREP=${OPENKT_GREP:-grep}
@@ -257,6 +257,57 @@ okt_space() {
 
 okt_map_file() { printf '%s/state/sessions/%s' "$OKT_HOME" "$1"; }
 
+# Which OpenKT session of this conversation is current: 1 for the first, 2 after the first closed while idle, …
+okt_gen() {
+  _gn=$(cat "$(okt_map_file "$1").gen" 2>/dev/null)
+  case $_gn in '' | *[!0-9]*) _gn=1 ;; esac
+  printf '%s' "$_gn"
+}
+
+# okt_create_gen CREATE_BODY GEN: the create body of generation GEN — external_id "<id>" becomes "<id>#GEN" (GEN ≥ 2).
+# CREATE_BODY starts with external_id when the tool names its conversation (okt_context), so the suffix goes right
+# before the "source" field.
+okt_create_gen() {
+  case $1 in
+    '{"external_id":"'*) if [ "$2" -gt 1 ]; then printf '%s' "$1" | sed "s/\",\"source\":\"/#$2\",\"source\":\"/"; return 0; fi ;;
+  esac
+  printf '%s' "$1"
+}
+
+# okt_open KEY CREATE_BODY GEN TIMEOUT: POST /v1/sessions for generation GEN and remember the session; prints its id.
+# The server answers a known (source, external_id) with that session (Spec 04); a closed one means the conversation
+# went idle, so it goes on in the next generation. Returns 1 (OKT_STATUS set) when no session could be had.
+okt_open() {
+  _om=$(okt_map_file "$1"); _og=$3; _otry=0
+  while [ $_otry -lt 3 ]; do
+    _obody=$(okt_create_gen "$2" "$_og")
+    okt_http POST /v1/sessions "$_obody" "$4"
+    # A folder filed under a space this person can no longer write to: fall back to the personal space.
+    if ! okt_ok && ! okt_retryable || [ "$OKT_STATUS" = 403 ]; then
+      case $_obody in
+        *'"project_id":'*)
+          _obody=$(printf '%s' "$_obody" | sed 's/,"project_id":"[^"]*"//')
+          okt_http POST /v1/sessions "$_obody" "$4"
+          ;;
+      esac
+    fi
+    okt_ok || return 1
+    _of=$(printf '%s' "$OKT_BODY" | okt_flat)
+    _osid=$(junesc "$(jget "$_of" data.id)")
+    [ -n "$_osid" ] || return 1
+    if [ "$(junesc "$(jget "$_of" data.status)")" = closed ]; then
+      _og=$((_og + 1)); _otry=$((_otry + 1))
+      continue
+    fi
+    mkdir -p "$OKT_HOME/state/sessions" 2>/dev/null
+    printf '%s' "$_osid" >"$_om"
+    [ "$_og" -gt 1 ] && printf '%s' "$_og" >"$_om.gen"
+    printf '%s' "$_osid"
+    return 0
+  done
+  return 1
+}
+
 # okt_session KEY CREATE_BODY TIMEOUT → the OpenKT session id for this tool session (created once, then remembered).
 okt_session() {
   _m=$(okt_map_file "$1")
@@ -271,29 +322,45 @@ okt_session() {
     [ -s "$_m" ] && { cat "$_m"; return 0; }
     mkdir "$_m.lock" 2>/dev/null || return 0
   fi
-  _body=$2
-  okt_http POST /v1/sessions "$_body" "$3"
-  # A folder filed under a space this person can no longer write to: fall back to the personal space.
-  if ! okt_ok && ! okt_retryable || [ "$OKT_STATUS" = 403 ]; then
-    case $_body in
-      *'"project_id":'*)
-        _body=$(printf '%s' "$_body" | sed 's/,"project_id":"[^"]*"//')
-        okt_http POST /v1/sessions "$_body" "$3"
-        ;;
-    esac
-  fi
-  if okt_ok; then
-    _sid=$(junesc "$(jget "$(printf '%s' "$OKT_BODY" | okt_flat)" data.id)")
-    if [ -n "$_sid" ]; then
-      printf '%s' "$_sid" >"$_m"
-      printf '%s' "$_sid"
-    fi
-  elif ! okt_retryable; then
+  if ! okt_open "$1" "$2" "$(okt_gen "$1")" "$3" && ! okt_retryable; then
     # Refused for good (not offline, not signed out): writes for this session are dropped instead of blocking the outbox.
     printf '%s' "$OKT_STATUS" >"$_m.failed"
     okt_log "session refused (status $OKT_STATUS)"
   fi
   rmdir "$_m.lock" 2>/dev/null
+  return 0
+}
+
+# okt_session_start KEY CREATE_BODY TIMEOUT: at the start (or resume) of a conversation, make sure its session is
+# open. A remembered session is asked for again by its external id: the server answers with the same session, or —
+# when it closed while idle — the conversation goes on in a new one. Never reuses a closed session.
+okt_session_start() {
+  case $2 in
+    '{"external_id":"'*)
+      if [ -s "$(okt_map_file "$1")" ]; then okt_open "$1" "$2" "$(okt_gen "$1")" "$3" >/dev/null; return 0; fi ;;
+  esac
+  okt_session "$1" "$2" "$3" >/dev/null
+  return 0
+}
+
+# The server refused a turn because the session is closed (Spec 04: 409 session_closed).
+okt_closed() {
+  [ "$OKT_STATUS" = 409 ] || return 1
+  case $OKT_BODY in *'"session_closed"'*) return 0 ;; esac
+  return 1
+}
+
+# okt_rotate KEY CREATE_BODY CLOSED_SID TIMEOUT → the session this conversation continues in, once CLOSED_SID closed:
+# the one another hook already moved to, else the next generation. Empty when none could be had (a refusal for good
+# is marked .failed, as in okt_session).
+okt_rotate() {
+  _rcur=$(cat "$(okt_map_file "$1")" 2>/dev/null)
+  if [ -n "$_rcur" ] && [ "$_rcur" != "$3" ]; then printf '%s' "$_rcur"; return 0; fi
+  [ -n "$2" ] || return 0
+  if ! okt_open "$1" "$2" $(($(okt_gen "$1") + 1)) "$4" && ! okt_retryable; then
+    printf '%s' "$OKT_STATUS" >"$(okt_map_file "$1").failed"
+    okt_log "new session refused (status $OKT_STATUS)"
+  fi
   return 0
 }
 
@@ -317,7 +384,7 @@ okt_queue() {
 
 # okt_send KEY CREATE_BODY METHOD PATH BODY: send now; keep it for later when it cannot go out.
 okt_send() {
-  _path=$4
+  _path=$4; _sid=
   case $_path in
     *:sid*)
       _sid=$(okt_session "$1" "$2" "$OKT_WRITE_TIMEOUT")
@@ -327,7 +394,24 @@ okt_send() {
   esac
   okt_http "$3" "$_path" "$5" "$OKT_WRITE_TIMEOUT"
   if okt_ok; then return 0; fi
+  okt_after_closed "$1" "$2" "$3" "$4" "$5" "$_sid" && return 0
   if okt_retryable; then okt_queue "$@"; else okt_log "dropped $3 (status $OKT_STATUS)"; fi
+  return 0
+}
+
+# okt_after_closed KEY CREATE_BODY METHOD PATH BODY SID: the write just sent to SID was refused because the session
+# closed while idle. Continue the conversation in a new session and send it there, once, silently. 0 when it went out;
+# otherwise OKT_STATUS says what to do with the write (000 = keep it for later).
+okt_after_closed() {
+  [ -n "$6" ] && [ -n "$2" ] && okt_closed || return 1
+  _new=$(okt_rotate "$1" "$2" "$6" "$OKT_WRITE_TIMEOUT")
+  if [ -z "$_new" ]; then
+    [ -f "$(okt_map_file "$1").failed" ] || OKT_STATUS=000
+    return 1
+  fi
+  okt_http "$3" "$(printf '%s' "$4" | sed "s/:sid/$_new/")" "$5" "$OKT_WRITE_TIMEOUT"
+  okt_ok || return 1
+  okt_log "session closed while idle: continued in a new session"
   return 0
 }
 
@@ -347,6 +431,7 @@ okt_flush() {
     _me=$(sed -n 's/^method //p' "$_r"); _pa=$(sed -n 's/^path //p' "$_r"); _bo=$(sed -n 's/^body //p' "$_r")
     [ "$_c" = - ] && _c=
     [ "$_bo" = - ] && _bo=
+    _fsid=
     case $_pa in
       *:sid*)
         OKT_STATUS=000
@@ -357,10 +442,12 @@ okt_flush() {
           if [ -z "$_c" ] || [ -f "$(okt_map_file "$_k").failed" ]; then rm -f "$_r"; continue; fi
           break
         fi
+        _fsid=$_sid
         _pa=$(printf '%s' "$_pa" | sed "s/:sid/$_sid/")
         ;;
     esac
     okt_http "$_me" "$_pa" "$_bo" "$OKT_WRITE_TIMEOUT"
+    okt_ok || okt_after_closed "$_k" "$_c" "$_me" "$(sed -n 's/^path //p' "$_r")" "$_bo" "$_fsid"
     if okt_ok || ! okt_retryable; then
       rm -f "$_r"
       case $_pa in */close) rm -f "$(okt_map_file "$_k")" ;; esac
@@ -392,7 +479,13 @@ okt_client() {
   esac
 }
 
-okt_source() { case $1 in claude-code) printf 'claude-code' ;; *) printf 'connector' ;; esac; }
+# The session's source: the tool's own name when the server knows it (Spec 04 sources), else connector.
+okt_source() {
+  case $1 in
+    claude-code | codex | cursor | gemini | windsurf | opencode | vscode | claude-desktop) printf '%s' "$1" ;;
+    *) printf 'connector' ;;
+  esac
+}
 
 # context_md (escaped) → what this tool reads from a hook's stdout.
 okt_emit() {
@@ -425,6 +518,10 @@ okt_context() {
   CSID=$(junesc "$(jget "$FLAT" session_id conversation_id trajectory_id sessionId)")
   CWD=$(junesc "$(jget "$FLAT" cwd workspace_roots.0)")
   [ -n "$CWD" ] || CWD=${CLAUDE_PROJECT_DIR:-${PWD:-}}
+  # The tool's own conversation id is the session's external_id (Spec 04: the same one twice → the same session).
+  # A parent-pid stand-in is not: pids are reused.
+  _ext=
+  [ -n "$CSID" ] && [ "${#CSID}" -le 200 ] && _ext=$(printf '%s' "$CSID" | jesc)
   [ -n "$CSID" ] || CSID="ppid-${PPID:-0}"
   KEY="$(okt_key "$TOOL")__$(okt_key "$CSID")"
   SPACE=$(okt_space "$CWD")
@@ -432,7 +529,9 @@ okt_context() {
   _title=$(printf '%s' "${CWD##*/}" | jesc)
   _cwd=$(printf '%s' "$CWD" | jesc)
   _csid=$(printf '%s' "$CSID" | jesc)
-  CREATE="{\"source\":\"$(okt_source "$_client")\",\"client\":\"$_client\",\"title\":\"${_title:-$_client session}\",\"metadata\":{\"cwd\":\"$_cwd\",\"client_session_id\":\"$_csid\",\"via\":\"openkt-hook/$OKT_VERSION\"}"
+  _extf=
+  [ -n "$_ext" ] && _extf="\"external_id\":\"$_ext\","
+  CREATE="{$_extf\"source\":\"$(okt_source "$_client")\",\"client\":\"$_client\",\"title\":\"${_title:-$_client session}\",\"metadata\":{\"cwd\":\"$_cwd\",\"client_session_id\":\"$_csid\",\"via\":\"openkt-hook/$OKT_VERSION\"}"
   [ -n "$SPACE" ] && CREATE="$CREATE,\"project_id\":\"$SPACE\""
   CREATE="$CREATE}"
 }
@@ -486,12 +585,10 @@ ev_session_start() {
   okt_context
   okt_creds
   [ -n "$OKT_TOKEN" ] || { okt_log "signed out"; okt_emit session-start ""; return 0; }
-  # Create (or reuse) the session in the background while the brief is fetched: the tool waits for one call, not two.
-  _pid=
-  if [ ! -s "$(okt_map_file "$KEY")" ]; then
-    okt_spawn okt_session "$KEY" "$CREATE" 1.5
-    _pid=$!
-  fi
+  # Create the session — or check the remembered one is still open — in the background while the brief is fetched:
+  # the tool waits for one call, not two.
+  okt_spawn okt_session_start "$KEY" "$CREATE" 1.5
+  _pid=$!
   okt_http POST /v1/prime "{\"with_briefing\":true$(okt_space_field)}" "$OKT_RECALL_TIMEOUT"
   _ctx=
   if okt_ok; then

@@ -85,6 +85,59 @@ describe('runHook (Node core, same protocol as the sh script)', () => {
     expect(server.of('POST', '/v1/memories')).toHaveLength(1);
   });
 
+  it('files sessions under the tool’s own source, with the conversation id as external_id', async () => {
+    await hook('codex', 'session-start', { session_id: 'cx-1', cwd: home });
+    await hook('agent', 'session-start', { session_id: 'ag-1', cwd: home });
+    const [codex, agent] = [...server.sessions.values()];
+    expect(codex!.body).toMatchObject({ source: 'codex', client: 'codex', external_id: 'cx-1' });
+    expect(agent!.body).toMatchObject({ source: 'connector', client: 'agent', external_id: 'ag-1' });
+  });
+
+  it('a session closed while idle: turns go on in a new session (<id>#2), silently, and concurrent ones agree on it', async () => {
+    await hook('claude-code', 'session-start', { session_id: 'idle', cwd: home });
+    const first = [...server.sessions.values()][0]!;
+    first.status = 'closed';
+    const [p] = await Promise.all([
+      hook('claude-code', 'prompt', { session_id: 'idle', cwd: home, prompt: 'back from lunch: billing webhooks' }),
+      hook('claude-code', 'stop', { session_id: 'idle', cwd: home, last_assistant_message: 'a late reply' }),
+    ]);
+    expect(JSON.parse(p.stdout).hookSpecificOutput.additionalContext).toMatch(/^Context from OpenKT/);
+    expect(server.sessions.size).toBe(2);
+    const second = [...server.sessions.values()][1]!;
+    expect(second.body['external_id']).toBe('idle#2');
+    expect(second.turns.map((t) => t.content).sort()).toEqual(['a late reply', 'back from lunch: billing webhooks']);
+    expect(first.turns).toEqual([]);
+    expect(readFileSync(join(home, '.openkt/state/sessions/claude-code__idle'), 'utf8')).toBe(second.id);
+    expect(existsSync(join(home, '.openkt/outbox')) ? readdirSync(join(home, '.openkt/outbox')).filter((n) => n.endsWith('.req')) : []).toEqual([]);
+  });
+
+  it('SessionStart after idle does not reuse the closed session; a resume of an open one keeps it', async () => {
+    await hook('claude-code', 'session-start', { session_id: 'res', cwd: home });
+    const first = [...server.sessions.values()][0]!;
+    const again = await hook('claude-code', 'session-start', { session_id: 'res', cwd: home, source: 'resume' });
+    expect(server.sessions.size).toBe(1);
+    expect(JSON.parse(again.stdout).hookSpecificOutput.additionalContext).toContain(`OpenKT session ${first.id}`);
+    first.status = 'closed';
+    const resumed = await hook('claude-code', 'session-start', { session_id: 'res', cwd: home, source: 'resume' });
+    const second = [...server.sessions.values()][1]!;
+    expect(second.body['external_id']).toBe('res#2');
+    const ctx = JSON.parse(resumed.stdout).hookSpecificOutput.additionalContext as string;
+    expect(ctx).toContain(`OpenKT session ${second.id}`);
+    expect(ctx).not.toContain(first.id);
+  });
+
+  it('a queued turn for a session that closed meanwhile is flushed into a new session', async () => {
+    await hook('codex', 'session-start', { session_id: 'qc', cwd: home });
+    const first = [...server.sessions.values()][0]!;
+    await hook('codex', 'stop', { session_id: 'qc', cwd: home, last_assistant_message: 'written offline' }, { server: 'http://127.0.0.1:9' });
+    first.status = 'closed';
+    await hook('codex', 'session-end', { session_id: 'other', cwd: home });
+    const second = [...server.sessions.values()][1];
+    expect(second?.body['external_id']).toBe('qc#2');
+    expect(second?.turns).toEqual([{ role: 'assistant', content: 'written offline' }]);
+    expect(readdirSync(join(home, '.openkt/outbox')).filter((n) => n.endsWith('.req'))).toEqual([]);
+  });
+
   it('agent dialect always answers {context_md}', async () => {
     const r = await hook('agent', 'prompt', { session_id: 'a', cwd: home, prompt: 'tell me about billing' });
     expect(JSON.parse(r.stdout)).toHaveProperty('context_md');

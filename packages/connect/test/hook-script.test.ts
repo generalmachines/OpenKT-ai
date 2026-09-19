@@ -78,7 +78,71 @@ describe('openkt-hook.sh', () => {
 
   it('labels sessions from VS Code Copilot, which also runs ~/.claude/settings.json hooks, as vscode', async () => {
     await run(['claude-code', 'session-start'], { session_id: 'vs-1', cwd: home, source: 'new' }, { VSCODE_PID: '123' });
-    expect([...server.sessions.values()][0]?.body).toMatchObject({ source: 'connector', client: 'vscode' });
+    expect([...server.sessions.values()][0]?.body).toMatchObject({ source: 'vscode', client: 'vscode' });
+  });
+
+  it.each([
+    ['codex', 'codex'],
+    ['cursor', 'cursor'],
+    ['gemini', 'gemini'],
+    ['windsurf', 'windsurf'],
+    ['agent', 'connector'],
+  ])('files a %s session under source %s, with the conversation id as external_id', async (tool, source) => {
+    await run([tool, 'session-start'], { session_id: `src-${tool}`, cwd: home });
+    expect([...server.sessions.values()][0]?.body).toMatchObject({ source, client: tool, external_id: `src-${tool}` });
+  });
+
+  it('a session closed while idle: the next turns start a new session (<id>#2) and land there, silently', async () => {
+    await run(['claude-code', 'session-start'], { session_id: 'idle-1', cwd: home });
+    const first = [...server.sessions.values()][0]!;
+    first.status = 'closed'; // the server's idle sweep
+    const p = await run(['claude-code', 'prompt'], { session_id: 'idle-1', cwd: home, prompt: 'after lunch: billing webhooks again' });
+    expect(context(p.stdout)).toMatch(/^Context from OpenKT/);
+    expect(await server.waitFor(() => server.sessions.size === 2 && [...server.sessions.values()][1]!.turns.length === 1)).toBe(true);
+    const second = [...server.sessions.values()][1]!;
+    expect(second.body['external_id']).toBe('idle-1#2');
+    expect(second.turns).toEqual([{ role: 'user', content: 'after lunch: billing webhooks again' }]);
+    expect(first.turns).toEqual([]);
+    expect(readFileSync(join(home, '.openkt/state/sessions/claude-code__idle-1'), 'utf8')).toBe(second.id);
+
+    // The reply goes to the new session too, without another new one.
+    await run(['claude-code', 'stop'], { session_id: 'idle-1', cwd: home, last_assistant_message: 'Same as before.' });
+    expect(await server.waitFor(() => second.turns.length === 2)).toBe(true);
+    expect(server.sessions.size).toBe(2);
+    expect(existsSync(join(home, '.openkt/outbox')) ? readdirSync(join(home, '.openkt/outbox')).filter((n) => n.endsWith('.req')) : []).toEqual([]);
+  });
+
+  it('SessionStart after idle does not reuse the closed session', async () => {
+    await run(['claude-code', 'session-start'], { session_id: 'idle-2', cwd: home, source: 'startup' });
+    const first = [...server.sessions.values()][0]!;
+    // Resumed while open: the same session.
+    const again = await run(['claude-code', 'session-start'], { session_id: 'idle-2', cwd: home, source: 'resume' });
+    expect(server.sessions.size).toBe(1);
+    expect(context(again.stdout)).toContain(`OpenKT session ${first.id}`);
+    first.status = 'closed';
+    const resumed = await run(['claude-code', 'session-start'], { session_id: 'idle-2', cwd: home, source: 'resume' });
+    expect(server.sessions.size).toBe(2);
+    const second = [...server.sessions.values()][1]!;
+    expect(second.body['external_id']).toBe('idle-2#2');
+    expect(context(resumed.stdout)).toContain(`OpenKT session ${second.id}`);
+    expect(context(resumed.stdout)).not.toContain(first.id);
+  });
+
+  it('a turn queued offline for a session that closed meanwhile is flushed into a new session', async () => {
+    await run(['claude-code', 'session-start'], { session_id: 'idle-3', cwd: home });
+    const first = [...server.sessions.values()][0]!;
+    await run(['claude-code', 'stop'], { session_id: 'idle-3', cwd: home, last_assistant_message: 'written while offline' }, { OPENKT_SERVER: 'http://127.0.0.1:9' });
+    expect(await server.waitFor(() => existsSync(join(home, '.openkt/outbox')) && readdirSync(join(home, '.openkt/outbox')).some((n) => n.endsWith('.req')))).toBe(true);
+    // The offline job's own flush attempt holds the outbox lock until it gives up: wait for the job to end (its
+    // private run directory goes with it).
+    const runDir = join(home, '.openkt/run');
+    expect(await server.waitFor(() => (!existsSync(runDir) || readdirSync(runDir).length === 0) && !existsSync(join(home, '.openkt/outbox/.lock')), 10000)).toBe(true);
+    first.status = 'closed';
+    await run(['flush'], '');
+    const second = [...server.sessions.values()][1];
+    expect(second?.body['external_id']).toBe('idle-3#2');
+    expect(second?.turns).toEqual([{ role: 'assistant', content: 'written while offline' }]);
+    expect(readdirSync(join(home, '.openkt/outbox')).filter((n) => n.endsWith('.req'))).toEqual([]);
   });
 
   it('prompt saves the turn and returns recalled context in the UserPromptSubmit shape', async () => {
@@ -240,7 +304,7 @@ describe('openkt-hook.sh', () => {
     await run(['windsurf', 'prompt'], { trajectory_id: 'w-1', tool_info: { user_prompt: 'from windsurf' } });
     expect(await server.waitFor(() => [...server.sessions.values()].some((s) => s.turns.some((t) => t.content === 'from windsurf')))).toBe(true);
     const cursorSession = [...server.sessions.values()].find((s) => (s.body['metadata'] as { client_session_id: string }).client_session_id === 'c-1');
-    expect(cursorSession?.body).toMatchObject({ source: 'connector', client: 'cursor' });
+    expect(cursorSession?.body).toMatchObject({ source: 'cursor', client: 'cursor' });
   });
 
   it('gemini save_memory facts are synced as native memory', async () => {

@@ -121,16 +121,17 @@ export const initialsOf = (name: string): string =>
     .slice(0, 2)
     .toUpperCase() || '?';
 
-const APP_SOURCES: readonly SessionSource[] = ['meeting', 'claude-code', 'cursor', 'chatgpt', 'claude', 'hermes', 'voice', 'screenshot', 'note'];
+const APP_SOURCES: readonly SessionSource[] = ['meeting', 'claude-code', 'codex', 'cursor', 'chatgpt', 'claude', 'hermes', 'voice', 'screenshot', 'note'];
 
-/** SPEC-04: the server's sources add `mcp` and `connector` and lack `cursor`/`hermes`; `client` disambiguates. */
+/** SPEC-04: the server's sources add `mcp` and `connector`; `client` disambiguates anything else. */
 function toSource(source: string, client: string): SessionSource {
   if ((APP_SOURCES as readonly string[]).includes(source)) return source as SessionSource;
   const hint = APP_SOURCES.find((s) => client.toLowerCase().includes(s));
   return hint ?? (source === 'mcp' ? 'claude-code' : 'note');
 }
 
-const SERVER_SOURCES = new Set(['claude-code', 'chatgpt', 'claude', 'mcp', 'voice', 'meeting', 'screenshot', 'note', 'connector']);
+// The server's session sources (server SESSION_SOURCES) that the app has words for; anything else goes as `connector`.
+const SERVER_SOURCES = new Set(['claude-code', 'codex', 'cursor', 'chatgpt', 'claude', 'hermes', 'mcp', 'voice', 'meeting', 'screenshot', 'note', 'connector']);
 const fromSource = (s: SessionSource): string => (SERVER_SOURCES.has(s) ? s : 'connector');
 
 const APP_KINDS: readonly ContextKind[] = ['decision', 'action', 'fact', 'question', 'how-to', 'idea', 'issue'];

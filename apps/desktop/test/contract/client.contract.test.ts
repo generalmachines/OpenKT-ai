@@ -30,6 +30,15 @@ const adapters: [string, () => OpenKTClient][] = [
   ['http', () => new HttpClient({ baseUrl: BASE, token: fake.tokens.a })],
 ];
 
+describe('http adapter — session sources', () => {
+  it.each(['cursor', 'codex', 'hermes', 'voice'] as const)('a %s session is filed under that source, not connector', async (source) => {
+    const client = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    const session = await client.createSession({ source, title: `From ${source}`, spaceId: '', text: 'x' });
+    expect(session.source).toBe(source);
+    expect((await client.getSession(session.id)).source).toBe(source);
+  });
+});
+
 describe.each(adapters)('OpenKTClient behaviour — %s adapter', (kind, make) => {
   it('knows who is signed in', async () => {
     const me = await make().getMe();
