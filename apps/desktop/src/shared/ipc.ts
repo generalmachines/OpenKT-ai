@@ -104,6 +104,8 @@ export interface LocalAiStatusDto {
   binaryFound: boolean;
   /** "llm-4b" or "llm-2b" (Macs with ≤ 8 GB RAM). */
   tier: string;
+  /** True after a GPU crash made the local servers restart on the CPU (slower). */
+  cpuFallback: boolean;
   models: ModelStatusDto[];
   servers: { chat: LocalServerInfoDto; embed: LocalServerInfoDto };
 }

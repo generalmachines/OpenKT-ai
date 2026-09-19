@@ -73,7 +73,7 @@ try {
         onProgress: (p) => { events += 1; first ||= performance.now(); last = performance.now(); if (p.receivedBytes > m.bytes * 0.3) ac.abort(); } });
     } catch { aborted = true; }
     const partial = existsSync(`${dest}.part`) ? statSync(`${dest}.part`).size : -1;
-    const maxRate = events > 1 ? events / Math.max(0.001, (last - first) / 1000) : 0;
+    const maxRate = events > 1 ? (events - 1) / Math.max(0.001, (last - first) / 1000) : 0;
     const second = await downloadFile({ url: modelUrl(m), dest, bytes: m.bytes, sha256: m.sha256 });
     const digest = await sha256File(dest);
     report.latenciesMs.embedModelDownload = Math.round(performance.now() - t0);
@@ -120,8 +120,15 @@ try {
     const agents = await loadAgents();
     const fixture = JSON.parse(readFileSync(join(root, '../../packages/agents/fixtures/extract/sales-call-per-store-pricing.json'), 'utf8'));
     const t0 = performance.now();
-    const base = await ai.chatBaseUrl();
+    await ai.chatBaseUrl();
     report.latenciesMs.chatServerStart = Math.round(performance.now() - t0);
+
+    // The LocalAi.chat() seam itself — first, because it carries the GPU→CPU fallback.
+    const c = await ai.chat({ messages: [{ role: 'user', content: 'Reply with the capital of France.' }], schema: { name: 'answer', schema: { type: 'object', properties: { capital: { type: 'string' } }, required: ['capital'], additionalProperties: false } }, maxTokens: 50 });
+    report.latenciesMs.chatTiny = c.latencyMs;
+    check('chat_json_schema', typeof JSON.parse(c.text).capital === 'string', { text: c.text });
+    report.cpuFallback = ai.cpuFallback;
+    const base = await ai.chatBaseUrl();
     const client = new agents.OpenAiCompatibleClient({ baseUrl: base, model: 'local', timeoutMs: 300_000 });
 
     const x = await agents.extract.run(fixture.input, client);
@@ -141,11 +148,6 @@ try {
     const note = await extractNote(ai, { text: chunkText, title: fixture.input.session.title, source: 'meeting' }, 300_000);
     report.latenciesMs.extractNoteIpcPath = Math.round(performance.now() - t1);
     check('extract_note_ipc_path', note.status !== 'noop' && typeof note.title === 'string', { status: note.status, title: note.title, facts: note.facts.length });
-
-    // The LocalAi.chat() seam itself.
-    const c = await ai.chat({ messages: [{ role: 'user', content: 'Reply with the capital of France.' }], schema: { name: 'answer', schema: { type: 'object', properties: { capital: { type: 'string' } }, required: ['capital'], additionalProperties: false } }, maxTokens: 50 });
-    report.latenciesMs.chatTiny = c.latencyMs;
-    check('chat_json_schema', typeof JSON.parse(c.text).capital === 'string', { text: c.text });
   }
 
   // (e) no orphans

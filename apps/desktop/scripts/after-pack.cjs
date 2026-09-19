@@ -14,7 +14,7 @@ exports.default = async function afterPack(context) {
   const server = join(appPath, 'Contents/Resources/llama/llama-server');
   if (!existsSync(server)) throw new Error(`llama-server missing from the bundle (${server}); run scripts/fetch-llama.mjs before packaging`);
   chmodSync(server, 0o755);
-  if (process.env.CSC_LINK) return;
+  if (process.env.CSC_LINK || process.platform !== 'darwin') return;
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' });
   execFileSync('codesign', ['--verify', '--deep', '--strict', appPath], { stdio: 'inherit' });
   console.log(`ad-hoc signed ${appPath}`);

@@ -42,6 +42,8 @@ export class LlamaServer {
   state: ServerState = 'stopped';
   port = 0;
   restarts = 0;
+  /** Unexpected exits after a healthy start, over the life of this object. */
+  crashCount = 0;
   lastError: string | null = null;
   private child: ChildProcess | null = null;
   private starting: Promise<string> | null = null;
@@ -77,6 +79,16 @@ export class LlamaServer {
     return this.starting.then((url) => { this.touch(); return url; });
   }
 
+  /** Adds arguments for every later spawn (the CPU fallback). Takes effect on the next start. */
+  appendArgs(args: string[]): void {
+    this.opts.args = [...this.opts.args, ...args];
+  }
+
+  /** True when the process died from a signal/abort rather than being stopped. */
+  get crashed(): boolean {
+    return this.crashCount > 0 || this.state === 'failed';
+  }
+
   /** Call on every request: pushes the idle unload out. */
   touch(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
@@ -95,13 +107,17 @@ export class LlamaServer {
     const child = this.child;
     this.child = null;
     this.state = 'stopped';
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
-    this.opts.log?.(`[${this.opts.name}] stopping (${reason}) pid ${child.pid}`);
-    const exited = new Promise<void>((r) => child.once('exit', () => r()));
-    child.kill('SIGTERM');
-    const killer = setTimeout(() => child.kill('SIGKILL'), 3000);
-    await exited;
-    clearTimeout(killer);
+    if (child && child.exitCode === null && child.signalCode === null) {
+      this.opts.log?.(`[${this.opts.name}] stopping (${reason}) pid ${child.pid}`);
+      const exited = new Promise<void>((r) => child.once('exit', () => r()));
+      child.kill('SIGTERM');
+      const killer = setTimeout(() => child.kill('SIGKILL'), 3000);
+      await exited;
+      clearTimeout(killer);
+    }
+    // A start or crash-restart in flight sees `wanted === false`, kills its child and rejects.
+    if (this.starting) await this.starting.catch(() => undefined);
+    if (!this.wanted) this.state = 'stopped';
   }
 
   /** Synchronous last resort for app quit / process exit. */
@@ -158,6 +174,7 @@ export class LlamaServer {
       if (this.state === 'ready' && this.wanted) {
         // Crash after a healthy start: restart in the background, within the budget.
         this.state = 'crashed';
+        this.crashCount += 1;
         this.lastError = st.exited;
         this.opts.log?.(`[${this.opts.name}] ${st.exited}; restart ${this.restarts + 1}/${this.opts.maxRestarts ?? 3}`);
         if (this.restarts < (this.opts.maxRestarts ?? 3) && !this.starting) {

@@ -37,6 +37,7 @@ export async function runSmoke(openWindow: () => Promise<unknown>): Promise<void
     const vectors = await ai.embed(['per-store pricing', 'hosting in Singapore'], 'document');
     result['embedStartAndFirstCallMs'] = Math.round(performance.now() - t0);
     result['dim'] = vectors[0]?.length;
+    result['cpuFallback'] = ai.cpuFallback;
     step('embed');
     if (vectors.length !== 2 || vectors[0]?.length !== EMBED_DIM) throw new Error(`unexpected embedding shape ${vectors.length}x${vectors[0]?.length}`);
     await ai.stop();

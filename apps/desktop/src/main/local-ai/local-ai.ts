@@ -25,6 +25,8 @@ export interface LocalAiStatus {
   binary: string;
   binaryFound: boolean;
   tier: string;
+  /** True after a GPU (Metal) crash made both servers restart on the CPU. */
+  cpuFallback: boolean;
   models: ModelStatus[];
   servers: { chat: ServerInfo; embed: ServerInfo };
 }
@@ -64,6 +66,7 @@ export class LlamaLocalAi implements LocalAi {
   readonly chatServer: LlamaServer;
   readonly embedServer: LlamaServer;
   readonly binary: string;
+  cpuFallback = false;
 
   constructor(private readonly opts: LlamaLocalAiOptions) {
     this.binary = join(opts.llamaDir, process.platform === 'win32' ? 'llama-server.exe' : 'llama-server');
@@ -96,9 +99,36 @@ export class LlamaLocalAi implements LocalAi {
       binary: this.binary,
       binaryFound: existsSync(this.binary),
       tier: this.opts.plan.llm.id,
+      cpuFallback: this.cpuFallback,
       models: await this.store.status(),
       servers: { chat: info(this.chatServer), embed: info(this.embedServer) },
     };
+  }
+
+  /**
+   * GPU safety net. If a server died on the GPU path (Metal asserts on some virtualised or
+   * unsupported GPUs), restart both on the CPU — slower, but it works. Returns true when the
+   * caller should retry its request.
+   */
+  async fallBackToCpuIfCrashed(): Promise<boolean> {
+    if (this.cpuFallback || !(this.chatServer.crashed || this.embedServer.crashed)) return false;
+    this.cpuFallback = true;
+    this.chatServer.crashCount = 0;
+    this.embedServer.crashCount = 0;
+    this.opts.log?.('[local-ai] a llama-server crashed on the GPU path; restarting on the CPU (--device none)');
+    await this.stop();
+    for (const s of [this.chatServer, this.embedServer]) s.appendArgs(['--device', 'none']);
+    return true;
+  }
+
+  private async withCpuFallback<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      await new Promise((r) => setTimeout(r, 400)); // let the child's exit event land
+      if (await this.fallBackToCpuIfCrashed()) return fn();
+      throw e;
+    }
   }
 
   /** Base URL for an OpenAI-compatible client, e.g. "http://127.0.0.1:51234/v1". Starts the chat server. */
@@ -106,7 +136,11 @@ export class LlamaLocalAi implements LocalAi {
     return `${await this.chatServer.ensureStarted()}/v1`;
   }
 
-  async chat(request: ChatRequest): Promise<{ text: string; latencyMs: number }> {
+  chat(request: ChatRequest): Promise<{ text: string; latencyMs: number }> {
+    return this.withCpuFallback(() => this.chatOnce(request));
+  }
+
+  private async chatOnce(request: ChatRequest): Promise<{ text: string; latencyMs: number }> {
     const base = await this.chatBaseUrl();
     const started = performance.now();
     const res = await fetch(`${base}/chat/completions`, {
@@ -134,6 +168,10 @@ export class LlamaLocalAi implements LocalAi {
 
   async embed(texts: string[], kind: 'query' | 'document'): Promise<number[][]> {
     if (texts.length === 0) return [];
+    return this.withCpuFallback(() => this.embedOnce(texts, kind));
+  }
+
+  private async embedOnce(texts: string[], kind: 'query' | 'document'): Promise<number[][]> {
     const base = await this.embedServer.ensureStarted();
     const input = kind === 'query' ? texts.map((t) => QUERY_PREFIX + t) : texts;
     const res = await fetch(`${base}/v1/embeddings`, {
