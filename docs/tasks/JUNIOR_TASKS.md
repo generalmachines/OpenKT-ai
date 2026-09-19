@@ -334,7 +334,7 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 3. Otherwise POST `${url}/rerank` with JSON `{ "query": query, "texts": items.map(i => i.text), "raw_scores": false }`, header `Authorization: Bearer <apiKey>` only when set. Response is `[{ "index": number, "score": number }]`.
 4. Normalise `weighted` to 0..1 by dividing by the max `weighted` in the batch (max 0 → all 0). Set `rerank` from the response and `score = (1 − RECALL.rerankBlend) × normalised + RECALL.rerankBlend × rerank`.
 5. Only the first `RECALL.rerankTop` items are sent; the rest keep `score = 0.4 × normalised` and no `rerank`.
-6. Timeout (default 3000 ms), non-2xx, malformed body, or wrong array length → **do not throw**: return the no-rerank result and call `opts.onError?.(err)` if provided (add `onError?: (e: unknown) => void` to opts).
+6. Timeout (default 3000 ms), non-2xx, malformed body, wrong array length, or any `score` that is not a finite number in 0..1 → **do not throw**: return the no-rerank result and call `opts.onError?.(err)` if provided (add `onError?: (e: unknown) => void` to opts). A `NaN` rerank score must never reach `shouldAbstain`, which does not abstain on `NaN`.
 7. Return sorted by `score` descending, ties by `id`. Export from `src/index.ts`.
 
 **Files you may touch**
