@@ -4,10 +4,16 @@ Test builds are **not signed with an Apple Developer ID and not notarised**, so 
 blocks them the first time. This is expected. You need an Apple Silicon Mac (M1 or later)
 on macOS 13.3 or later.
 
+**You do this once.** After the first install OpenKT updates itself from inside the app — no more
+disk images (see [Updates](#updates)).
+
 ## 1. Install
 
-1. Open `OpenKT-<version>-arm64.dmg`.
-2. Drag **OpenKT** into **Applications**. Eject the disk image.
+1. Download the latest build: <https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg>
+   (this link always points at the newest release).
+2. Open the disk image and drag **OpenKT** into **Applications**. Eject the disk image.
+   Do not run OpenKT from the disk image: it cannot update itself from there. If you do open it
+   from the disk image, it offers **Move to Applications** and does the move for you.
 
 ## 2. Allow it to open (once)
 
@@ -53,9 +59,27 @@ needs to be installed.
   desktop picture and OpenKT's own windows.
 - The `fn` key is not used yet.
 
+## Updates
+
+OpenKT checks for a new version 30 seconds after it starts and every 6 hours, downloads it in the
+background, and shows **Update ready — Restart** at the bottom of the sidebar. Click it (or
+**Settings → About → Restart to update**) and OpenKT quits, replaces itself and opens again on the new
+version; the first time it shows *Updated to 0.3.x — what's new*. You never have to allow it again
+in Privacy & Security.
+
+- **OpenKT → Check for Updates…** (menu bar) or **Settings → About → Check now** checks right away.
+- **Settings → About → Download updates automatically** (on by default): turn it off and OpenKT still
+  checks, but asks before it downloads anything.
+- If a new version fails to start twice in a row, OpenKT offers **Go back to the previous version**
+  and does not offer that version again.
+- If macOS says OpenKT was prevented from modifying apps, allow it in **System Settings → Privacy &
+  Security → App Management**, then choose **Restart to update** again. Your current version keeps
+  working either way.
+
 ## Remove
 
-Delete `/Applications/OpenKT.app` and `~/Library/Application Support/OpenKT`.
+Delete `/Applications/OpenKT.app` and `~/Library/Application Support/OpenKT` (downloaded updates live
+in its `updates/` folder).
 
 ## For the maintainer: signed builds
 
@@ -63,4 +87,5 @@ Add the repository secrets `CSC_LINK` (base64 .p12 Developer ID Application cert
 `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. The `desktop`
 workflow then signs with hardened runtime and notarises — no code change
 (`scripts/dist-mac.mjs`). The signed path has not been exercised yet; with hardened runtime the
-bundled `llama-server` may need entitlements added to `build/entitlements.mac.plist`.
+bundled `llama-server` may need entitlements added to `build/entitlements.mac.plist`. Signed builds
+update through `electron-updater` (Squirrel.Mac) from the same feed; see the README's *Updates*.
