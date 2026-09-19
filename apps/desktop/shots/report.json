@@ -1,0 +1,326 @@
+[
+  {
+    "name": "01-onboarding-1-sign-in",
+    "route": "/onboarding/1",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "02-onboarding-2-connect-tools",
+    "route": "/onboarding/2",
+    "viewport": "1280x800",
+    "artboard": "Onboarding.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "03-onboarding-3-models",
+    "route": "/onboarding/3",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "04-session-summary",
+    "route": "/sessions/s-northgate-pricing",
+    "viewport": "1280x800",
+    "artboard": "Main.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "05-session-context",
+    "route": "/sessions/s-northgate-pricing/context",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "06-session-transcript",
+    "route": "/sessions/s-northgate-pricing/transcript",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "07-session-access",
+    "route": "/sessions/s-northgate-pricing/access",
+    "viewport": "1280x800",
+    "artboard": "Access.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "08-session-access-role-menu",
+    "route": "/sessions/s-northgate-pricing/access",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "09-new-note",
+    "route": "/new",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "10-spaces",
+    "route": "/spaces",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "11-space",
+    "route": "/spaces/sp-northgate",
+    "viewport": "1280x800",
+    "artboard": "Space.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "12-space-access",
+    "route": "/spaces/sp-northgate/access",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "13-page",
+    "route": "/pages/p-northgate-pricing",
+    "viewport": "1280x800",
+    "artboard": "Page.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "14-skills",
+    "route": "/skills",
+    "viewport": "1280x800",
+    "artboard": "Skills.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "15-settings-connectors",
+    "route": "/settings/connectors",
+    "viewport": "1280x800",
+    "artboard": "Connectors.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "16-settings-connectors-menu",
+    "route": "/settings/connectors",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "17-settings-access-defaults",
+    "route": "/settings/access",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "18-settings-models",
+    "route": "/settings/models",
+    "viewport": "1280x800",
+    "artboard": "Models.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "19-settings-hotkeys",
+    "route": "/settings/hotkeys",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "20-settings-workspace",
+    "route": "/settings/workspace",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "21-settings-account",
+    "route": "/settings/account",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "22-palette",
+    "route": "/sessions/s-northgate-pricing",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "23-palette-filtered",
+    "route": "/sessions/s-northgate-pricing",
+    "viewport": "1280x800",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "24-capture-voice",
+    "route": "/capture/voice",
+    "viewport": "760x460",
+    "artboard": "Capture-Voice.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "25-capture-meeting",
+    "route": "/capture/meeting",
+    "viewport": "760x460",
+    "artboard": "Capture-Meeting.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "26-capture-screenshot",
+    "route": "/capture/screenshot",
+    "viewport": "760x460",
+    "artboard": "Capture-Screenshot.dc.html",
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  },
+  {
+    "name": "27-session-summary-960x640",
+    "route": "/sessions/s-northgate-pricing",
+    "viewport": "960x640",
+    "artboard": null,
+    "fonts": {
+      "geist": true,
+      "mono": true,
+      "body": "\"Geist Variable\""
+    },
+    "problems": []
+  }
+]

@@ -1,0 +1,37 @@
+# macOS packaging config. NOT RUN on the Linux build machine — untested.
+# Usage on a Mac: npm run dist:mac
+appId: ai.openkt.desktop
+productName: OpenKT
+copyright: Copyright © OpenKT contributors. Apache-2.0.
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - build/trayTemplate*.png
+  - package.json
+asar: true
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  minimumSystemVersion: "15.0"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    LSUIElement: false
+    NSMicrophoneUsageDescription: OpenKT transcribes what you say on this Mac. Audio never leaves it.
+    NSAudioCaptureUsageDescription: OpenKT transcribes meetings you choose to record, on this Mac.
+    NSScreenCaptureUsageDescription: OpenKT reads screenshots you take, on this Mac.
+  # The Swift engine will be added here once it exists:
+  # extraFiles:
+  #   - from: ../../engine/.build/release/openkt-engine
+  #     to: Helpers/openkt-engine
+dmg:
+  sign: false
