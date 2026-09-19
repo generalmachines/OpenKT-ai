@@ -26,7 +26,8 @@ function SpacePicker({ value, onChange, options = SPACE_OPTIONS }: { value: stri
   return <Select label="Save to" variant="pill" align="left" up value={value} options={options} onChange={onChange} leading={<Icon name="folder" size={13} />} />;
 }
 
-export type VoiceState = 'listening' | 'transcribing' | 'review' | 'saving' | 'saved' | 'empty' | 'permission' | 'failed';
+/** `setup`: the speech model is still downloading — the pill says how far along, instead of failing. */
+export type VoiceState = 'listening' | 'transcribing' | 'review' | 'saving' | 'saved' | 'empty' | 'permission' | 'failed' | 'setup';
 
 const VOICE_STATUS: Record<VoiceState, (t: string) => string> = {
   listening: (t) => `listening · ${t} · on this Mac`,
@@ -37,6 +38,7 @@ const VOICE_STATUS: Record<VoiceState, (t: string) => string> = {
   empty: () => 'nothing heard',
   permission: () => 'microphone blocked',
   failed: () => 'could not transcribe',
+  setup: () => 'finishing setup',
 };
 
 export interface VoiceProps {
@@ -59,7 +61,7 @@ export interface VoiceProps {
   onSave?: () => void;
 }
 
-const VOICE_HINT: Partial<Record<VoiceState, string>> = { transcribing: 'one moment', review: 'esc to discard', saving: '', saved: 'filed', empty: '', permission: 'esc to close', failed: 'esc to close' };
+const VOICE_HINT: Partial<Record<VoiceState, string>> = { transcribing: 'one moment', review: 'esc to discard', saving: '', saved: 'filed', empty: '', permission: 'esc to close', failed: 'esc to close', setup: 'esc to close' };
 
 /** Capture-Voice.dc.html */
 export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, accessNote, notice, onSave }: VoiceProps) {
@@ -92,7 +94,7 @@ export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpac
           {notice}
         </p>
       )}
-      {state !== 'empty' && state !== 'permission' && state !== 'failed' && (
+      {state !== 'empty' && state !== 'permission' && state !== 'failed' && state !== 'setup' && (
         <div className="sheet__row">
           <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Save to</span>
           <SpacePicker value={spaceId} onChange={onSpace} options={spaces} />

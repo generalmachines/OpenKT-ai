@@ -33,7 +33,7 @@ export interface LocalAiStatus {
 interface ServerInfo { state: ServerState; port: number; pid: number | null; restarts: number; lastError: string | null }
 
 export interface LocalAi {
-  ensureModels(onProgress?: (p: ModelsProgress) => void, roles?: readonly ModelRole[]): Promise<ModelStatus[]>;
+  ensureModels(onProgress?: (p: ModelsProgress) => void, roles?: readonly ModelRole[], signal?: AbortSignal): Promise<ModelStatus[]>;
   status(): Promise<LocalAiStatus>;
   /** One structured completion: temperature 0, constrained to `schema`. Returns the raw JSON text. */
   chat(request: ChatRequest): Promise<{ text: string; latencyMs: number }>;
@@ -92,8 +92,8 @@ export class LlamaLocalAi implements LocalAi {
     });
   }
 
-  ensureModels(onProgress?: (p: ModelsProgress) => void, roles?: readonly ModelRole[]): Promise<ModelStatus[]> {
-    return this.store.ensure(onProgress, roles);
+  ensureModels(onProgress?: (p: ModelsProgress) => void, roles?: readonly ModelRole[], signal?: AbortSignal): Promise<ModelStatus[]> {
+    return this.store.ensure(onProgress, roles, signal);
   }
 
   async status(): Promise<LocalAiStatus> {

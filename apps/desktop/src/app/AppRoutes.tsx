@@ -1,5 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { onboarding } from '../api';
 import { useQuery } from '../api/hooks';
+import { permissions } from '../api/setup-bridge';
 import { Shell } from '../components/Shell';
 import { CaptureOverlay, CapturePreview } from '../screens/capture/CaptureRoutes';
 import { NewNote } from '../screens/NewNote';
@@ -11,11 +13,16 @@ import { Skills } from '../screens/Skills';
 import { SpaceView } from '../screens/SpaceView';
 import { SpacesList } from '../screens/SpacesList';
 import { Welcome } from '../screens/Welcome';
+import { resumeStep } from '../onboarding/state';
 import { useConnection } from '../state/connection';
 
 /** "/" opens the most recent session, like a mail client opens the inbox. */
 function Home() {
   const sessions = useQuery((c) => c.listSessions({ mine: true }), []);
+  // ── first run (begin) ── an unfinished first run on this Mac (a relaunch, a sign-in rather than a sign-up) picks up where it stopped.
+  const resume = resumeStep(onboarding.done(), permissions.available());
+  if (resume !== null) return <Navigate to={`/onboarding/${resume}`} replace />;
+  // ── first run (end) ──
   if (sessions.loading) return <main className="main" aria-busy="true" />;
   const first = sessions.data?.[0];
   return <Navigate to={first ? `/sessions/${first.id}` : '/new'} replace />;

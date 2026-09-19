@@ -4,11 +4,15 @@ import { CaptureError, voice } from '../../api/bridge';
 import { useClient, useQuery } from '../../api/hooks';
 import { RecorderError, startRecorder as realRecorder, type Recorder, type StartRecorder } from '../../capture/recorder';
 import { fileCapture, modelsPending } from '../../capture/save';
+import { finishingSetup, speechReadiness } from '../../onboarding/models';
 import { VoiceSheet, type VoiceState } from './parts';
 
 const LEVELS = 14;
 const MIC_BLOCKED = 'OpenKT cannot use the microphone. Allow it in System Settings → Privacy & Security → Microphone, then try again.';
 export const EXTRACT_LATER = 'Context will be extracted when the models finish downloading.';
+/** The speech model is not on this Mac yet: say how far along the setup is instead of failing. */
+export const speechSetupNotice = (pct: number) => `${finishingSetup(pct)}. Voice notes work as soon as the speech model is on this Mac.`;
+const notReady = (e: unknown) => e instanceof CaptureError && /not_ready|still downloading/i.test(e.message);
 
 export interface VoiceCaptureProps {
   /** Closes the overlay window. */
@@ -56,6 +60,11 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
   );
 
   const fail = useCallback((e: unknown) => {
+    if (notReady(e)) {
+      setState('setup');
+      void speechReadiness().then((s) => setNotice(speechSetupNotice(s.percent)));
+      return;
+    }
     const permission = (e instanceof RecorderError || e instanceof CaptureError) && e.kind === 'permission';
     setState(permission ? 'permission' : 'failed');
     setNotice(permission ? MIC_BLOCKED : e instanceof RecorderError && e.kind === 'no-microphone' ? 'No microphone was found on this Mac.' : describeError(e));
@@ -66,6 +75,14 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
     let cancelled = false;
     void (async () => {
       try {
+        // Nothing to record into while the speech model is still downloading.
+        const speech = await speechReadiness();
+        if (cancelled) return;
+        if (!speech.ready) {
+          setState('setup');
+          setNotice(speechSetupNotice(speech.percent));
+          return;
+        }
         const id = await voice.begin();
         if (cancelled) return voice.cancel(id);
         session.current = { id, rec: null, startedAt: Date.now() };

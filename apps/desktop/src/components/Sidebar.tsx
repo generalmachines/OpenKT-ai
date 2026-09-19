@@ -3,6 +3,7 @@ import { daysAgo, sessionListMeta } from '../api/format';
 import { useQuery } from '../api/hooks';
 import type { SessionListItem, Space } from '../api/types';
 import { Icon, SOURCE_ICON, type IconName } from './Icon';
+import { SetupProgress } from './SetupProgress';
 
 function groupLabel(n: number): string {
   if (n <= 0) return 'Today';
@@ -78,6 +79,8 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       <NavRow to="/spaces" icon="folder" label="Spaces" active={pathname.startsWith('/spaces') || pathname.startsWith('/pages')} />
       <NavRow to="/skills" icon="spark" label="Skills" active={pathname.startsWith('/skills')} />
       <NavRow to="/settings" icon="gear" label="Settings" active={pathname.startsWith('/settings')} />
+      {/* first run: the on-device AI download, until it is done */}
+      <SetupProgress />
     </nav>
   );
 }
