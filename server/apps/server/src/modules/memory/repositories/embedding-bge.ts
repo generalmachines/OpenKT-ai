@@ -84,7 +84,9 @@ async function embedOpenAi(text: string): Promise<number[] | null> {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         input: text,
-        dimensions: EMBEDDING_DIM,
+        // Only OpenAI itself understands `dimensions`; local OpenAI-compatible
+        // servers (llama.cpp, TEI, Infinity) reject or ignore it.
+        ...(OPENAI_URL.includes("api.openai.com") ? { dimensions: EMBEDDING_DIM } : {}),
       }),
       signal: controller.signal,
     });

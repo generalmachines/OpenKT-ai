@@ -338,6 +338,26 @@ export class MemoryRepository {
     };
   }
 
+  /**
+   * Embed a fact right after it is written so it is searchable at once, without
+   * waiting for (or requiring) the background worker. Returns false when the
+   * embedding service is unavailable; the worker's embed stage remains the
+   * fallback. Disable with OPENKT_INLINE_EMBED=false.
+   */
+  async embedNow(memoryId: string, content: string): Promise<boolean> {
+    if ((process.env.OPENKT_INLINE_EMBED ?? "true").toLowerCase() === "false") {
+      return false;
+    }
+    const vector = await embed(content);
+    if (!vector) {
+      return false;
+    }
+    await this.db.execute(
+      sql`update memories set embedding = ${toPgVector(vector)}::vector where id = ${memoryId}`,
+    );
+    return true;
+  }
+
   async logAccess(
     context: ActorContext,
     memoryId: string,
