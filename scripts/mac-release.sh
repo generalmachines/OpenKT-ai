@@ -17,6 +17,8 @@
 #   OPENKT_SRC=~/code/OpenKT-ai   where the code lives
 #   OPENKT_REF=main          branch or commit to build
 #   OPENKT_SKIP_UPLOAD=1     build only
+#   OPENKT_UPLOAD_KIT=<url>  publish WITHOUT AWS credentials on this Mac: a one-time upload link made by
+#                            `python3 scripts/release-upload-kit.py` on a machine that has them
 set -euo pipefail
 
 REPO_URL="https://github.com/masti-ai/OpenKT-ai.git"
@@ -26,6 +28,8 @@ ACCOUNT="724772068721"
 BUCKET="openkt-downloads-724772068721"
 REGION="ap-south-1"
 BASE_URL="https://${BUCKET}.s3.${REGION}.amazonaws.com/desktop"
+KIT_URL="${OPENKT_UPLOAD_KIT:-}"
+KIT_FILE=""
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31mx %s\033[0m\n' "$*" >&2; exit 1; }
@@ -47,12 +51,17 @@ if [ "$(node_major)" -lt 22 ]; then
   export PATH="$(brew --prefix node@22)/bin:$PATH"
 fi
 [ "$(node_major)" -ge 22 ] || die "Node 22 or newer is needed (found $(node -v 2>/dev/null || echo none))."
-if [ -z "${OPENKT_SKIP_UPLOAD:-}" ]; then
+if [ -n "$KIT_URL" ]; then
+  KIT_FILE=$(mktemp)
+  curl -fsS "$KIT_URL" -o "$KIT_FILE" || die "The upload link did not open (expired or mistyped?). Ask for a new one."
+  node -e 'const k=JSON.parse(require("fs").readFileSync(process.argv[1]));if(new Date(k.expires_at)<new Date())process.exit(1)' "$KIT_FILE" || die "The upload link has expired. Ask for a new one."
+  echo "publishing with an upload link (no AWS login needed)"
+elif [ -z "${OPENKT_SKIP_UPLOAD:-}" ]; then
   command -v aws >/dev/null 2>&1 || brew install awscli
-  got=$(aws sts get-caller-identity --query Account --output text 2>/dev/null) || die "AWS credentials don't work. Try: AWS_PROFILE=<your deepwork profile> and run this again"
+  got=$(aws sts get-caller-identity --query Account --output text 2>/dev/null) || die "AWS credentials don't work. Set AWS_PROFILE=<your deepwork profile>, or publish without AWS using an upload link (OPENKT_UPLOAD_KIT, see the top of this script)."
   [ "$got" = "$ACCOUNT" ] || die "These AWS credentials are for account $got; the download bucket is in $ACCOUNT. Set AWS_PROFILE to that account's profile."
 fi
-echo "node $(node -v) · cmake $(cmake --version | head -1 | awk '{print $3}') · aws ${AWS_PROFILE:-default}"
+echo "node $(node -v) · cmake $(cmake --version | head -1 | awk '{print $3}') · upload: $([ -n "$KIT_URL" ] && echo 'upload link' || echo "aws ${AWS_PROFILE:-default}")"
 
 # ---------------------------------------------------------------- 2. code
 say "Getting the code ($REF) in $SRC"
@@ -69,6 +78,7 @@ cd "$SRC"
 COMMIT=$(git rev-parse HEAD)
 # Every build gets a newer version, so the in-app updater always sees it as an update.
 VERSION="0.3.$(date -u +%y%m%d%H%M)"
+[ -z "$KIT_FILE" ] || VERSION=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1])).version' "$KIT_FILE")
 echo "commit ${COMMIT:0:7} · version $VERSION"
 
 # ---------------------------------------------------------------- 3. build
@@ -94,8 +104,20 @@ say "Uploading to s3://$BUCKET/desktop/releases/$VERSION/"
 KEY_DMG="desktop/releases/$VERSION/OpenKT-$VERSION-arm64.dmg"
 KEY_ZIP="desktop/releases/$VERSION/OpenKT-$VERSION-arm64.zip"
 LONG="public, max-age=31536000, immutable"
-aws s3 cp "$DMG" "s3://$BUCKET/$KEY_DMG" --region "$REGION" --only-show-errors --content-type application/x-apple-diskimage --cache-control "$LONG"
-aws s3 cp "$ZIP" "s3://$BUCKET/$KEY_ZIP" --region "$REGION" --only-show-errors --content-type application/zip --cache-control "$LONG"
+# put <file> <kit entry: dmg|zip|latest_dmg|feed> <s3 key> <content-type> <cache-control>
+put() {
+  if [ -n "$KIT_FILE" ]; then
+    local url ct cc
+    url=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1]))[process.argv[2]].url' "$KIT_FILE" "$2")
+    ct=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1]))[process.argv[2]].content_type' "$KIT_FILE" "$2")
+    cc=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1]))[process.argv[2]].cache_control' "$KIT_FILE" "$2")
+    curl -fsS -X PUT -T "$1" -H "Content-Type: $ct" -H "Cache-Control: $cc" "$url" -o /dev/null || die "Upload of $3 failed (link expired?)."
+  else
+    aws s3 cp "$1" "s3://$BUCKET/$3" --region "$REGION" --only-show-errors --content-type "$4" --cache-control "$5"
+  fi
+}
+put "$DMG" dmg "$KEY_DMG" application/x-apple-diskimage "$LONG"
+put "$ZIP" zip "$KEY_ZIP" application/zip "$LONG"
 
 # ---------------------------------------------------------------- 5. publish (the feed goes LAST, so a half-uploaded release is never advertised)
 say "Publishing latest.json and the openkt.ai download"
@@ -107,8 +129,8 @@ const [version, commit, base, dmg, zip, keyDmg, keyZip, notes, out] = process.ar
 const file = (p, key) => ({ url: `${base.replace(/\/desktop$/, "")}/${key}`, sha256: crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"), size: fs.statSync(p).size });
 fs.writeFileSync(out, JSON.stringify({ version, channel: "stable", released_at: new Date().toISOString(), commit, notes: JSON.parse(notes), min_os: "13.3", files: { zip: file(zip, keyZip), dmg: file(dmg, keyDmg) } }, null, 2) + "\n");
 ' "$VERSION" "$COMMIT" "$BASE_URL" "$DMG" "$ZIP" "$KEY_DMG" "$KEY_ZIP" "$NOTES" "$FEED"
-aws s3 cp "$DMG" "s3://$BUCKET/desktop/OpenKT-latest-arm64.dmg" --region "$REGION" --only-show-errors --content-type application/x-apple-diskimage --cache-control no-cache
-aws s3 cp "$FEED" "s3://$BUCKET/desktop/latest.json" --region "$REGION" --only-show-errors --content-type application/json --cache-control no-cache
+put "$DMG" latest_dmg desktop/OpenKT-latest-arm64.dmg application/x-apple-diskimage no-cache
+put "$FEED" feed desktop/latest.json application/json no-cache
 
 # ---------------------------------------------------------------- check
 code=$(curl -s -o /dev/null -w '%{http_code}' -r 0-0 "$BASE_URL/OpenKT-latest-arm64.dmg")
