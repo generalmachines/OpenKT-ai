@@ -1,0 +1,21 @@
+{
+  "name": "@openkt/connect",
+  "version": "0.1.0",
+  "description": "Connects AI tools (Claude Code, Codex, Cursor, Gemini CLI, VS Code, OpenCode, Windsurf, Claude Desktop) to OpenKT: per-tool installers, the direct-to-server hook script and native memory sync. No Electron, no runtime dependencies.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "packages/connect" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }, "./package.json": "./package.json" },
+  "bin": { "openkt-connect": "./bin/openkt-connect.mjs" },
+  "files": ["dist", "bin", "assets", "README.md", "DESIGN.md"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "embed": "node scripts/embed-assets.mjs",
+    "build": "node scripts/embed-assets.mjs && tsc -p tsconfig.build.json",
+    "typecheck": "node scripts/embed-assets.mjs --check && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.0", "vitest": "^3.0.0" }
+}
