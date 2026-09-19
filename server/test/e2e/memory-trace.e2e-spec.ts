@@ -191,7 +191,7 @@ describe("MemoryTraceController GET /memories/:memory_id/trace (e2e)", () => {
   ];
 
   const relatedRows = [
-    { id: RELATED_ID, preview: "memmachine layered over pgvector", similarity: 0.94 },
+    { id: RELATED_ID, preview: "keyword search layered over pgvector", similarity: 0.94 },
   ];
 
   // Pre-computed neighbor rows from the new memory_neighbors table.

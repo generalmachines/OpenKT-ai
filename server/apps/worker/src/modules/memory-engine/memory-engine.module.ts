@@ -14,7 +14,6 @@ import { EpisodeStageService } from "./services/episode-stage.service";
 import { JobLedgerService } from "./services/job-ledger.service";
 import { MemberKnowledgeBatchService } from "./services/member-knowledge-batch.service";
 import { MemberKnowledgeStageService } from "./services/member-knowledge-stage.service";
-import { MemMachineBridgeService } from "./services/memmachine-bridge.service";
 import { MemoryPipelineOrchestratorService } from "./services/memory-pipeline.orchestrator.service";
 import { PreprocessStageService } from "./services/preprocess-stage.service";
 import { RmqCommandConsumerService } from "./services/rmq-command-consumer.service";
@@ -45,7 +44,6 @@ import { WorkerLlmConfigResolverService } from "./services/worker-llm-config-res
     { provide: LLM_QUOTA_CHECK, useExisting: WorkerLlmQuotaChecker },
     LlmGatewayService,
     WorkerTagMatcherService,
-    MemMachineBridgeService,
     PreprocessStageService,
     EmbedStageService,
     TriageStageService,

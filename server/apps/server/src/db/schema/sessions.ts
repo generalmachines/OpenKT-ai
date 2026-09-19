@@ -5,20 +5,14 @@ import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-
 // conversation with a coding agent or chat assistant, one meeting,
 // one voice note, one note. Append-only while open, then closed.
 //
-// NOTE on the real Postgres table name: MemMachine's own Alembic
-// migrations (apps/worker's MemMachine bridge, now optional per
-// architecture.md §7) already created a table literally named
-// `sessions` in every environment that ever ran MemMachine — local
-// dev, and very likely staging RDS (see AGENT_CHANGELOG.md). That
-// table has a completely different shape (`session_key` varchar PK,
-// no `id`/`project_id`/etc) and is referenced by a FK from
-// `short_term_memory_data`. Colliding with it would either silently
-// no-op under `CREATE TABLE IF NOT EXISTS` (leaving our columns
-// missing) or, worse, corrupt MemMachine's own state. The OpenKT
-// session table therefore lives at the physical name `kt_sessions` /
-// `kt_session_turns`; the Drizzle-level export names stay `sessions`
-// / `sessionTurns` to match the product vocabulary everywhere else
-// in the codebase (services, contracts, MCP tools).
+// NOTE on the real Postgres table name: a third-party component that
+// older deployments ran against the same database created its own
+// table literally named `sessions`, with a completely different shape.
+// Colliding with it would silently no-op under `CREATE TABLE IF NOT
+// EXISTS` and leave our columns missing. The session tables therefore
+// live at the physical names `kt_sessions` / `kt_session_turns`; the
+// Drizzle-level export names stay `sessions` / `sessionTurns` to match
+// the product vocabulary everywhere else in the codebase.
 export const sessions = pgTable("kt_sessions", {
   id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
   orgId: uuid("org_id"),

@@ -276,12 +276,10 @@ function makeStage(state: FakeState, opts: {
 }) {
   const pgStub = buildPgStub(state);
   const llmConfigResolver = { resolve: jest.fn().mockResolvedValue(null) } as never;
-  const memMachine = { isEnabled: () => false, namespace: jest.fn(), findCandidates: jest.fn() } as never;
   const service = new SynthesizeStageService(
     pgStub as never,
     opts.llm as never,
     llmConfigResolver,
-    memMachine,
     opts.config ?? buildConfigStub(),
   );
   return { service, pg: pgStub };

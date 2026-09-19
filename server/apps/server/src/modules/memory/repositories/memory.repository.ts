@@ -204,9 +204,8 @@ export class MemoryRepository {
   }
 
   // Bulk hydrate memories by id (preserving caller-supplied order).
-  // Used by the recall path when an external memory engine (MemMachine)
-  // returns a ranked list of OpenKT memory IDs that we need to wrap in
-  // the OpenKT MemoryRecord shape.
+  // Used when a caller holds a ranked list of memory ids that need
+  // wrapping in the MemoryRecord shape.
   async findByIds(
     _context: ActorContext,
     memoryIds: string[],
@@ -588,7 +587,7 @@ export class MemoryRepository {
       // array interpolated into sql`` expands to a parenthesized param
       // list `($1, $2, ...)`, which Postgres treats as a record and
       // refuses to cast ("cannot cast type record to uuid[]"). Same
-      // idiom as memmachine-memory-engine.service.ts.
+      // idiom as local-memory-engine.service.ts.
       const idList = sql.join(
         memoryIds.map((id) => sql`${id}::uuid`),
         sql`, `,

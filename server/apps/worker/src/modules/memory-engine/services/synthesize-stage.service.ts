@@ -11,10 +11,6 @@ import {
   type StageExecutionResult,
 } from "../pipeline-message";
 import { ROUTING_KEY_SYNTHESIZE_DONE } from "../../mq/mq.constants";
-import {
-  MemMachineBridgeService,
-  type MemMachineGraphNode,
-} from "./memmachine-bridge.service";
 import { WorkerPgService } from "../../database/worker-pg.service";
 import { WorkerLlmConfigResolverService } from "./worker-llm-config-resolver.service";
 
@@ -69,7 +65,6 @@ export class SynthesizeStageService {
     private readonly db: WorkerPgService,
     private readonly llmGatewayService: LlmGatewayService,
     private readonly llmConfigResolver: WorkerLlmConfigResolverService,
-    private readonly memMachine: MemMachineBridgeService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -269,14 +264,6 @@ export class SynthesizeStageService {
         break;
     }
 
-    // Persist the rich MemMachine response (canonical statement,
-    // semantic items, relation triples) into `memmachine_nodes`. This
-    // is best-effort: MemMachine being unreachable / 5xx never blocks
-    // synthesize — the bridge swallows errors and returns []. We also
-    // wrap the persistence call itself so a row-level constraint
-    // surprise can't fail the stage.
-    const memmachineNodesWritten = await this.captureMemMachineGraph(memory);
-
     return {
       result: {
         action: effectiveAction,
@@ -295,158 +282,9 @@ export class SynthesizeStageService {
             : [],
         related_count: related.length,
         synthesized_by: modelLabel,
-        memmachine_nodes_written: memmachineNodesWritten,
       },
       eventRoutingKey: ROUTING_KEY_SYNTHESIZE_DONE,
     };
-  }
-
-  // Pull the MemMachine graph for the just-synthesized memory and
-  // upsert one row per node into `memmachine_nodes`. Returns the
-  // number of rows attempted (not necessarily inserted vs updated —
-  // the unique indexes do that work). Best-effort: any failure here
-  // is logged and swallowed.
-  private async captureMemMachineGraph(memory: MemoryRow): Promise<number> {
-    try {
-      if (!this.memMachine.isEnabled()) return 0;
-      const ns = this.memMachine.namespace({
-        org_id: memory.org_id,
-        project_id: memory.project_id,
-        owner_user_id: memory.owner_user_id,
-      });
-      const nodes = await this.memMachine.fetchMemoryGraph({
-        orgId: ns.orgId,
-        projectId: ns.projectId,
-        memoryId: memory.id,
-        query: memory.content,
-        limit: 10,
-      });
-      if (nodes.length === 0) return 0;
-      let written = 0;
-      for (const node of nodes) {
-        const ok = await this.upsertMemMachineNode({
-          memoryId: memory.id,
-          externalNamespace: ns.orgId,
-          externalProjectId: ns.projectId,
-          node,
-        });
-        if (ok) written++;
-      }
-      return written;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `[synthesize.memmachine-capture] failed for memory_id=${memory.id}: ${message}`,
-      );
-      return 0;
-    }
-  }
-
-  private async upsertMemMachineNode(args: {
-    memoryId: string;
-    externalNamespace: string;
-    externalProjectId: string;
-    node: MemMachineGraphNode;
-  }): Promise<boolean> {
-    const { memoryId, externalNamespace, externalProjectId, node } = args;
-    const subject = node.nodeKind === "relation" ? node.subject : null;
-    const predicate = node.nodeKind === "relation" ? node.predicate : null;
-    const object = node.nodeKind === "relation" ? node.object : null;
-    const metadataJson = JSON.stringify(node.metadata ?? {});
-    try {
-      // Two upsert paths because the partial unique indexes differ
-      // for rows with vs without an external_id. Postgres's ON CONFLICT
-      // needs a concrete constraint target.
-      if (node.externalId) {
-        await this.db.query(
-          `insert into memmachine_nodes
-             (memory_id, provider, node_kind, external_id, statement,
-              subject, predicate, object, score,
-              external_namespace, external_project_id, metadata, recorded_at)
-           values ($1, 'memmachine', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, now())
-           on conflict (memory_id, node_kind, external_id) where external_id is not null
-           do update set
-             statement = excluded.statement,
-             subject = excluded.subject,
-             predicate = excluded.predicate,
-             object = excluded.object,
-             score = excluded.score,
-             external_namespace = excluded.external_namespace,
-             external_project_id = excluded.external_project_id,
-             metadata = excluded.metadata,
-             recorded_at = now()`,
-          [
-            memoryId,
-            node.nodeKind,
-            node.externalId,
-            node.statement,
-            subject,
-            predicate,
-            object,
-            node.score,
-            externalNamespace,
-            externalProjectId,
-            metadataJson,
-          ],
-        );
-        return true;
-      }
-      if (node.nodeKind === "relation") {
-        await this.db.query(
-          `insert into memmachine_nodes
-             (memory_id, provider, node_kind, external_id, statement,
-              subject, predicate, object, score,
-              external_namespace, external_project_id, metadata, recorded_at)
-           values ($1, 'memmachine', 'relation', null, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, now())
-           on conflict (memory_id, subject, predicate, object)
-             where node_kind = 'relation' and external_id is null
-           do update set
-             statement = excluded.statement,
-             score = excluded.score,
-             external_namespace = excluded.external_namespace,
-             external_project_id = excluded.external_project_id,
-             metadata = excluded.metadata,
-             recorded_at = now()`,
-          [
-            memoryId,
-            node.statement,
-            subject,
-            predicate,
-            object,
-            node.score,
-            externalNamespace,
-            externalProjectId,
-            metadataJson,
-          ],
-        );
-        return true;
-      }
-      // Episodic / semantic without uid — rare, but write a plain
-      // insert. We can't dedupe these without an external_id.
-      await this.db.query(
-        `insert into memmachine_nodes
-           (memory_id, provider, node_kind, external_id, statement,
-            subject, predicate, object, score,
-            external_namespace, external_project_id, metadata, recorded_at)
-         values ($1, 'memmachine', $2, null, $3, null, null, null, $4, $5, $6, $7::jsonb, now())`,
-        [
-          memoryId,
-          node.nodeKind,
-          node.statement,
-          node.score,
-          externalNamespace,
-          externalProjectId,
-          metadataJson,
-        ],
-      );
-      return true;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `[synthesize.memmachine-upsert] failed memory_id=${memoryId} kind=${node.nodeKind}: ${message}`,
-      );
-      return false;
-    }
   }
 
   private async fetchMemoryTags(memoryId: string): Promise<string[]> {
@@ -505,49 +343,7 @@ export class SynthesizeStageService {
       return rows;
     }
 
-    if (this.memMachine.isEnabled()) {
-      const ns = this.memMachine.namespace({
-        org_id: memory.org_id,
-        project_id: memory.project_id,
-        owner_user_id: memory.owner_user_id,
-      });
-      const hits = await this.memMachine.findCandidates({
-        orgId: ns.orgId,
-        projectId: ns.projectId,
-        query: memory.content,
-        limit: topK,
-        excludeMemoryId: memory.id,
-      });
-      if (hits.length === 0) return [];
-      const filteredIds = hits.map((hit) => hit.openktMemoryId);
-      // Filter the MemMachine hits down to memories with overlapping
-      // tags + within the lookback window.
-      const rows = await this.db.query<{
-        id: string;
-        content: string;
-        kind: string;
-        created_at: string;
-      }>(
-        `select m.id, m.content, m.kind, m.created_at::text as created_at
-           from memories m
-          where m.id = any($1::uuid[])
-            and m.archived = false
-            and m.superseded_by is null
-            and m.created_at >= $2
-            and exists (
-              select 1
-                from memory_tags mt
-                join tags t on t.id = mt.tag_id
-               where mt.memory_id = m.id
-                 and t.slug = any($3::text[])
-            )`,
-        [filteredIds, lookbackSince, tags],
-      );
-      const simByid = new Map(hits.map((hit) => [hit.openktMemoryId, hit.similarity]));
-      return rows.map((row) => ({ ...row, similarity: simByid.get(row.id) ?? 0 }));
-    }
-
-    // No embedding + no memmachine: fall back to plain tag-overlap +
+    // No embedding: fall back to plain tag-overlap +
     // recency (deterministic).
     const rows = await this.db.query<{
       id: string;

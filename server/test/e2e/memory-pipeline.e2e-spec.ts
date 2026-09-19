@@ -88,10 +88,7 @@ describe("Memory engine pipeline (e2e)", () => {
         return { updated_at: "2026-04-29T00:00:05.000Z" };
       }),
     };
-    // EmbedStageService constructor was simplified — the MemMachine
-    // toggle moved out and the stage now takes just the worker pg
-    // service. See apps/worker/src/modules/memory-engine/services/
-    // embed-stage.service.ts.
+    // EmbedStageService takes just the worker pg service.
     const service = new EmbedStageService(db as never);
 
     const result = await service.execute({

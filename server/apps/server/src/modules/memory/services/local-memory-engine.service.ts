@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { ValidationDomainError } from "@openkt/core-errors";
@@ -9,7 +9,6 @@ import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
 import {
   memories,
   memoryAccesses,
-  memoryExternalRefs,
   memoryTags,
   profiles,
   projects,
@@ -24,87 +23,25 @@ import type {
 } from "../contracts/memory.contract";
 import type { MemoryEngine } from "./memory-engine";
 import { decayFieldsFromRecord } from "./memory-decay";
-import { MemMachineClient } from "./memmachine.client";
 import { embed, toPgVector } from "../repositories/embedding-bge";
 
-const PROVIDER = "memmachine";
-const EPISODIC_KIND = "episodic";
-
+// The memory engine: plain Postgres. Hybrid search is pgvector cosine
+// similarity fused with tsvector keyword rank (reciprocal-rank fusion),
+// with access enforced inside the SQL and an optional rerank hop.
 @Injectable()
-export class MemMachineMemoryEngine implements MemoryEngine {
-  private readonly client: MemMachineClient;
-
+export class LocalMemoryEngine implements MemoryEngine {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
     private readonly configService: ConfigService,
-  ) {
-    this.client = new MemMachineClient(
-      this.configService.get<string>("OPENKT_MEMMACHINE_URL"),
-      this.configService.get<number>("OPENKT_MEMMACHINE_TIMEOUT_MS"),
-    );
-  }
+  ) {}
 
-  async remember(_context: ActorContext, memory: MemoryRecord): Promise<void> {
-    if (!this.enabled()) return;
-    const orgId = this.toMemMachineOrgId(memory.org_id, memory.owner.user_id);
-    const externalId = await this.client.addMemory({
-      orgId,
-      projectId: memory.project_id,
-      content: memory.content,
-      producer: memory.owner.display_name ?? memory.owner.email ?? memory.owner.user_id,
-      metadata: {
-        openkt_memory_id: memory.id,
-        openkt_project_id: memory.project_id,
-        openkt_org_id: memory.org_id ?? "",
-        openkt_owner_user_id: memory.owner.user_id,
-        kind: memory.kind,
-        visibility: memory.visibility,
-      },
-    });
+  // The memory row written by MemoryRepository IS the index (its
+  // embedding + content_tsv columns), so there is nothing extra to
+  // write or remove here. The hooks stay on the interface for engines
+  // that keep a separate index.
+  async remember(_context: ActorContext, _memory: MemoryRecord): Promise<void> {}
 
-    if (externalId) {
-      await this.upsertExternalRef(memory.id, EPISODIC_KIND, externalId, {
-        externalNamespace: orgId,
-        externalProjectId: memory.project_id,
-      });
-    }
-  }
-
-  async forget(_context: ActorContext, memoryId: string, _hard: boolean): Promise<void> {
-    if (!this.enabled()) return;
-    // Read the engine-side routing from the stored ref so a forget
-    // works even after the memory's org/project moved or after an
-    // OpenKT-side rename.
-    const rows = await this.db
-      .select({
-        externalId: memoryExternalRefs.externalId,
-        externalNamespace: memoryExternalRefs.externalNamespace,
-        externalProjectId: memoryExternalRefs.externalProjectId,
-      })
-      .from(memoryExternalRefs)
-      .where(
-        and(
-          eq(memoryExternalRefs.memoryId, memoryId),
-          eq(memoryExternalRefs.provider, PROVIDER),
-          eq(memoryExternalRefs.externalKind, EPISODIC_KIND),
-        ),
-      );
-
-    for (const row of rows) {
-      await this.client.deleteEpisodic(
-        { orgId: row.externalNamespace, projectId: row.externalProjectId },
-        [row.externalId],
-      );
-    }
-    await this.db
-      .delete(memoryExternalRefs)
-      .where(
-        and(
-          eq(memoryExternalRefs.memoryId, memoryId),
-          eq(memoryExternalRefs.provider, PROVIDER),
-        ),
-      );
-  }
+  async forget(_context: ActorContext, _memoryId: string, _hard: boolean): Promise<void> {}
 
   async search(
     context: ActorContext,
@@ -119,14 +56,9 @@ export class MemMachineMemoryEngine implements MemoryEngine {
       throw new ValidationDomainError("memory search requires filters.project_ids");
     }
 
-    // Read path: RDS-only. MemMachine is NEVER in the critical path
-    // for recall/search — it does async indexing on the write side, but
-    // queries hit our own pgvector + tsv indexes so the read path never
-    // fails when MemMachine, MiniMax, or any other downstream is down.
-    // This IS the "local memory engine" architecture.md §2 describes —
-    // MEMORY_ENGINE=local only turns OFF the write-side MemMachine
-    // push (see `enabled()`); the read path below runs unconditionally
-    // regardless of that flag, always has.
+    // Read path: Postgres only — our own pgvector + tsv indexes, so
+    // recall never depends on a downstream service being up (embedding
+    // failure degrades to keyword-only below).
     const scopeIds = [...new Set([...projectIds, ...workspaceIds])];
     const primaryProjectIds = new Set(projectIds);
     const includeArchived = request.filters.include_archived;
@@ -414,111 +346,6 @@ export class MemMachineMemoryEngine implements MemoryEngine {
     return { data: searchResult.data, meta: { query_ms: searchResult.meta.query_ms } };
   }
 
-  private enabled(): boolean {
-    // Read via ConfigService because @nestjs/config v4 no longer writes
-    // .env values into process.env — the engine selector lives only in
-    // the validated config tree.
-    return (
-      (this.configService.get<string>("OPENKT_MEMORY_ENGINE") ?? "").toLowerCase() ===
-      "memmachine"
-    );
-  }
-
-  private async upsertExternalRef(
-    memoryId: string,
-    externalKind: string,
-    externalId: string,
-    routing: { externalNamespace: string; externalProjectId: string },
-  ): Promise<void> {
-    const metadataJson = JSON.stringify({
-      org_id: routing.externalNamespace,
-      project_id: routing.externalProjectId,
-    });
-    await this.db.execute(sql`
-      insert into ${memoryExternalRefs}
-        (memory_id, provider, external_kind, external_id, external_namespace, external_project_id, metadata, created_at, updated_at)
-      values (
-        ${memoryId}::uuid, ${PROVIDER}, ${externalKind}, ${externalId},
-        ${routing.externalNamespace}, ${routing.externalProjectId},
-        ${metadataJson}::jsonb, now(), now()
-      )
-      on conflict (memory_id, provider, external_kind)
-      do update set
-        external_id = excluded.external_id,
-        external_namespace = excluded.external_namespace,
-        external_project_id = excluded.external_project_id,
-        metadata = excluded.metadata,
-        updated_at = now()
-    `);
-  }
-
-  private refKey(
-    namespace: string | null | undefined,
-    projectId: string | null | undefined,
-    externalId: string,
-  ): string {
-    return `${namespace ?? ""}::${projectId ?? ""}::${externalId}`;
-  }
-
-  // Scope the (provider, kind, namespace, project, external_id) lookup
-  // to the exact tuples MemMachine returned. A naive global IN would
-  // happily resolve a uid that belongs to a different OpenKT user/org
-  // — which is how stale refs after a MemMachine reset cause cross-
-  // tenant data leaks.
-  private async mapExternalIds(
-    keys: Array<{ externalId: string; externalNamespace: string | null; externalProjectId: string | null }>,
-  ): Promise<Map<string, string>> {
-    if (keys.length === 0) return new Map();
-    const rows = await this.db
-      .select({
-        externalId: memoryExternalRefs.externalId,
-        externalNamespace: memoryExternalRefs.externalNamespace,
-        externalProjectId: memoryExternalRefs.externalProjectId,
-        memoryId: memoryExternalRefs.memoryId,
-      })
-      .from(memoryExternalRefs)
-      .where(
-        and(
-          eq(memoryExternalRefs.provider, PROVIDER),
-          eq(memoryExternalRefs.externalKind, EPISODIC_KIND),
-          inArray(
-            memoryExternalRefs.externalId,
-            keys.map((key) => key.externalId),
-          ),
-        ),
-      );
-
-    const allowedTuples = new Set(
-      keys
-        .filter((key) => key.externalNamespace && key.externalProjectId)
-        .map((key) => this.refKey(key.externalNamespace, key.externalProjectId, key.externalId)),
-    );
-    const map = new Map<string, string>();
-    for (const row of rows) {
-      const key = this.refKey(row.externalNamespace, row.externalProjectId, row.externalId);
-      if (allowedTuples.size > 0 && !allowedTuples.has(key)) continue;
-      map.set(key, row.memoryId);
-    }
-    return map;
-  }
-
-  private async namespaces(projectIds: string[]): Promise<Array<{ orgId: string; projectId: string }>> {
-    if (projectIds.length === 0) return [];
-    const rows = await this.db
-      .select({
-        id: projects.id,
-        orgId: projects.orgId,
-        ownerUserId: projects.ownerUserId,
-      })
-      .from(projects)
-      .where(inArray(projects.id, projectIds));
-
-    return rows.map((project) => ({
-      orgId: this.toMemMachineOrgId(project.orgId, project.ownerUserId),
-      projectId: project.id,
-    }));
-  }
-
   private async fetchMemories(memoryIds: string[]): Promise<MemoryRecord[]> {
     if (memoryIds.length === 0) return [];
     const rows = await this.db
@@ -559,10 +386,6 @@ export class MemMachineMemoryEngine implements MemoryEngine {
       map.set(row.memoryId, list);
     }
     return map;
-  }
-
-  private toMemMachineOrgId(orgId: string | null, ownerUserId: string): string {
-    return orgId ?? `personal:${ownerUserId}`;
   }
 
   private normalizeScore(score: number | null): number | null {
