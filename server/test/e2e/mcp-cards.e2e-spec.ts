@@ -254,6 +254,44 @@ describeIfDb("MCP Apps cards (e2e)", () => {
     expect(card.result!.content[0]!.text).toContain("1 item kept");
   });
 
+  it("a teammate made an editor saves into the shared space (card and kt_save_memory)", async () => {
+    const editor = await signup("editor");
+    await http()
+      .put(`/v1/projects/${spaceId}/grants`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ email: editor.email, role: "editor" })
+      .expect(200);
+    const sid = await initialize(editor.token, UI_CAPS);
+
+    const card = await callTool(editor.token, sid, "kt_save_card", { content: "x", suggested_project: spaceId });
+    expect(card.result!.structuredContent.spaces.map((s: { id: string }) => s.id)).toEqual([spaceId]);
+
+    const committed = await callTool(editor.token, sid, "kt_commit_save", {
+      content: `Cards e2e ${run}: an editor saves through the card.`,
+      kind: "action",
+      visibility: "project",
+      project: spaceId,
+    });
+    expect(committed.result!.isError).toBeFalsy();
+    expect(committed.result!.structuredContent.space.id).toBe(spaceId);
+
+    const direct = await callTool(editor.token, sid, "kt_save_memory", {
+      content: `Cards e2e ${run}: an editor saves directly.`,
+      kind: "fact",
+      project_id: spaceId,
+    });
+    expect(direct.result!.isError).toBeFalsy();
+    const saved = JSON.parse(direct.result!.content[0]!.text) as { project: { id: string }; owner: { display_name: string } };
+    expect(saved.project.id).toBe(spaceId);
+    expect(saved.owner.display_name).toBe("editor person");
+
+    // The owner recalls the editor's fact, with the editor as author.
+    const ownerSid = await initialize(ownerToken, {});
+    const recalled = await callTool(ownerToken, ownerSid, "kt_recall", { query: "an editor saves directly", project_id: spaceId });
+    const rows = (JSON.parse(recalled.result!.content[0]!.text) as { data: Array<{ content: string; owner: { display_name: string } }> }).data;
+    expect(rows.find((r) => r.content.includes("an editor saves directly"))?.owner.display_name).toBe("editor person");
+  });
+
   it("without the extension the app-only tools do not exist", async () => {
     const sid = await initialize(ownerToken, {});
     const res = await callTool(ownerToken, sid, "kt_commit_save", { content: "x", visibility: "personal" });
