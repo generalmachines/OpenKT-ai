@@ -1600,12 +1600,14 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 - docs/specs/05-tool-providers.md §3–§4
 
 **Do exactly this**
-1. Create `packages/connectors` with the `Connector` interface in `src/types.ts` verbatim.
+1. Create `packages/connectors` (copy the package scaffold of `packages/providers`, no dependencies) with the `Connector` interface in `src/types.ts` verbatim. The spec leaves four types open; define them in the same file: `ProviderHandle = { call<T>(action: string, params: Record<string, unknown>): Promise<T> }` (a provider bound to one connection — the app wraps `ToolProvider.call(connectionId, …)`), `Container = { id: string; name: string }`, `Block = Record<string, unknown>` (J73 narrows it), `Turn = { seq: number; role: 'user' | 'assistant' | 'speaker' | 'system' | 'note'; speaker?: string; content: string }` (Spec 01 `session_turns`). Do not import other workspace packages.
 2. `src/obsidian.ts`: containers = top-level folders; items = `.md` files; `toSession` turns a note into turns — one per top-level heading section, `role:'note'`; frontmatter `openkt-space` overrides the container's space; `content_hash` = sha256 of the body; files with `openkt: false` in frontmatter are skipped.
 3. `poll` returns files whose mtime is newer than `since`.
+4. The vault root is listed with `fs.list { dir: "." }` — the `local` provider rejects an empty `dir`.
 
 **Files you may touch**
 - `packages/connectors/**`
+- package-lock.json (only the new workspace entry that `npm install` adds; `npm ci` fails without it)
 
 **Acceptance — every line must be true and tested**
 - [ ] `toSession` is tested with 6 fixture notes (no headings, nested headings, frontmatter, empty, huge > 200 KB → truncated with a marker turn, skipped).
@@ -1640,6 +1642,7 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 - `packages/connectors/src/<product>.ts`
 - `packages/connectors/test/<product>.test.ts`
 - fixtures of provider responses
+- packages/connectors/package.json and package-lock.json (the `turndown` dependency only, in the first product's pull request)
 
 **Acceptance — every line must be true and tested**
 - [ ] `toSession` is pure and covered by fixtures for each product.
