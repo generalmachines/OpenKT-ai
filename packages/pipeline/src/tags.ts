@@ -15,11 +15,15 @@ const MERGE_SIMILARITY = 0.85;
 const MAX_TAGS = 4;
 
 export function slugTag(raw: string): string | null {
-  const folded = raw.normalize("NFKD").replace(/\p{Diacritic}/gu, "");
+  // NFKD, strip Latin combining marks only (U+0300–U+036F) so `Décision` →
+  // `decision`, recompose (NFC) — Thai and Devanagari marks must survive.
+  const folded = raw
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .normalize("NFC")
+    .toLowerCase();
   const slug = folded
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, MAX_TAG_CHARS)
     .replace(/-$/, "");
@@ -38,7 +42,7 @@ export function normaliseTags(
   similarity: (a: string, b: string) => number,
 ): { tags: string[]; created: string[] } {
   const tags: string[] = [];
-  const created: string[] = [];
+  const brandNew = new Set<string>();
   for (const raw of proposed) {
     const slug = slugTag(raw);
     if (slug === null) continue;
@@ -63,7 +67,9 @@ export function normaliseTags(
     }
 
     tags.push(slug);
-    if (!created.includes(slug)) created.push(slug);
+    brandNew.add(slug);
   }
-  return { tags: tags.slice(0, MAX_TAGS), created };
+  // `created` lists only new tags actually returned (after the first-4 cut).
+  const returned = tags.slice(0, MAX_TAGS);
+  return { tags: returned, created: returned.filter((t) => brandNew.has(t)) };
 }

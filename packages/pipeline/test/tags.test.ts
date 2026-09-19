@@ -22,6 +22,20 @@ describe("slugTag", () => {
     expect(out).toHaveLength(32);
     expect(out?.endsWith("-")).toBe(false);
   });
+
+  it("keeps Thai and Devanagari tags intact (any script)", () => {
+    expect(slugTag("การประชุม")).toBe("การประชุม");
+    expect(slugTag("निर्णय")).toBe("निर्णय");
+  });
+
+  it("strips Latin combining marks (so Décision folds to the kind name)", () => {
+    expect(slugTag("Décision!")).toBeNull();
+    expect(slugTag("Café Latte")).toBe("cafe-latte");
+  });
+
+  it("non-letter runs collapse to one dash", () => {
+    expect(slugTag("a  --  b!!c")).toBe("a-b-c");
+  });
 });
 
 describe("normaliseTags", () => {
@@ -51,7 +65,8 @@ describe("normaliseTags", () => {
       () => 0,
     );
     expect(out.tags).toEqual(["alpha", "beta", "gamma", "delta"]);
-    expect(out.created).toEqual(["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]);
+    // `created` lists only new tags actually returned after the first-4 cut.
+    expect(out.created).toEqual(["alpha", "beta", "gamma", "delta"]);
   });
 
   it("skips slugs rejected as null", () => {
