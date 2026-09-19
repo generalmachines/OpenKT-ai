@@ -41,6 +41,12 @@ export function validateSection(
   const existing = new Set(ctx.existingFactIds.map((id) => id.toLowerCase()));
 
   for (const line of proseLines(md)) {
+    // A list line (bullet or numbered) is one sentence (Spec 02 §6): the
+    // citation covers the whole line, however many sentence ends it has.
+    if (/^([-*+]|\d+[.)])\s/.test(line)) {
+      if (parseCitations(line).length === 0) errors.push("uncited_sentence");
+      continue;
+    }
     for (const sentence of sentenceSegments(line)) {
       if (parseCitations(sentence).length === 0) errors.push("uncited_sentence");
     }
@@ -57,14 +63,19 @@ export function validateSection(
   return { ok: false, errors };
 }
 
-/** Deterministic fallback: one bullet per fact (Spec 02 §6). */
+/** Deterministic fallback: one bullet per fact, nothing else (Spec 02 §6). */
 export function fallbackAppend(
   currentMd: string,
   facts: { id: string; statement: string }[],
 ): string {
+  if (facts.length === 0) return currentMd;
   const lines = facts.map(({ id, statement }) => {
-    const cleaned = statement.trim().replace(/\.+$/, "");
+    const cleaned = statement
+      .trim()
+      .replace(/\s+/g, " ")
+      .replace(/\.+$/, "");
     return `- ${cleaned} [^f:${id}]`;
   });
-  return `${currentMd.trimEnd()}\n${lines.join("\n")}`;
+  const head = currentMd.trimEnd();
+  return head === "" ? lines.join("\n") : `${head}\n${lines.join("\n")}`;
 }

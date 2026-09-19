@@ -89,11 +89,40 @@ describe("fallbackAppend", () => {
     );
   });
 
-  it("output passes validateSection when under the length limit", () => {
-    const md = fallbackAppend("", [
-      { id: A, statement: "Fact one here." },
-      { id: B, statement: "Fact two here." },
-    ]);
+  it("output always passes validateSection when under the length limit", () => {
+    const statements = [
+      "Fact one here.",
+      "Can the legacy POS export daily CSV?",
+      "Ship it now!",
+      "Deploy with dokku. Then run migrations.",
+      "Line one\nline two.",
+      "ลูกค้าใช้ระบบเก่า",
+    ];
+    const id = (n: number) => `0000000${n}-0000-0000-0000-00000000000A`;
+    const facts = statements.map((statement, i) => ({ id: id(i), statement }));
+    for (const current of ["", `Existing sentence [^f:${A}].`]) {
+      const md = fallbackAppend(current, facts);
+      expect(validateSection(md, { inputFactIds: facts.map((f) => f.id), existingFactIds: [A] })).toEqual({ ok: true });
+    }
+    expect(fallbackAppend("", facts).split("\n")).toHaveLength(statements.length);
+  });
+
+  it("list lines are one sentence each", () => {
+    const md = `1. Deploy the API [^f:${A}]\n2. Run migrations [^f:${B}]\n- Deploy. Then migrate [^f:${A}]\n* Ready? [^f:${B}]`;
     expect(validateSection(md, { inputFactIds: [A, B], existingFactIds: [] })).toEqual({ ok: true });
+  });
+
+  it("a list line with no citation is uncited", () => {
+    expect(validateSection("- no citation here", { inputFactIds: [], existingFactIds: [] })).toEqual({ ok: false, errors: ["uncited_sentence"] });
+  });
+
+  it("a prose line is still split into sentences", () => {
+    expect(validateSection(`Cited [^f:${A}]. Not cited.`, { inputFactIds: [A], existingFactIds: [] })).toEqual({ ok: false, errors: ["uncited_sentence"] });
+  });
+
+  it("fallbackAppend adds nothing but one line per fact", () => {
+    expect(fallbackAppend("", [{ id: A, statement: "x." }])).toBe(`- x [^f:${A}]`);
+    expect(fallbackAppend("Existing.\n\n", [])).toBe("Existing.\n\n");
+    expect(fallbackAppend("", [{ id: A, statement: "Line one\nline two." }])).toBe(`- Line one line two [^f:${A}]`);
   });
 });
