@@ -103,6 +103,7 @@ export class MemoryCommandsApplicationService {
       sessionStamp,
     );
     await this.memoryEngine.remember(context, created);
+    await this.memoryRepository.embedNow(created.id, created.content).catch(() => false);
     await this.memoryRepository.logAccess(context, created.id, "write");
     if (sessionStamp) {
       void this.sessionRepository.touchActivity(sessionStamp.sessionId).catch(() => undefined);
