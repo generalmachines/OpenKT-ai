@@ -3,6 +3,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { ActorContext } from "@openkt/core-context";
 import { ForbiddenDomainError, NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
 
+import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { AccessScopeService } from "../../access/services/access-scope.service";
 import type { GrantRole } from "../../grants/contracts/grant.contract";
 import { GrantRepository } from "../../grants/repositories/grant.repository";
@@ -32,6 +33,10 @@ import {
   type ValidatedSkill,
 } from "./skill-files";
 import { STARTER_SKILL_MD, STARTER_SKILL_TITLE } from "./starter-skill";
+
+// Spec 04: saves refuse secrets — every file of the folder, plus the title and note.
+const refuseSkillSecrets = (validated: ValidatedSkill, ...texts: Array<string | null | undefined>) =>
+  refuseSecrets("skill", ...texts, ...validated.files.map((file) => file.content));
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RANK: Record<SkillRole, number> = { reader: 1, editor: 2, owner: 3 };
@@ -99,6 +104,7 @@ export class SkillsApplicationService {
     else files = [{ path: SKILL_MD, content: starterSkillMd(input.title, await this.freeSlug(userId, projectId, input.title)) }];
 
     const validated = validateSkillFiles(files);
+    refuseSkillSecrets(validated, input.title, input.change_note);
     const id = await this.skillRepository.create({
       ownerUserId: userId,
       orgId,
@@ -134,6 +140,7 @@ export class SkillsApplicationService {
     const userId = this.requireUser(context);
     const { row } = await this.requireEditable(context, skillId);
     const validated = validateSkillFiles(input.files);
+    refuseSkillSecrets(validated, input.title, input.change_note);
     await this.skillRepository.saveVersion({
       skillId,
       baseVersion: input.base_version,
@@ -152,6 +159,7 @@ export class SkillsApplicationService {
     const found = await this.skillRepository.findVersion(skillId, version);
     if (!found) throw new NotFoundDomainError("skill version");
     const validated = validateSkillFiles(found.version.files);
+    refuseSkillSecrets(validated);
     await this.skillRepository.saveVersion({
       skillId,
       baseVersion: row.skill.currentVersion,

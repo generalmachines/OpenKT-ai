@@ -114,7 +114,7 @@ export class SessionsController {
   }
 
   @Get(":id")
-  @ApiOperation({ summary: "Get a session with its turns and distilled memories" })
+  @ApiOperation({ summary: "Get a session with its facts and my_role; turns only for an editor or owner" })
   @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
   async getById(@ActorContextParam() context: ActorContext, @Param() params: unknown) {
     const { id } = parseWithSchema(SessionIdParamsSchema, params);
