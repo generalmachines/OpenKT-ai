@@ -113,28 +113,49 @@ async function audioFlowed(p) {
 }
 const stopVoice = (p) => p.evaluate(() => window.__captureEvent({ type: 'voice.final', captureId: 'x', text: '', durationSec: 0 }));
 
-/** The real server's 401 body, without touching the network (a refused fetch would log a console error). */
-function refusingServer() {
-  window.fetch = async () =>
-    new Response(JSON.stringify({ data: null, error: { code: 'unauthorized', message: 'invalid or expired token', details: null, request_id: 'shot' }, meta: null }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-}
-
 /** name, route, viewport, optional steps before the shot, artboard it mirrors, optional init script */
 const SHOTS = [
-  ['00-connect', '/connect', APP, null, 'Onboarding.dc.html'],
+  // Sign-in runs against the stand-in that accepts anyone (src/api/auth.ts MockAuth): no server needed.
+  ['00-welcome-signin', '/welcome', APP, async (p) => p.getByRole('button', { name: 'Continue with Google' }).waitFor(), null],
   [
-    '00b-connect-failed',
-    '/connect',
+    '00b-welcome-create-account',
+    '/welcome',
     APP,
     async (p) => {
-      await p.getByLabel('Access token').fill('okt_pat_example');
-      await p.getByRole('button', { name: 'Test connection' }).click();
+      await p.getByRole('button', { name: 'Continue with Google' }).waitFor();
+      await p.getByRole('button', { name: 'Create an account' }).click();
+      await p.getByLabel('Your name').fill('Ana Reyes');
+      await p.getByLabel('Email').fill('ana@northgate.com');
+      await p.getByLabel('Password').fill('a long enough password');
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
+  [
+    '00c-welcome-error',
+    '/welcome',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Continue with Google' }).waitFor();
+      await p.getByLabel('Email').fill('ana@northgate.com');
+      await p.getByLabel('Password').fill('oops');
+      await p.getByLabel('Password').press('Enter');
       await p.getByRole('alert').waitFor();
     },
     null,
-    refusingServer,
   ],
-  ['01-onboarding-1-sign-in', '/onboarding/1', APP, null, null],
+  [
+    '00d-welcome-advanced',
+    '/welcome',
+    APP,
+    async (p) => {
+      await p.getByRole('button', { name: 'Continue with Google' }).waitFor();
+      await p.getByRole('button', { name: 'Using your own server?' }).click();
+      await p.getByLabel('Server address').waitFor();
+      await p.mouse.move(1, 1);
+    },
+    null,
+  ],
   ['02-onboarding-2-connect-tools', '/onboarding/2', APP, null, 'Onboarding.dc.html'],
   ['03-onboarding-3-models', '/onboarding/3', APP, null, null],
   ['04-session-summary', S, APP, null, 'Main.dc.html'],
@@ -142,6 +163,22 @@ const SHOTS = [
   ['06-session-transcript', `${S}/transcript`, APP, null, null],
   ['07-session-access', `${S}/access`, APP, null, 'Access.dc.html'],
   ['08-session-access-role-menu', `${S}/access`, APP, async (p) => p.getByRole('button', { name: /Role for Ana Reyes/ }).click(), null],
+  [
+    '08b-access-share-by-email',
+    `${S}/access`,
+    APP,
+    async (p) => {
+      await p.getByLabel('Invite by email').fill('ravi@example.com');
+      await p.getByLabel('Invite by email').press('Enter');
+      await p.getByText('Ravi Menon', { exact: true }).waitFor();
+      await p.getByLabel('Invite by email').fill('dana@northgate.com');
+      await p.getByRole('button', { name: 'Invite as: Reader' }).click();
+      await p.getByRole('option', { name: 'Editor' }).click();
+      await p.getByRole('button', { name: 'Invite', exact: true }).click();
+      await p.getByText('Invited — hasn’t joined yet').waitFor();
+    },
+    null,
+  ],
   ['09-new-note', '/new', APP, null, null],
   [
     '09b-new-note-confirm',

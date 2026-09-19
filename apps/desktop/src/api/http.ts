@@ -19,9 +19,10 @@
  *   POST   /v1/memories                    {content, kind, project_id, session_id}
  *   DELETE /v1/memories/:id
  *   POST   /v1/memories/recall             {query, project_id?, limit} → data: Memory[]
- *   GET    /v1/{sessions|projects}/:id/grants          owner only → GrantRecord[]
- *   PUT    /v1/{sessions|projects}/:id/grants/:userId  {role}
- *   DELETE /v1/{sessions|projects}/:id/grants/:userId
+ *   GET    /v1/{sessions|projects}/:id/grants          owner only → rows with `subject:{id,email,display_name}` or `{pending:true,email}`
+ *   PUT    /v1/{sessions|projects}/:id/grants          {email, role} → the grant, or `{pending:true}` when that person has no account yet
+ *   DELETE /v1/{sessions|projects}/:id/grants/:userId  (or the pending share's own id)
+ *   (signing in and out: src/api/auth.ts)
  *
  * The server says project and memory; the app says space and context. Those
  * words stop at this file. Pages, skills, connectors, access defaults, teams
@@ -293,22 +294,6 @@ export class HttpClient implements OpenKTClient {
     };
   }
 
-  async searchSubjects(query: string): Promise<GrantSubject[]> {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const me = await this.getMe();
-    // No org → no directory to search (there is no user-lookup endpoint). A pasted user id still works.
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(q) && q !== me.id) return [{ type: 'user', id: q, name: `user ${q.slice(0, 8)}`, initials: '··' }];
-    return (await this.listMembers())
-      .filter((m) => m.id !== me.id && `${m.name} ${m.email}`.toLowerCase().includes(q))
-      .map((m) => ({
-        type: 'user' as const,
-        id: m.id,
-        name: m.name,
-        initials: initialsOf(m.name),
-      }));
-  }
-
   // ── spaces ────────────────────────────────────────────────────────────
 
   private personal(): Promise<Id> {
@@ -471,11 +456,41 @@ export class HttpClient implements OpenKTClient {
   }
 
   /**
-   * SPEC-04: grants are bare rows `{id, subject_id, role, …}` — no `subject`
-   * object, no `inherited_from`, users only. Names are joined from the org
-   * member list here. Listing is owner-only: a 403/404 means "not yours to
-   * manage" and reads as an empty list rather than an error.
+   * A grant row names its person: `subject:{id,email,display_name}`. A share
+   * with someone who has no account yet is `{id, pending:true, email, role}`
+   * (the email may also sit under `subject`); its own `id` is what withdraws it.
+   * Older servers sent a bare `subject_id`; the name is then joined from the
+   * org member list. A raw id is never shown.
    */
+  private toGrant(g: Json, resource: ResourceRef, me: Me, members: Member[]): Grant {
+    const subject = obj(g['subject']);
+    const role = (['reader', 'editor', 'owner'] as const).find((r) => r === g['role']) ?? 'reader';
+    const addedByMe = str(pick(g, 'created_by')) === me.id;
+    const email = str(subject['email']) || str(g['email']);
+    if (subject['pending'] === true || g['pending'] === true) {
+      return {
+        id: str(g['id'], `${resource.id}:invited:${email}`),
+        resource,
+        subject: { type: 'user', id: `invited:${str(g['id'], email)}`, name: email, initials: initialsOf(email), email },
+        role,
+        note: addedByMe ? 'added by you' : '',
+        pending: true,
+      };
+    }
+    const id = str(subject['id']) || str(pick(g, 'subject_id'));
+    const known = id === me.id ? me : members.find((x) => x.id === id);
+    const mail = email || known?.email || '';
+    const name = str(pick(subject, 'display_name')) || known?.name || mail || 'Teammate';
+    return {
+      id: str(g['id'], `${resource.id}:${id}`),
+      resource,
+      subject: { type: 'user', id, name, initials: initialsOf(name), email: mail || undefined },
+      role,
+      note: id === me.id ? 'you' : addedByMe ? 'added by you' : '',
+    };
+  }
+
+  /** Listing is owner-only: a 403/404 means "not yours to manage" and reads as an empty list rather than an error. */
   async listGrants(resource: ResourceRef): Promise<Grant[]> {
     let rows: Json[];
     try {
@@ -485,27 +500,15 @@ export class HttpClient implements OpenKTClient {
       throw e;
     }
     const [me, members, ownerId] = await Promise.all([this.getMe(), this.listMembers().catch(() => [] as Member[]), this.ownerOf(resource).catch(() => '')]);
-    const person = (id: Id) => (id === me.id ? me : members.find((x) => x.id === id));
-    const grants = rows.map((g): Grant => {
-      const subjectId = str(g['subject_id']);
-      const m = person(subjectId);
-      const name = m?.name ?? `user ${subjectId.slice(0, 8)}`;
-      return {
-        id: str(g['id'], `${resource.id}:${subjectId}`),
-        resource,
-        subject: { type: 'user', id: subjectId, name, initials: m ? initialsOf(name) : '··' },
-        role: (['reader', 'editor', 'owner'] as const).find((r) => r === g['role']) ?? 'reader',
-        note: [m?.email, str(g['created_by']) === me.id ? 'added by you' : ''].filter(Boolean).join(' · '),
-      };
-    });
+    const grants = rows.map((g) => this.toGrant(g, resource, me, members));
     // The owner holds no grant row on the server (ownership is a column), but the Access tab must show them.
     if (ownerId && !grants.some((g) => g.subject.id === ownerId)) {
-      const m = person(ownerId);
-      const name = m?.name ?? `user ${ownerId.slice(0, 8)}`;
+      const m = ownerId === me.id ? me : members.find((x) => x.id === ownerId);
+      const name = m?.name ?? 'Owner';
       grants.unshift({
         id: `${resource.id}:owner`,
         resource,
-        subject: { type: 'user', id: ownerId, name, initials: m ? initialsOf(name) : '··' },
+        subject: { type: 'user', id: ownerId, name, initials: initialsOf(name), email: m?.email || undefined },
         role: 'owner',
         note: ownerId === me.id ? `you · created this ${resource.type}` : `created this ${resource.type}`,
         inherited: true,
@@ -519,20 +522,27 @@ export class HttpClient implements OpenKTClient {
     return str((await this.sessionPayload(resource.id)).session['owner_user_id']);
   }
 
-  async putGrant(resource: ResourceRef, subject: GrantSubject, role: Role): Promise<Grant> {
-    const g = obj(await this.data('PUT', `${this.grantsPath(resource)}/${encodeURIComponent(subject.id)}`, { role }));
+  async inviteByEmail(resource: ResourceRef, email: string, role: Role): Promise<Grant> {
+    const address = email.trim();
+    const g = obj(await this.data('PUT', this.grantsPath(resource), { email: address, role }));
     this.changed();
-    return {
-      id: str(g['id'], `${resource.id}:${subject.id}`),
-      resource,
-      subject,
-      role,
-      note: 'added by you',
-    };
+    const [me, members] = await Promise.all([this.getMe(), this.listMembers().catch(() => [] as Member[])]);
+    // `{pending:true}` may be the whole answer; the email and role are the ones just sent.
+    return { ...this.toGrant({ email: address, role, created_by: me.id, ...g }, resource, me, members), role };
   }
 
-  async deleteGrant(resource: ResourceRef, subject: Pick<GrantSubject, 'type' | 'id'>): Promise<void> {
-    await this.data('DELETE', `${this.grantsPath(resource)}/${encodeURIComponent(subject.id)}`);
+  /** By email when the row has one (the documented call); by id against a server that predates it. */
+  async putGrant(resource: ResourceRef, subject: GrantSubject, role: Role): Promise<Grant> {
+    if (subject.email) return { ...(await this.inviteByEmail(resource, subject.email, role)), subject };
+    const g = obj(await this.data('PUT', `${this.grantsPath(resource)}/${encodeURIComponent(subject.id)}`, { role }));
+    this.changed();
+    return { id: str(g['id'], `${resource.id}:${subject.id}`), resource, subject, role, note: 'added by you' };
+  }
+
+  /** The path names a user id for a real grant, or the pending share's own id for one still waiting on a sign-up. */
+  async deleteGrant(resource: ResourceRef, subject: Pick<GrantSubject, 'type' | 'id' | 'email'>): Promise<void> {
+    const key = subject.id.startsWith('invited:') ? subject.id.slice('invited:'.length) : subject.id;
+    await this.data('DELETE', `${this.grantsPath(resource)}/${encodeURIComponent(key)}`);
     this.changed();
   }
 

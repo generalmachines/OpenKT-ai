@@ -67,7 +67,7 @@ export class MockClient implements OpenKTClient {
 
   async getMe() {
     const me = this.db.workspace.me;
-    return { id: me.id, name: me.name, initials: me.initials, email: `${me.name.split(' ')[0]?.toLowerCase() ?? 'me'}@example.com` };
+    return { id: me.id, name: me.name, initials: me.initials, email: me.email ?? `${me.name.split(' ')[0]?.toLowerCase() ?? 'me'}@example.com` };
   }
 
   async getWorkspace() {
@@ -204,31 +204,35 @@ export class MockClient implements OpenKTClient {
     return clone(grant);
   }
 
+  async inviteByEmail(resource: ResourceRef, email: string, role: Role): Promise<Grant> {
+    const address = email.trim().toLowerCase();
+    const person = this.db.workspace.people.find((p) => !p.external && p.email?.toLowerCase() === address);
+    if (person) return this.putGrant(resource, { type: 'user', id: person.id, name: person.name, initials: person.initials, email: person.email }, role);
+    const existing = this.db.grants.find((g) => sameResource(g.resource, resource) && g.subject.email?.toLowerCase() === address);
+    if (existing) {
+      existing.role = role;
+      this.changed();
+      return clone(existing);
+    }
+    // Nobody here has that email yet: the invitation waits for them.
+    const grant: Grant = {
+      id: this.nextId('g'),
+      resource,
+      subject: { type: 'user', id: `invited:${address}`, name: address, initials: address.slice(0, 2).toUpperCase(), email: address },
+      role,
+      note: 'added by you',
+      pending: true,
+    };
+    this.db.grants.push(grant);
+    this.changed();
+    return clone(grant);
+  }
+
   async deleteGrant(resource: ResourceRef, subject: Pick<GrantSubject, 'type' | 'id'>): Promise<void> {
     this.db.grants = this.db.grants.filter(
       (g) => !(sameResource(g.resource, resource) && g.subject.type === subject.type && g.subject.id === subject.id),
     );
     this.changed();
-  }
-
-  async searchSubjects(query: string): Promise<GrantSubject[]> {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const people: GrantSubject[] = this.db.workspace.people
-      .filter((p) => !p.external)
-      .map((p) => ({ type: 'user', id: p.id, name: p.name, initials: p.initials }));
-    const teams: GrantSubject[] = this.db.workspace.teams.map((t) => ({
-      type: 'team',
-      id: t.id,
-      name: t.name,
-      initials: t.name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase(),
-    }));
-    return [...people, ...teams].filter((s) => s.name.toLowerCase().includes(q));
   }
 
   async listAccessDefaults() {

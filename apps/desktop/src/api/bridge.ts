@@ -39,6 +39,7 @@ export interface ExtractedNote {
 
 interface LooseBridge {
   net?: { request(req: NetRequest): Promise<NetResponse> };
+  auth?: { google?: { start?(input: { clientId: string; clientSecret?: string }): Promise<unknown>; cancel?(): Promise<unknown> } };
   secureStore?: { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void>; delete(k: string): Promise<void> };
   models?: { status?(): Promise<unknown>; ensure?(): Promise<unknown>; onProgress?(listener: (p: unknown) => void): () => void };
   localAi?: { extractNote?(input: { text: string; source?: string }): Promise<unknown> };
@@ -257,6 +258,41 @@ export const screenshot = {
       return bridge()?.screenshot?.pathForFile?.(file) || (file as File & { path?: string }).path || '';
     } catch {
       return '';
+    }
+  },
+};
+
+/** Why "Continue with Google" did not finish. `cancelled` is the person's own choice and is never shown as an error. */
+export class GoogleSignInError extends Error {
+  constructor(
+    readonly kind: 'cancelled' | 'timeout' | 'failed',
+    message: string = kind,
+  ) {
+    super(message);
+    this.name = 'GoogleSignInError';
+  }
+}
+
+/** Google sign-in runs in the system browser, driven by main (src/main/auth). Absent in a plain browser. */
+export const googleAuth = {
+  available: (): boolean => typeof bridge()?.auth?.google?.start === 'function',
+  /** Resolves with Google's `id_token`; throws a GoogleSignInError otherwise. */
+  async start(input: { clientId: string; clientSecret?: string }): Promise<string> {
+    let r: { id_token?: unknown; error?: unknown; message?: unknown } | null;
+    try {
+      r = ((await bridge()?.auth?.google?.start?.(input)) ?? null) as typeof r;
+    } catch (e) {
+      throw new GoogleSignInError('failed', e instanceof Error ? e.message : String(e));
+    }
+    if (r && typeof r.id_token === 'string' && r.id_token) return r.id_token;
+    const kind = r?.error === 'cancelled' || r?.error === 'timeout' ? r.error : 'failed';
+    throw new GoogleSignInError(kind, typeof r?.message === 'string' ? r.message : kind);
+  },
+  cancel(): void {
+    try {
+      void Promise.resolve(bridge()?.auth?.google?.cancel?.()).catch(() => undefined);
+    } catch {
+      /* nothing in flight */
     }
   },
 };

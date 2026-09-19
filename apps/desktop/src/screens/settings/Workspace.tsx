@@ -6,7 +6,7 @@ import { Avatar, ErrorNote } from '../../components/bits';
 import { Select } from '../../components/Select';
 import { useConnection } from '../../state/connection';
 
-/** No artboard. Holds the adapter switch: sample data or a real server. */
+/** No artboard. Which data the app shows: the person's account, or the built-in sample. */
 export function Workspace() {
   const client = useClient();
   const navigate = useNavigate();
@@ -16,9 +16,9 @@ export function Workspace() {
   const changed = adapter !== settings.adapter;
 
   const apply = async () => {
-    if (adapter === 'mock') return connect({ ...settings, adapter: 'mock' });
-    // Going to a server needs an address and a token that were checked: that is the Connect screen's job.
-    if (!settings.token) return navigate('/connect');
+    if (adapter === 'mock') return connect({ ...settings, adapter: 'mock', signedOut: false });
+    // Leaving sample data means signing in: that is the Welcome screen's job.
+    if (!settings.token) return navigate('/welcome');
     return connect({ ...settings, adapter: 'http' });
   };
 
@@ -26,22 +26,21 @@ export function Workspace() {
     <>
       <h1 className="h1 h1--sm">Workspace</h1>
       <p className="lede" style={{ maxWidth: 560, marginBottom: 14 }}>
-        {workspace.data ? `${workspace.data.name} · ${workspace.data.people.filter((p) => !p.external).length} people. ` : ' '}
-        The app has no backend of its own; it talks to your team’s server.
+        {workspace.data ? `${workspace.data.name} · ${workspace.data.people.filter((p) => !p.external).length} people.` : ' '}
       </p>
       <ul className="plain">
         <li className="mdl">
           <span className="mdl__job">Data</span>
           <span className="person__text">
-            <span className="mdl__name">{adapter === 'mock' ? 'Sample data' : 'OpenKT server'}</span>
-            <span className="person__sub mono">{adapter === 'mock' ? 'in memory · resets when the app restarts' : settings.baseUrl || DEFAULT_SERVER_URL}</span>
+            <span className="mdl__name">{adapter === 'mock' ? 'Sample data' : 'Your account'}</span>
+            <span className="person__sub mono">{adapter === 'mock' ? 'on this Mac only · resets when the app restarts' : 'everything you and your team have saved'}</span>
           </span>
           <Select
             label="Data source"
             value={adapter}
             options={[
               { value: 'mock', label: 'Sample data' },
-              { value: 'http', label: 'OpenKT server' },
+              { value: 'http', label: 'Your account' },
             ]}
             onChange={setAdapter}
             style={{ minWidth: 150 }}
@@ -50,22 +49,38 @@ export function Workspace() {
       </ul>
       <div className="formfoot">
         <span className="mono small-meta" role="status">
-          now using {client.kind === 'mock' ? 'sample data' : 'your server'} · server and token live under Account
+          now showing {client.kind === 'mock' ? 'sample data' : 'your account'}
         </span>
         <button type="button" className="btn btn--dark btn--box" disabled={!changed} onClick={() => void apply()}>
-          {adapter === 'http' && !settings.token ? 'Connect a server…' : 'Apply'}
+          {adapter === 'http' && !settings.token ? 'Sign in…' : 'Apply'}
         </button>
       </div>
     </>
   );
 }
 
+const hostOf = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
+
+/** Name, email, Sign out. The server is only mentioned to people who chose their own. */
 export function Account() {
   const client = useClient();
   const navigate = useNavigate();
   const { settings, signOut } = useConnection();
   const me = useQuery((c) => c.getMe(), []);
-  const onServer = client.kind === 'http';
+  const [leaving, setLeaving] = useState(false);
+  const ownServer = client.kind === 'http' && Boolean(settings.baseUrl) && settings.baseUrl !== DEFAULT_SERVER_URL;
+
+  const leave = async () => {
+    setLeaving(true);
+    await signOut();
+    navigate('/welcome', { replace: true });
+  };
 
   return (
     <>
@@ -80,30 +95,22 @@ export function Account() {
             <Avatar initials={me.data.initials} />
             <span className="person__text">
               <span className="person__name">{me.data.name}</span>
-              <span className="person__sub mono">{onServer ? me.data.email || 'signed in with an access token' : 'sample account · not signed in anywhere'}</span>
+              <span className="person__sub mono">{[me.data.email || settings.email, client.kind === 'mock' ? 'sample account' : ''].filter(Boolean).join(' · ')}</span>
             </span>
-            {onServer ? (
-              <button type="button" className="btn btn--box-sm" onClick={() => void signOut().then(() => navigate('/connect'))}>
-                Sign out
-              </button>
-            ) : (
-              <button type="button" className="btn btn--box-sm" onClick={() => navigate('/connect')}>
-                Connect a server
-              </button>
-            )}
+            <button type="button" className="btn btn--box-sm" onClick={() => void leave()} disabled={leaving}>
+              Sign out
+            </button>
           </li>
         )}
-        <li className="mdl">
-          <span className="mdl__job">Server</span>
-          <span className="person__text">
-            <span className="mdl__name mono" style={{ fontSize: 13 }}>
-              {onServer ? settings.baseUrl : 'none — sample data'}
+        {ownServer && (
+          <li className="mdl">
+            <span className="mdl__job">Server</span>
+            <span className="person__text">
+              <span className="mdl__name">{hostOf(settings.baseUrl)}</span>
+              <span className="person__sub mono">your own server · sign out to change it</span>
             </span>
-            <span className="person__sub mono">
-              {onServer ? `token ${window.openkt ? 'kept in the macOS keychain' : 'kept in this browser'} · sign out to change either` : 'nothing leaves this Mac'}
-            </span>
-          </span>
-        </li>
+          </li>
+        )}
       </ul>
     </>
   );

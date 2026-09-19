@@ -1,5 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { onboarding } from '../api';
+import { useQuery } from '../api/hooks';
 import { Icon, type IconName } from '../components/Icon';
 
 type StepState = 'done' | 'now' | 'todo';
@@ -43,35 +45,6 @@ const BUNDLE = [
   { name: 'Qwen3-Reranker-0.6B', job: 'reranking', gb: 0.3 },
   
 ];
-
-function SignIn({ onDone }: { onDone: () => void }) {
-  const [email, setEmail] = useState('');
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    onDone();
-  };
-  return (
-    <form className="onb__main" onSubmit={submit}>
-      <h2 className="onb__h2">Sign in</h2>
-      <p className="lede onb__lede">Use your work email. If your team already runs OpenKT, you join their workspace; if not, one is created for you.</p>
-      <label htmlFor="onb-email" className="sr-only">
-        Work email
-      </label>
-      <input id="onb-email" type="email" className="input input--tall" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} style={{ maxWidth: 520, flexGrow: 0 }} />
-      <label htmlFor="onb-server" className="sr-only">
-        Server
-      </label>
-      <input id="onb-server" type="text" className="input input--tall mono" placeholder="server address · leave empty for the hosted instance" style={{ maxWidth: 520, flexGrow: 0, fontSize: 12.5 }} />
-      <div className="grow" />
-      <div className="onb__foot">
-        <span className="onb__note">Self-hosting? Put your own server address in the second field.</span>
-        <button type="submit" className="btn btn--accent">
-          Continue
-        </button>
-      </div>
-    </form>
-  );
-}
 
 function ConnectTools({ onDone }: { onDone: () => void }) {
   const [on, setOn] = useState<Record<string, boolean>>({ 'claude-code': true, cursor: true, chatgpt: true, claude: false, capture: true });
@@ -173,13 +146,18 @@ function GetModels({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** Onboarding.dc.html (step 2 is the artboard; steps 1 and 3 follow its frame). */
+/** Onboarding.dc.html. Signing in happened on the Welcome screen, so step 1 is always ticked. */
 export function Onboarding() {
   const { step } = useParams();
   const navigate = useNavigate();
+  const me = useQuery((c) => c.getMe(), []);
   const n = step === undefined ? 2 : Number(step);
-  if (![1, 2, 3].includes(n)) return <Navigate to="/onboarding/2" replace />;
+  if (![2, 3].includes(n)) return <Navigate to="/onboarding/2" replace />;
   const state = (i: number): StepState => (i < n ? 'done' : i === n ? 'now' : 'todo');
+  const finish = () => {
+    onboarding.markDone();
+    navigate('/');
+  };
 
   return (
     <div className="onb">
@@ -188,14 +166,13 @@ export function Onboarding() {
         <span className="onb__name">OpenKT</span>
         <h1 className="onb__h1">Three steps. No terminal.</h1>
         <ol className="plain onb__steps">
-          <Step n={1} title="Sign in" detail={n > 1 ? 'Joined workspace Deepwork as Pratham.' : 'Your work email finds your team’s workspace.'} state={state(1)} />
+          <Step n={1} title="Sign in" detail={me.data ? `Signed in as ${me.data.name}.` : 'Signed in.'} state="done" />
           <Step n={2} title="Connect your tools" detail={n > 2 ? 'Connected. New conversations are saved as sessions.' : 'We found these on your Mac. Pick the ones to connect.'} state={state(2)} />
           <Step n={3} title="Get the local models" detail="About 4 GB. Transcription and extraction run on this Mac." state={state(3)} />
         </ol>
       </aside>
-      {n === 1 && <SignIn onDone={() => navigate('/onboarding/2')} />}
       {n === 2 && <ConnectTools onDone={() => navigate('/onboarding/3')} />}
-      {n === 3 && <GetModels onDone={() => navigate('/')} />}
+      {n === 3 && <GetModels onDone={finish} />}
     </div>
   );
 }

@@ -9,11 +9,17 @@
  * stranger) turn on the product promise: B, granted reader, recalls A's
  * fact; C gets nothing.
  *
+ * OPENKT_LIVE_SIGNUP=1 (needs only the URL) turns on the accounts flow: sign up
+ * two fresh people → log in → share a space by email (known + not-yet-joined)
+ * → log out, after which the token is refused. It creates real accounts
+ * (`live-<stamp>-a@openkt-live.test`), so point it at a test server.
+ *
  * Skipped entirely when the URL and token are not set.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { HttpAuth } from '../../src/api/auth';
 import { ApiError } from '../../src/api/errors';
 import { HttpClient } from '../../src/api/http';
 import { fileCapture } from '../../src/capture/save';
@@ -35,6 +41,7 @@ const URL_ = env['OPENKT_LIVE_URL'];
 const TOKEN = env['OPENKT_LIVE_TOKEN'];
 const TOKEN_B = env['OPENKT_LIVE_TOKEN_B'];
 const TOKEN_C = env['OPENKT_LIVE_TOKEN_C'];
+const SIGNUP = env['OPENKT_LIVE_SIGNUP'] === '1';
 
 // Suites are skipped without env, but their bodies still run at collection time.
 const client = (token: string) => new HttpClient({ baseUrl: URL_ ?? 'http://127.0.0.1:1', token });
@@ -195,5 +202,70 @@ describe.skipIf(!URL_ || !TOKEN)('http adapter against a live server', () => {
       made.grants.length = 0;
       expect(sees(await b.recall(asks, { spaceId }).catch(() => []))).toBe(false);
     });
+  });
+});
+
+describe.skipIf(!URL_ || !SIGNUP)('built-in accounts against a live server', () => {
+  const auth = new HttpAuth(URL_ ?? 'http://127.0.0.1:1');
+  const a = { email: `live-${stamp}-a@openkt-live.test`, password: `pw-${stamp}-correct-horse`, name: `Live A ${stamp}` };
+  const b = { email: `live-${stamp}-b@openkt-live.test`, password: `pw-${stamp}-battery-staple`, name: `Live B ${stamp}` };
+  let tokenA = '';
+
+  it('providers: password is on; google says whether it is, and names a client id when it is', async () => {
+    const p = await auth.providers();
+    expect(p.password).toBe(true);
+    if (p.google.enabled) expect(p.google.clientId).toMatch(/\.apps\.googleusercontent\.com$/);
+    console.log(`  google sign-in ${p.google.enabled ? 'enabled' : 'not configured'}`);
+  });
+
+  it('signup: a new account gets an ordinary bearer token that works everywhere else', async () => {
+    const session = await auth.signUp(a);
+    tokenA = session.token;
+    expect(session.token).toMatch(/^okt_pat_/);
+    expect(session.user).toMatchObject({ email: a.email, name: a.name });
+    expect(session.isNew).toBe(true);
+    expect(await client(tokenA).getMe()).toMatchObject({ id: session.user.id, email: a.email, name: a.name });
+    await auth.signUp(b);
+  });
+
+  it('signup again, a short password, a wrong password: each is its own typed error', async () => {
+    await expect(auth.signUp(a)).rejects.toMatchObject({ name: 'ApiError', status: 409, code: 'email_taken' });
+    await expect(auth.signUp({ ...a, email: `live-${stamp}-c@openkt-live.test`, password: 'short' })).rejects.toMatchObject({ code: 'weak_password' });
+    await expect(auth.logIn({ email: a.email, password: 'not the password at all' })).rejects.toMatchObject({ status: 401, code: 'invalid_credentials' });
+  });
+
+  it('login: the same person, a working token', async () => {
+    const session = await auth.logIn({ email: a.email, password: a.password });
+    expect(session.user.email).toBe(a.email);
+    expect((await client(session.token).getMe()).email).toBe(a.email);
+    tokenA = session.token;
+  });
+
+  it('share by email: a teammate with an account is granted by name; a stranger to the server is pending', async () => {
+    const me = client(tokenA);
+    const personal = (await me.listSpaces()).find((s) => s.personal)!;
+    const session = await me.createSession({ source: 'note', title: `Live share ${stamp}`, spaceId: personal.id, text: 'shared by email' });
+
+    for (const resource of [{ type: 'session' as const, id: session.id }, { type: 'space' as const, id: personal.id }]) {
+      const known = await me.inviteByEmail(resource, b.email, 'reader');
+      expect(known).toMatchObject({ role: 'reader', subject: { name: b.name, email: b.email } });
+      expect(known.pending).toBeFalsy();
+
+      const notYet = `live-${stamp}-nobody@openkt-live.test`;
+      expect(await me.inviteByEmail(resource, notYet, 'editor')).toMatchObject({ pending: true, role: 'editor', subject: { email: notYet } });
+
+      const grants = await me.listGrants(resource);
+      expect(grants.find((g) => g.subject.email === b.email)).toMatchObject({ role: 'reader', subject: { name: b.name } });
+      expect(grants.find((g) => g.subject.email === notYet)).toMatchObject({ pending: true });
+      for (const g of grants) expect(g.subject.name).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
+
+      await me.deleteGrant(resource, grants.find((g) => g.subject.email === b.email)!.subject);
+      expect((await me.listGrants(resource)).some((g) => g.subject.email === b.email)).toBe(false);
+    }
+  });
+
+  it('logout: the token stops working', async () => {
+    await auth.logOut(tokenA);
+    await expect(client(tokenA).getMe()).rejects.toMatchObject({ kind: 'unauthorized' });
   });
 });

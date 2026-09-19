@@ -39,11 +39,11 @@ export interface SeedData {
 }
 
 export function createSeed(now: Date = new Date()): SeedData {
-  const me: Person = { id: 'u-pratham', name: 'Pratham Bhatnagar', initials: 'PB' };
-  const ana: Person = { id: 'u-ana', name: 'Ana Reyes', initials: 'AN' };
-  const ravi: Person = { id: 'u-ravi', name: 'Ravi Menon', initials: 'RM' };
-  const ojas: Person = { id: 'u-ojas', name: 'Ojas Sinha', initials: 'OS' };
-  const lena: Person = { id: 'u-lena', name: 'Lena Fischer', initials: 'LF' };
+  const me: Person = { id: 'u-pratham', name: 'Pratham Bhatnagar', initials: 'PB', email: 'pratham@example.com' };
+  const ana: Person = { id: 'u-ana', name: 'Ana Reyes', initials: 'AN', email: 'ana@example.com' };
+  const ravi: Person = { id: 'u-ravi', name: 'Ravi Menon', initials: 'RM', email: 'ravi@example.com' };
+  const ojas: Person = { id: 'u-ojas', name: 'Ojas Sinha', initials: 'OS', email: 'ojas@example.com' };
+  const lena: Person = { id: 'u-lena', name: 'Lena Fischer', initials: 'LF', email: 'lena@example.com' };
   const marcus: Person = { id: 'x-marcus', name: 'Marcus', initials: 'MA', external: 'Northgate' };
 
   const teams: Team[] = [
@@ -434,7 +434,7 @@ export function createSeed(now: Date = new Date()): SeedData {
     },
   ];
 
-  const subj = (p: Person) => ({ type: 'user' as const, id: p.id, name: p.name, initials: p.initials });
+  const subj = (p: Person) => ({ type: 'user' as const, id: p.id, name: p.name, initials: p.initials, email: p.email });
   const pricing = { type: 'session' as const, id: 's-northgate-pricing' };
   const grants: Grant[] = [
     { id: 'g-1', resource: pricing, subject: subj(me), role: 'owner', note: 'you · recorded this session' },

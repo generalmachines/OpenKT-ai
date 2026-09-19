@@ -103,14 +103,60 @@ describe('access', () => {
     expect(grants.map((g) => g.subject.id)).not.toContain('u-ana');
   });
 
-  it('invites a teammate as reader', async () => {
+  it('people rows show a name and an email — never an id', async () => {
+    renderApp(`${SESSION}/access`);
+    const row = (await screen.findByText('Ana Reyes')).closest('li')!;
+    expect(within(row).getByText(/ana@example\.com/)).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'People and teams with access' });
+    expect(list.textContent).not.toMatch(/\bu-[a-z]+\b|[0-9a-f]{8}-[0-9a-f]{4}/);
+  });
+
+  it('share by email: someone with an account is added by name, as the chosen role', async () => {
     const user = userEvent.setup();
     const client = renderApp(`${SESSION}/access`);
-    await user.type(await screen.findByLabelText('Add people or teams'), 'ravi');
+    await user.type(await screen.findByLabelText('Invite by email'), 'ravi@example.com');
+    await user.click(screen.getByRole('button', { name: 'Invite as: Reader' }));
+    await user.click(screen.getByRole('option', { name: 'Editor' }));
     await user.click(screen.getByRole('button', { name: 'Invite' }));
-    expect(await screen.findByText('Ravi Menon')).toBeInTheDocument();
+
+    const row = (await screen.findByText('Ravi Menon')).closest('li')!;
+    expect(within(row).getByText(/ravi@example\.com/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Ravi Menon can now edit this session.');
+    expect(screen.getByLabelText('Invite by email')).toHaveValue('');
     const grants = await client.listGrants({ type: 'session', id: 's-northgate-pricing' });
-    expect(grants.find((g) => g.subject.id === 'u-ravi')?.role).toBe('reader');
+    expect(grants.find((g) => g.subject.id === 'u-ravi')).toMatchObject({ role: 'editor' });
+  });
+
+  it('share by email: someone without an account shows as "Invited — hasn’t joined yet"', async () => {
+    const user = userEvent.setup();
+    const client = renderApp('/spaces/sp-northgate/access');
+    await user.type(await screen.findByLabelText('Invite by email'), 'dana@partner.test{Enter}');
+
+    const row = (await screen.findByText('dana@partner.test')).closest('li')!;
+    expect(within(row).getByText('Invited — hasn’t joined yet')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('dana@partner.test isn’t on OpenKT yet. They’ll get access to this space as soon as they join.');
+    const grants = await client.listGrants({ type: 'space', id: 'sp-northgate' });
+    expect(grants.find((g) => g.subject.email === 'dana@partner.test')).toMatchObject({ pending: true, role: 'reader' });
+
+    // A pending invitation can still be withdrawn.
+    await user.click(within(row).getByRole('button', { name: /Role for dana@partner\.test/ }));
+    await user.click(screen.getByRole('option', { name: 'Remove access' }));
+    await waitFor(() => expect(screen.queryByText('dana@partner.test')).not.toBeInTheDocument());
+  });
+
+  it('share by email: checks the address before sending anything', async () => {
+    const user = userEvent.setup();
+    const client = renderApp(`${SESSION}/access`);
+    const before = (await client.listGrants({ type: 'session', id: 's-northgate-pricing' })).length;
+    await user.type(await screen.findByLabelText('Invite by email'), 'ravi');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a full email address, like name@company.com.');
+    expect(screen.getByLabelText('Invite by email')).toHaveValue('ravi');
+
+    await user.clear(screen.getByLabelText('Invite by email'));
+    await user.type(screen.getByLabelText('Invite by email'), 'pratham@example.com{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent('That’s you — you already have access.');
+    expect(await client.listGrants({ type: 'session', id: 's-northgate-pricing' })).toHaveLength(before);
   });
 });
 

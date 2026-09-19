@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { describeError } from '../api/errors';
 import { roleLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
 import { ROLES, type Grant, type ResourceRef, type Role } from '../api/types';
@@ -14,77 +15,103 @@ function options(g: Grant, isMe: boolean): SelectOption<RoleChoice>[] {
   return [...roles, { value: 'remove', label: 'Remove access', destructive: true }];
 }
 
-/** Access.dc.html — the grants list, the invite field and the role explainer. */
+type InviteRole = Extract<Role, 'reader' | 'editor'>;
+const INVITE_ROLES: SelectOption<InviteRole>[] = [
+  { value: 'reader', label: 'Reader' },
+  { value: 'editor', label: 'Editor' },
+];
+
+/** Deliberately loose: one @, something on both sides, a dot in the domain. The server has the last word. */
+export const looksLikeEmail = (v: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+
+type Hint = { tone: 'ok' | 'error'; text: string };
+
+/** Access.dc.html — the grants list, share-by-email and the role explainer. */
 export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: 'session' | 'space' }) {
   const client = useClient();
   const grants = useQuery((c) => c.listGrants(resource), [resource.type, resource.id]);
-  const workspace = useQuery((c) => c.getWorkspace(), []);
+  const me = useQuery((c) => c.getMe(), []);
   const [invite, setInvite] = useState('');
-  const [hint, setHint] = useState('');
+  const [role, setRole] = useState<InviteRole>('reader');
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<Hint | null>(null);
 
   const onInvite = async (e: FormEvent) => {
     e.preventDefault();
-    const q = invite.trim();
-    if (!q) return;
-    const have = new Set((grants.data ?? []).map((g) => `${g.subject.type}:${g.subject.id}`));
-    const match = (await client.searchSubjects(q)).find((s) => !have.has(`${s.type}:${s.id}`));
-    if (!match) {
-      setHint(`no one new in ${workspace.data?.name ?? 'this workspace'} matches “${q}”`);
-      return;
+    const email = invite.trim();
+    if (!email || busy) return;
+    if (!looksLikeEmail(email)) return setHint({ tone: 'error', text: 'Enter a full email address, like name@company.com.' });
+    if (me.data?.email && me.data.email.toLowerCase() === email.toLowerCase()) return setHint({ tone: 'error', text: 'That’s you — you already have access.' });
+    setBusy(true);
+    try {
+      const grant = await client.inviteByEmail(resource, email, role);
+      setInvite('');
+      setHint({
+        tone: 'ok',
+        text: grant.pending
+          ? `${email} isn’t on OpenKT yet. They’ll get access to this ${noun} as soon as they join.`
+          : `${grant.subject.name} can now ${role === 'editor' ? 'edit' : 'read'} this ${noun}.`,
+      });
+    } catch (err) {
+      setHint({ tone: 'error', text: describeError(err) });
+    } finally {
+      setBusy(false);
     }
-    await client.putGrant(resource, match, 'reader');
-    setInvite('');
-    setHint(`${match.name.toLowerCase()} can now read this ${noun}`);
   };
 
   const onRole = (g: Grant, choice: RoleChoice) => {
-    if (choice === 'remove') void client.deleteGrant(resource, g.subject);
-    else void client.putGrant(resource, g.subject, choice);
+    const done = choice === 'remove' ? client.deleteGrant(resource, g.subject) : client.putGrant(resource, g.subject, choice);
+    void done.catch((err: unknown) => setHint({ tone: 'error', text: describeError(err) }));
   };
 
   return (
     <div className="access">
       <section className="access__list">
         <h2 className="h-label">Who can use this context</h2>
-        <form className="access__invite" onSubmit={onInvite}>
+        <form className="access__invite" onSubmit={onInvite} noValidate>
           <label htmlFor="invite" className="sr-only">
-            Add people or teams
+            Invite by email
           </label>
           <input
             id="invite"
-            type="text"
+            type="email"
+            inputMode="email"
             className="input"
-            placeholder="Add people or teams"
+            placeholder="Invite by email"
             value={invite}
             autoComplete="off"
+            spellCheck={false}
+            aria-invalid={hint?.tone === 'error' || undefined}
+            aria-describedby={hint ? 'invite-hint' : undefined}
             onChange={(e) => {
               setInvite(e.target.value);
-              setHint('');
+              setHint(null);
             }}
           />
-          <button type="submit" className="btn btn--dark btn--box">
+          <Select<InviteRole> label="Invite as" value={role} options={INVITE_ROLES} onChange={setRole} style={{ minWidth: 104, height: 44 }} />
+          <button type="submit" className="btn btn--dark btn--box" disabled={busy || !invite.trim()}>
             Invite
           </button>
         </form>
         {hint && (
-          <p className="access__hint mono" role="status">
-            {hint}
+          <p id="invite-hint" className={`access__hint${hint.tone === 'error' ? ' access__hint--error' : ''}`} role={hint.tone === 'error' ? 'alert' : 'status'}>
+            {hint.text}
           </p>
         )}
         {grants.loading && !grants.data && <Loading />}
         {grants.error && <ErrorNote error={grants.error} />}
         <ul className="plain" aria-label="People and teams with access">
           {(grants.data ?? []).map((g) => (
-            <li key={g.id} className="person">
-              <Avatar initials={g.subject.initials} />
+            <li key={g.id} className={`person${g.pending ? ' person--pending' : ''}`}>
+              <Avatar initials={g.pending ? '@' : g.subject.initials} />
               <span className="person__text">
                 <span className="person__name">{g.subject.name}</span>
-                <span className="person__sub mono">{g.note}</span>
+                <span className="person__sub mono">{g.pending ? 'Invited — hasn’t joined yet' : [g.subject.email, g.note].filter(Boolean).join(' · ')}</span>
               </span>
               <Select<RoleChoice>
                 label={`Role for ${g.subject.name}`}
                 value={g.role}
-                options={options(g, g.subject.id === workspace.data?.me.id)}
+                options={options(g, g.subject.id === me.data?.id)}
                 onChange={(v) => onRole(g, v)}
                 style={{ minWidth: 104 }}
               />

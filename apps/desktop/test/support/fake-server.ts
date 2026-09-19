@@ -6,6 +6,10 @@
  *   - SessionRecord / SessionTurnRecord (modules/sessions/contracts/session.contract.ts)
  *   - MemoryRecord incl. owner/project/session_id (modules/memory/contracts/memory.contract.ts)
  *   - GrantRecord, PUT/DELETE …/grants/:userId (modules/grants)
+ *   - built-in accounts: /v1/auth/{providers,signup,login,google,logout}, and share-by-email
+ *     `PUT …/grants {email, role}` → GrantView `{…record, pending:false, subject:{id,email,display_name}}`
+ *     or PendingGrantView `{id, pending:true, email, role, …}`; the list carries both; DELETE takes a
+ *     user id or a pending share's own id (modules/grants/contracts/grant.contract.ts on feat/built-in-accounts)
  *   - snake_case profile / project / org member rows, as observed on a live server 2026-09-19
  * Behaviour mirrors what the adapter relies on: one project per session list
  * (none → personal), owner-only grant management, delete = archive, recall
@@ -24,12 +28,13 @@ export interface FakeUser {
   email: string;
   display_name: string;
   token: string;
+  password?: string;
 }
 
 export function createFakeServer(baseUrl: string) {
   const users: FakeUser[] = [
-    { user_id: 'e5c5b78e-ba07-5776-86f9-89b0da23bb3f', email: 'pratham@openkt.test', display_name: 'Pratham Bhatnagar', token: 'okt_pat_aaaa' },
-    { user_id: 'f72c9558-18db-54a4-860c-6a2f17a79721', email: 'ana@openkt.test', display_name: 'Ana Reyes', token: 'okt_pat_bbbb' },
+    { user_id: 'e5c5b78e-ba07-5776-86f9-89b0da23bb3f', email: 'pratham@openkt.test', display_name: 'Pratham Bhatnagar', token: 'okt_pat_aaaa', password: 'correct horse battery' },
+    { user_id: 'f72c9558-18db-54a4-860c-6a2f17a79721', email: 'ana@openkt.test', display_name: 'Ana Reyes', token: 'okt_pat_bbbb', password: 'staple staple staple' },
     { user_id: '0b1f6c1e-52f7-5d0b-9a39-3f7d0c1b2a44', email: 'stranger@elsewhere.test', display_name: 'Sam Stranger', token: 'okt_pat_cccc' },
   ];
   const org = { id: uuid(), slug: 'deepwork', name: 'Deepwork', plan: 'free', members: [users[0]!.user_id, users[1]!.user_id] };
@@ -38,6 +43,9 @@ export function createFakeServer(baseUrl: string) {
   const turns: Row[] = [];
   const memories: Row[] = [];
   const grants: Row[] = [];
+  /** Knobs a test can turn. `google` is what /auth/providers answers; `rateLimited` makes every auth POST a 429. */
+  const state = { google: { enabled: true, client_id: 'test-client.apps.googleusercontent.com' } as { enabled: boolean; client_id?: string; client_secret?: string }, rateLimited: false };
+  const revoked = new Set<string>();
 
   const project = (owner: FakeUser, slug: string, name: string): Row => {
     const p = { id: uuid(), slug, name, visibility: 'personal', org_id: null, owner_user_id: owner.user_id, created_at: now(), updated_at: now() };
@@ -49,7 +57,7 @@ export function createFakeServer(baseUrl: string) {
 
   const auth = (request: Request): FakeUser | null => {
     const token = /^Bearer (.+)$/.exec(request.headers.get('authorization') ?? '')?.[1];
-    return users.find((u) => u.token === token) ?? null;
+    return token && !revoked.has(token) ? (users.find((u) => u.token === token) ?? null) : null;
   };
   const canRead = (u: FakeUser, projectId: unknown) =>
     projects.some((p) => p['id'] === projectId && p['owner_user_id'] === u.user_id) || grants.some((g) => g['resource_type'] === 'project' && g['resource_id'] === projectId && g['subject_id'] === u.user_id);
@@ -75,35 +83,109 @@ export function createFakeServer(baseUrl: string) {
 
   const v1 = (path: string) => `${baseUrl}/v1${path}`;
 
+  /** What a grant row looks like on the wire: the person is spelled out, or marked pending. */
+  const grantRecord = (g: Row): Row => {
+    if (g['pending_email']) return { id: g['id'], resource_type: g['resource_type'], resource_id: g['resource_id'], pending: true, email: g['pending_email'], role: g['role'], created_by: g['created_by'], created_at: g['created_at'] };
+    const u = users.find((x) => x.user_id === g['subject_id']);
+    return { ...g, pending: false, subject: { id: g['subject_id'], email: u?.email ?? null, display_name: u?.display_name ?? null } };
+  };
+
   const grantRoutes = (segment: 'projects' | 'sessions'): HttpHandler[] => {
     const type = segment === 'projects' ? 'project' : 'session';
+    const find = (id: unknown, key: 'subject_id' | 'pending_email', value: unknown) => grants.find((x) => x['resource_type'] === type && x['resource_id'] === id && x[key] === value);
+    const upsert = (user: FakeUser, id: unknown, key: 'subject_id' | 'pending_email', value: unknown, role: unknown): Row => {
+      let g = find(id, key, value);
+      if (g) g['role'] = role;
+      else grants.push((g = { id: uuid(), org_id: null, resource_type: type, resource_id: id, subject_type: 'user', subject_id: key === 'subject_id' ? value : null, ...(key === 'pending_email' ? { pending_email: value } : {}), role, created_by: user.user_id, created_at: now() }));
+      return g;
+    };
+    const badRole = (role: unknown) => !['reader', 'editor', 'owner'].includes(String(role));
     return [
       http.get(
         v1(`/${segment}/:id/grants`),
-        authed(({ user, params }) => (owns(user, type, params['id']) ? ok(grants.filter((g) => g['resource_type'] === type && g['resource_id'] === params['id'])) : fail(404, 'not_found', type))),
+        authed(({ user, params }) => (owns(user, type, params['id']) ? ok(grants.filter((g) => g['resource_type'] === type && g['resource_id'] === params['id']).map(grantRecord)) : fail(404, 'not_found', type))),
+      ),
+      http.put(
+        v1(`/${segment}/:id/grants`),
+        authed(({ user, params, body }) => {
+          if (!owns(user, type, params['id'])) return fail(404, 'not_found', type);
+          if (badRole(body['role'])) return fail(400, 'validation_failed', 'role: Invalid enum value');
+          const email = String(body['email'] ?? '').trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, 'validation_failed', 'email: Invalid email');
+          const person = users.find((u) => u.email.toLowerCase() === email);
+          if (person) return ok(grantRecord(upsert(user, params['id'], 'subject_id', person.user_id, body['role'])));
+          return ok(grantRecord(upsert(user, params['id'], 'pending_email', email, body['role'])));
+        }),
       ),
       http.put(
         v1(`/${segment}/:id/grants/:userId`),
         authed(({ user, params, body }) => {
           if (!owns(user, type, params['id'])) return fail(404, 'not_found', type);
-          if (!['reader', 'editor', 'owner'].includes(String(body['role']))) return fail(400, 'validation_failed', 'role: Invalid enum value');
-          let g = grants.find((x) => x['resource_type'] === type && x['resource_id'] === params['id'] && x['subject_id'] === params['userId']);
-          if (g) g['role'] = body['role'];
-          else grants.push((g = { id: uuid(), org_id: null, resource_type: type, resource_id: params['id'], subject_type: 'user', subject_id: params['userId'], role: body['role'], created_by: user.user_id, created_at: now() }));
-          return ok(g);
+          if (badRole(body['role'])) return fail(400, 'validation_failed', 'role: Invalid enum value');
+          return ok(grantRecord(upsert(user, params['id'], 'subject_id', params['userId'], body['role'])));
         }),
       ),
       http.delete(
-        v1(`/${segment}/:id/grants/:userId`),
+        v1(`/${segment}/:id/grants/:key`),
         authed(({ user, params }) => {
           if (!owns(user, type, params['id'])) return fail(404, 'not_found', type);
-          const i = grants.findIndex((x) => x['resource_type'] === type && x['resource_id'] === params['id'] && x['subject_id'] === params['userId']);
+          const key = params['key'] ?? '';
+          if (!/^[0-9a-f-]{36}$/.test(key)) return fail(400, 'validation_failed', 'userId: Invalid uuid');
+          const i = grants.findIndex((x) => x['resource_type'] === type && x['resource_id'] === params['id'] && (x['subject_id'] === key || (x['pending_email'] && x['id'] === key)));
           if (i >= 0) grants.splice(i, 1);
           return ok({ revoked: i >= 0 });
         }),
       ),
     ];
   };
+
+  // ── built-in accounts ─────────────────────────────────────────────────
+  const open = async (request: Request): Promise<Row> => (await request.json().catch(() => ({}))) as Row;
+  const sessionFor = (u: FakeUser, extra: Row = {}, status = 200) => ok({ token: u.token, expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(), user: { id: u.user_id, email: u.email, display_name: u.display_name }, ...extra }, null, status);
+  const enroll = (email: string, display_name: string, password?: string): FakeUser => {
+    const u: FakeUser = { user_id: uuid(), email, display_name, token: `okt_pat_${uuid().replace(/-/g, '')}`, password };
+    users.push(u);
+    // Invitations that were waiting for this email take effect now.
+    for (const g of grants) if (g['pending_email'] === email.toLowerCase()) Object.assign(g, { subject_id: u.user_id, pending_email: undefined });
+    return u;
+  };
+  const authRoutes: HttpHandler[] = [
+    http.get(v1('/auth/providers'), () => ok({ password: true, google: state.google })),
+    http.post(v1('/auth/signup'), async ({ request }) => {
+      if (state.rateLimited) return fail(429, 'rate_limited', 'too many attempts');
+      const body = await open(request);
+      const email = String(body['email'] ?? '').trim().toLowerCase();
+      const password = String(body['password'] ?? '');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !String(body['display_name'] ?? '').trim()) return fail(422, 'validation_failed', 'email: Invalid email');
+      if (users.some((u) => u.email.toLowerCase() === email)) return fail(409, 'email_taken', 'an account with that email already exists');
+      if (password.length < 10) return fail(400, 'weak_password', 'password must be at least 10 characters');
+      return sessionFor(enroll(email, String(body['display_name']).trim(), password), {}, 201);
+    }),
+    http.post(v1('/auth/login'), async ({ request }) => {
+      if (state.rateLimited) return fail(429, 'rate_limited', 'too many attempts');
+      const body = await open(request);
+      const u = users.find((x) => x.email.toLowerCase() === String(body['email'] ?? '').trim().toLowerCase());
+      if (!u || !u.password || u.password !== body['password']) return fail(401, 'invalid_credentials', 'invalid email or password');
+      revoked.delete(u.token);
+      return sessionFor(u);
+    }),
+    http.post(v1('/auth/google'), async ({ request }) => {
+      if (!state.google.enabled) return fail(404, 'provider_disabled', 'google sign-in is not configured');
+      // A stand-in id_token: "google:<email>:<name>". The real server verifies Google's signature and audience.
+      const m = /^google:([^:]+):?(.*)$/.exec(String((await open(request))['id_token'] ?? ''));
+      if (!m) return fail(401, 'invalid_credentials', 'invalid id_token');
+      const u = users.find((x) => x.email.toLowerCase() === m[1]!.toLowerCase()) ?? enroll(m[1]!.toLowerCase(), m[2] || m[1]!);
+      revoked.delete(u.token);
+      return sessionFor(u);
+    }),
+    http.post(
+      v1('/auth/logout'),
+      authed(({ user }) => {
+        revoked.add(user.token);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    ),
+  ];
 
   const handlers: HttpHandler[] = [
     http.get(
@@ -229,7 +311,8 @@ export function createFakeServer(baseUrl: string) {
     ),
     ...grantRoutes('projects'),
     ...grantRoutes('sessions'),
+    ...authRoutes,
   ];
 
-  return { handlers, users, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
+  return { handlers, users, state, revoked, tokens: { a: users[0]!.token, b: users[1]!.token, c: users[2]!.token } };
 }

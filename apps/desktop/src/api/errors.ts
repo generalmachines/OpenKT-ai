@@ -30,20 +30,22 @@ export function kindForStatus(status: number): ApiErrorKind {
 
 export const isUnauthorized = (e: unknown): boolean => e instanceof ApiError && e.kind === 'unauthorized';
 
-/** One calm sentence per failure, for the Connect screen and error notes. */
+/** One calm sentence per failure, for notes inside the app. (The sign-in form has its own: `describeAuthError`.) */
 export function describeError(e: unknown): string {
   if (!(e instanceof ApiError)) return e instanceof Error ? e.message : String(e);
   switch (e.kind) {
     case 'unauthorized':
-      return 'The server did not accept that token. Create a new one in the dashboard and paste it here.';
+      return 'Please sign in again.';
     case 'forbidden':
-      return 'That token is valid, but it may not do this.';
+      return 'You don’t have permission to do that.';
     case 'not-found':
-      return 'The server answered, but not like an OpenKT server. Check the address.';
+      return 'That couldn’t be found. It may have been removed, or you may not have access.';
     case 'network':
-      return 'Could not reach the server. Check the address and that you are on the same network.';
+      return 'Can’t reach OpenKT right now. Check your connection.';
     case 'rate-limited':
-      return 'The server is rate limiting this account. Wait a moment and try again.';
+      return 'Too many requests. Wait a moment and try again.';
+    case 'invalid':
+      return e.code === 'validation_failed' || !e.message ? 'That didn’t look right. Check it and try again.' : e.message;
     default:
       return e.message;
   }

@@ -2,7 +2,6 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useQuery } from '../api/hooks';
 import { Shell } from '../components/Shell';
 import { CaptureOverlay, CapturePreview } from '../screens/capture/CaptureRoutes';
-import { Connect } from '../screens/Connect';
 import { NewNote } from '../screens/NewNote';
 import { Onboarding } from '../screens/Onboarding';
 import { PageView } from '../screens/PageView';
@@ -11,6 +10,7 @@ import { Settings } from '../screens/settings/Settings';
 import { Skills } from '../screens/Skills';
 import { SpaceView } from '../screens/SpaceView';
 import { SpacesList } from '../screens/SpacesList';
+import { Welcome } from '../screens/Welcome';
 import { useConnection } from '../state/connection';
 
 /** "/" opens the most recent session, like a mail client opens the inbox. */
@@ -21,17 +21,20 @@ function Home() {
   return <Navigate to={first ? `/sessions/${first.id}` : '/new'} replace />;
 }
 
-/** No token (first run, signed out, or the server refused it) → the Connect screen. */
+/** Nobody signed in (first run, signed out, or the session ended) → the Welcome screen. */
 function RequireConnection() {
   const { signedOut } = useConnection();
-  return signedOut ? <Navigate to="/connect" replace /> : <Outlet />;
+  return signedOut ? <Navigate to="/welcome" replace /> : <Outlet />;
 }
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/connect" element={<Connect />} />
-      <Route path="/onboarding/:step?" element={<Onboarding />} />
+      <Route path="/welcome" element={<Welcome />} />
+      <Route path="/connect" element={<Navigate to="/welcome" replace />} />
+      <Route element={<RequireConnection />}>
+        <Route path="/onboarding/:step?" element={<Onboarding />} />
+      </Route>
       <Route path="/capture/:kind" element={<CapturePreview />} />
       <Route path="/overlay/:kind" element={<CaptureOverlay />} />
       <Route element={<RequireConnection />}>

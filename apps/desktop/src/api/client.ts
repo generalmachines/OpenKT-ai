@@ -43,7 +43,7 @@ export interface OpenKTClient {
   /** Areas this adapter fills with sample data because the server has no endpoint yet. */
   readonly preview: ReadonlySet<PreviewArea>;
 
-  /** Who the token belongs to. The Connect screen's "Test connection". */
+  /** The signed-in person. */
   getMe(): Promise<Me>;
   getWorkspace(): Promise<Workspace>;
 
@@ -64,10 +64,11 @@ export interface OpenKTClient {
   deleteFact(id: Id): Promise<void>;
 
   listGrants(resource: ResourceRef): Promise<Grant[]>;
+  /** Share with a person by email. Someone without an account yet comes back `pending`. */
+  inviteByEmail(resource: ResourceRef, email: string, role: Role): Promise<Grant>;
+  /** Change the role of someone already on the list. */
   putGrant(resource: ResourceRef, subject: GrantSubject, role: Role): Promise<Grant>;
-  deleteGrant(resource: ResourceRef, subject: Pick<GrantSubject, 'type' | 'id'>): Promise<void>;
-  /** People and teams that can be invited (used by the Access tab input). */
-  searchSubjects(query: string): Promise<GrantSubject[]>;
+  deleteGrant(resource: ResourceRef, subject: Pick<GrantSubject, 'type' | 'id' | 'email'>): Promise<void>;
 
   listAccessDefaults(): Promise<AccessDefault[]>;
   listConnectors(): Promise<Connector[]>;

@@ -1,25 +1,27 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createClient, loadApiSettings, needsConnect, saveApiSettings, type ApiSettings, type OpenKTClient } from '../api';
+import { createAuth, createClient, loadApiSettings, needsSignIn, saveApiSettings, type ApiSettings, type OpenKTClient } from '../api';
 import { ApiProvider } from '../api/hooks';
 
 /**
- * Which server the app talks to, as whom. Owns the client: saving new
- * settings swaps it in place (no reload), and a 401 from any call drops the
- * token so the routes fall back to the Connect screen.
+ * Who is signed in, and where. Owns the client: signing in swaps it in place
+ * (no reload), and a 401 from any call drops the token so the routes fall back
+ * to the Welcome screen with "Please sign in again."
  */
 export interface Connection {
   settings: ApiSettings;
-  /** No usable token, or a fresh install that has not chosen yet. */
+  /** Nobody is signed in: show Welcome. */
   signedOut: boolean;
-  /** Set after the server refused the saved token. */
+  /** The server stopped accepting the saved session. */
   expired: boolean;
+  /** Store a new session (or switch to sample data) and start using it. */
   connect(next: ApiSettings): Promise<void>;
+  /** Tells the server, forgets the token, keeps the email for next time. */
   signOut(): Promise<void>;
 }
 
 const Ctx = createContext<Connection | null>(null);
 
-/** Without a provider (component tests that inject a client) the app is simply "connected". */
+/** Without a provider (component tests that inject a client) the app is simply "signed in". */
 const INERT: Connection = {
   settings: { adapter: 'mock', baseUrl: '', token: '' },
   signedOut: false,
@@ -54,12 +56,13 @@ export function StaticConnection({ client, settings, children }: { client: OpenK
 export function ConnectionProvider({ initial, children }: { initial: ApiSettings; children: ReactNode }) {
   const [settings, setSettings] = useState(initial);
   const [expired, setExpired] = useState(false);
-  const [firstRunDone, setFirstRunDone] = useState(false);
   const live = useRef(settings);
   live.current = settings;
 
   const onUnauthorized = useCallback(() => {
+    if (!live.current.token) return; // several calls can fail at once; the first one already signed out
     const next = { ...live.current, token: '' };
+    live.current = next;
     setExpired(true);
     setSettings(next);
     void saveApiSettings(next);
@@ -70,13 +73,15 @@ export function ConnectionProvider({ initial, children }: { initial: ApiSettings
   const connect = useCallback(async (next: ApiSettings) => {
     await saveApiSettings(next);
     setExpired(false);
-    setFirstRunDone(true);
     setSettings(next);
   }, []);
 
   const signOut = useCallback(async () => {
-    const next: ApiSettings = { ...live.current, adapter: 'http', token: '' };
+    const was = live.current;
+    const next: ApiSettings = { ...was, token: '', signedOut: was.adapter === 'mock' ? true : undefined };
+    if (was.adapter === 'http' && was.token) await createAuth(was).logOut(was.token);
     await saveApiSettings(next);
+    setExpired(false);
     setSettings(next);
   }, []);
 
@@ -87,16 +92,7 @@ export function ConnectionProvider({ initial, children }: { initial: ApiSettings
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const value = useMemo<Connection>(
-    () => ({
-      settings,
-      expired,
-      signedOut: !firstRunDone && needsConnect(settings, Boolean(window.openkt)),
-      connect,
-      signOut,
-    }),
-    [settings, expired, firstRunDone, connect, signOut],
-  );
+  const value = useMemo<Connection>(() => ({ settings, expired, signedOut: needsSignIn(settings), connect, signOut }), [settings, expired, connect, signOut]);
 
   return (
     <Ctx.Provider value={value}>

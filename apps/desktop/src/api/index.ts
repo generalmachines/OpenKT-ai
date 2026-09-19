@@ -1,22 +1,31 @@
+import { HttpAuth, MockAuth, type AuthApi } from './auth';
 import { secureStore } from './bridge';
 import type { OpenKTClient } from './client';
 import { DEFAULT_SERVER_URL } from './config';
 import { HttpClient } from './http';
 import { MockClient } from './mock';
 
+export type { AuthApi, AuthProviders, AuthSession } from './auth';
+export { describeAuthError } from './auth';
 export type { OpenKTClient } from './client';
-export { DEFAULT_SERVER_URL, TOKEN_PREFIX } from './config';
+export { DEFAULT_SERVER_URL, HOSTED_SERVER_URL, MIN_PASSWORD_LENGTH, TOKEN_PREFIX } from './config';
 export { ApiError, describeError, isUnauthorized } from './errors';
 export * from './types';
 
 export interface ApiSettings {
   adapter: 'mock' | 'http';
+  /** The server this app signs in to. `DEFAULT_SERVER_URL` unless the person chose their own. */
   baseUrl: string;
   token: string;
+  /** Who signed in here last. Prefills the form after signing out or when the session ends. Not a secret. */
+  email?: string;
+  /** Sample data only: the person signed out of the sample account. (With a server, "signed out" is simply "no token".) */
+  signedOut?: boolean;
 }
 
 const STORAGE_KEY = 'openkt.api';
 const TOKEN_KEY = 'server-token';
+const ONBOARDED_KEY = 'openkt.onboarded';
 
 export const DEFAULT_API_SETTINGS: ApiSettings = {
   adapter: 'mock',
@@ -42,21 +51,17 @@ function fromStorage(): Partial<ApiSettings> {
   }
 }
 
-/** True until the person has chosen a server or sample data once. */
-export function isFirstRun(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(STORAGE_KEY) == null;
-  } catch {
-    return false;
-  }
-}
+const inElectron = (): boolean => typeof window !== 'undefined' && Boolean(window.openkt);
 
 /**
- * Order: defaults ← build-time env ← what the person saved. The token comes
- * from the OS keychain when the Electron bridge offers one.
+ * Order: defaults ← build-time env ← what the person saved. The installed app
+ * starts signed out against the hosted service; a plain browser (vite dev, the
+ * screenshot run) starts in sample data. The token comes from the OS keychain
+ * when the Electron bridge offers one.
  */
 export async function loadApiSettings(): Promise<ApiSettings> {
-  const s = { ...DEFAULT_API_SETTINGS, ...fromEnv(), ...fromStorage() };
+  const s: ApiSettings = { ...DEFAULT_API_SETTINGS, ...(inElectron() ? { adapter: 'http' as const } : {}), ...fromEnv(), ...fromStorage() };
+  if (!s.baseUrl) s.baseUrl = DEFAULT_SERVER_URL;
   if (secureStore.available()) s.token = (await secureStore.get(TOKEN_KEY).catch(() => null)) ?? s.token;
   return s;
 }
@@ -66,16 +71,11 @@ export async function saveApiSettings(s: ApiSettings): Promise<void> {
   if (secure) await (s.token ? secureStore.set(TOKEN_KEY, s.token) : secureStore.delete(TOKEN_KEY));
   try {
     // TODO(secure-store): in a plain browser (vite dev) there is no keychain, so the token sits in localStorage.
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(secure ? { adapter: s.adapter, baseUrl: s.baseUrl } : s));
+    const { token: _token, ...rest } = s;
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(secure ? rest : s));
   } catch {
     /* private window: the choice simply does not persist */
   }
-}
-
-/** Forget the token, keep the server address, and land on the Connect screen. */
-export async function signOut(): Promise<void> {
-  const s = await loadApiSettings();
-  await saveApiSettings({ ...s, adapter: 'http', token: '' });
 }
 
 export function createClient(settings: ApiSettings, onUnauthorized?: () => void): OpenKTClient {
@@ -89,8 +89,36 @@ export function createClient(settings: ApiSettings, onUnauthorized?: () => void)
   return new MockClient();
 }
 
-/** What the app should show before anything else. */
-export function needsConnect(settings: ApiSettings, inElectron: boolean): boolean {
-  if (settings.adapter === 'http') return !settings.token || !settings.baseUrl;
-  return inElectron && isFirstRun();
+/**
+ * Who answers the sign-in form. The installed app always signs in for real —
+ * even when it is showing sample data; only a plain browser in sample mode
+ * (screenshots, tests, vite dev) gets the stand-in that accepts anyone.
+ */
+export function createAuth(settings: Pick<ApiSettings, 'adapter' | 'baseUrl'>, forceServer = false): AuthApi {
+  if (settings.adapter === 'http' || forceServer || inElectron()) return new HttpAuth(settings.baseUrl || DEFAULT_SERVER_URL);
+  return new MockAuth();
 }
+
+/** True when the Welcome screen should be shown instead of the app. */
+export function needsSignIn(settings: ApiSettings): boolean {
+  if (settings.adapter === 'http') return !settings.token || !settings.baseUrl;
+  return settings.signedOut === true;
+}
+
+/** Connecting tools and fetching models happen once per Mac; after that, signing in goes straight to the sessions. */
+export const onboarding = {
+  done(): boolean {
+    try {
+      return globalThis.localStorage?.getItem(ONBOARDED_KEY) === '1';
+    } catch {
+      return true;
+    }
+  },
+  markDone(): void {
+    try {
+      globalThis.localStorage?.setItem(ONBOARDED_KEY, '1');
+    } catch {
+      /* private window */
+    }
+  },
+};

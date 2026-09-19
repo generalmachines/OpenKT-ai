@@ -104,11 +104,13 @@ describe.each(adapters)('OpenKTClient behaviour — %s adapter', (kind, make) =>
     const initial = await client.listGrants(resource);
     expect(initial.find((g) => g.subject.id === me.id)).toMatchObject({ role: 'owner' });
 
-    // Whoever the invite field offers that does not already hold a grant here.
-    const ana = (await client.searchSubjects('a')).find((s) => s.type === 'user' && !initial.some((g) => g.subject.id === s.id));
-    expect(ana?.name).toBeTruthy();
-    await client.putGrant(resource, ana!, 'reader');
-    expect((await client.listGrants(resource)).find((g) => g.subject.id === ana!.id)).toMatchObject({ role: 'reader', subject: { name: ana!.name } });
+    // A teammate who already has an account, invited by email: the row carries their name and email, never an id.
+    const email = kind === 'mock' ? 'ana@example.com' : 'ana@openkt.test';
+    const invited = await client.inviteByEmail(resource, email, 'reader');
+    expect(invited).toMatchObject({ role: 'reader', subject: { name: 'Ana Reyes', email } });
+    expect(invited.pending).toBeFalsy();
+    const ana = (await client.listGrants(resource)).find((g) => g.subject.email === email)?.subject;
+    expect(ana).toMatchObject({ name: 'Ana Reyes', email });
 
     await client.putGrant(resource, ana!, 'editor');
     const after = (await client.listGrants(resource)).filter((g) => g.subject.id === ana!.id);
@@ -117,6 +119,25 @@ describe.each(adapters)('OpenKTClient behaviour — %s adapter', (kind, make) =>
 
     await client.deleteGrant(resource, ana!);
     expect((await client.listGrants(resource)).some((g) => g.subject.id === ana!.id)).toBe(false);
+  });
+
+  it('sharing with someone who has no account yet is a pending invitation, shown by email, that can be withdrawn', async () => {
+    const client = make();
+    const space = (await client.listSpaces()).find((s) => !s.personal)!;
+    const resource = { type: 'space' as const, id: space.id };
+    const email = `newcomer-${kind}@elsewhere.test`;
+
+    const grant = await client.inviteByEmail(resource, email, 'editor');
+    expect(grant).toMatchObject({ pending: true, role: 'editor', subject: { name: email, email } });
+
+    const listed = (await client.listGrants(resource)).find((g) => g.subject.email === email);
+    expect(listed).toMatchObject({ pending: true, role: 'editor', subject: { name: email } });
+
+    await client.putGrant(resource, listed!.subject, 'reader');
+    expect((await client.listGrants(resource)).filter((g) => g.subject.email === email).map((g) => [g.role, g.pending])).toEqual([['reader', true]]);
+
+    await client.deleteGrant(resource, listed!.subject);
+    expect((await client.listGrants(resource)).some((g) => g.subject.email === email)).toBe(false);
   });
 
   it('an unknown session rejects', async () => {

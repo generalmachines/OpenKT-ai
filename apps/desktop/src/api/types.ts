@@ -31,6 +31,7 @@ export interface Person {
   id: Id;
   name: string;
   initials: string;
+  email?: string;
   /** External people (a customer on a call) are attributed but hold no grants. */
   external?: string;
 }
@@ -146,9 +147,12 @@ export type ResourceRef = { type: 'session' | 'space'; id: Id };
 
 export interface GrantSubject {
   type: 'user' | 'team';
+  /** Internal key for role changes and removal. Never shown. */
   id: Id;
+  /** A person's name; for someone invited who has not joined yet, their email. */
   name: string;
   initials: string;
+  email?: string;
 }
 
 export interface Grant {
@@ -160,6 +164,8 @@ export interface Grant {
   note: string;
   /** Inherited grants come from the space and cannot be removed here. */
   inherited?: boolean;
+  /** Invited by email, no account yet: the grant takes effect when they join. */
+  pending?: boolean;
 }
 
 export interface AccessDefault {
