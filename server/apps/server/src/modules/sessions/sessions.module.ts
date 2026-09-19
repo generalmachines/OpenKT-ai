@@ -4,6 +4,7 @@ import { AuthModule } from "../auth/auth.module";
 import { ProjectsModule } from "../projects/projects.module";
 import { AccessModule } from "../access/access.module";
 import { GrantsModule } from "../grants/grants.module";
+import { JobQueueRepository } from "../jobs/repositories/job-queue.repository";
 import { MemoryRepository } from "../memory/repositories/memory.repository";
 import { SessionsController } from "./controllers/sessions.controller";
 import { SessionRepository } from "./repositories/session.repository";
@@ -28,6 +29,7 @@ import { SessionsApplicationService } from "./services/sessions-application.serv
     MemoryRepository,
     SessionsApplicationService,
     SessionIdleSweepService,
+    JobQueueRepository,
   ],
   exports: [SessionRepository, SessionsApplicationService],
 })

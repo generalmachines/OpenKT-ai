@@ -1,0 +1,14 @@
+export type { Capabilities, Change, ConnectEnv, ConnectionStatus, Detection, GuidedSetup, Integration, IntegrationKind, IntegrationOptions, StatusReport } from './types.js';
+export { ConnectError, ConfigParseError, exitCodeFor, type ConnectErrorCode } from './errors.js';
+export { systemEnv, homeEnv } from './env.js';
+export { INTEGRATIONS, getIntegration } from './registry.js';
+export { listTools, toolInfo, planTool, connectTool, disconnectTool, guideTool, type ToolInfo } from './api.js';
+export { runHook, resolveSpace, formatItems, HOOK_EVENTS, type HookEvent, type HookDeps, type HookResult } from './hook.js';
+export { readCredentials, writeCredentials, clearCredentials, macKeychain, keychainFor, DEFAULT_SERVER, type Credentials, type Keychain } from './credentials.js';
+export { listFolders, mapFolder, unmapFolder, type FolderMapping } from './folders.js';
+export { selfTest, type SelfTestResult, type SelfTestStep } from './selftest.js';
+export { call, oauthConsentReachable, type FetchLike, type ServerResponse } from './server.js';
+export { mcpUrl, chatgpt, claudeAi } from './integrations/web.js';
+export { hookScriptPath } from './integrations/common.js';
+export { HOOK_SCRIPT, HOOK_SCRIPT_VERSION } from './assets.generated.js';
+export { parseJsonc, setMember, removeMember, appendItem, removeItems } from './jsonc.js';

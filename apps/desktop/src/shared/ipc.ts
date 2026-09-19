@@ -5,6 +5,11 @@
  * src/preload/index.ts and checked against `IpcChannel` there.
  */
 
+// ── connect tools (begin) ──
+import type { ConnectBridge } from './connect';
+export type * from './connect';
+// ── connect tools (end) ──
+
 export type OverlayKind = 'voice' | 'meeting' | 'screenshot';
 
 /** Events pushed from the capture module to any window that listens. */
@@ -24,6 +29,10 @@ export interface HotkeyInfo {
   /** Electron accelerator used until the Swift engine owns the fn key. */
   fallbackAccelerator: string | null;
   registered: boolean;
+  /** Every accelerator that registered (voice has two). */
+  accelerators?: string[];
+  /** Why it may not work, in words for Settings › Hotkeys: held by another app, or kept by macOS. */
+  problem?: string | null;
 }
 
 export type IpcChannel =
@@ -53,7 +62,76 @@ export type IpcChannel =
   | 'voice:cancel'
   | 'screenshot:capture'
   | 'auth:google:start'
-  | 'auth:google:cancel';
+  | 'auth:google:cancel'
+  // ── first run: permissions + on-device AI setup + try-it (begin) ──
+  | 'permissions:status'
+  | 'permissions:request'
+  | 'permissions:open-settings'
+  | 'permissions:watch'
+  | 'permissions:changed'
+  | 'permissions:relaunch'
+  | 'models:setup-info'
+  | 'models:pause'
+  | 'models:resume'
+  | 'app:start-capture'
+  // ── first run (end) ──
+  // ── in-app updates (main: src/main/update) ──
+  | 'update:status'
+  | 'update:check'
+  | 'update:download'
+  | 'update:install'
+  | 'update:set-auto'
+  | 'update:move-to-applications'
+  | 'update:rollback'
+  | 'update:seen'
+  | 'update:event'
+  // ── end in-app updates ──
+  // ── connect tools (begin) ── main: src/main/connect, package: packages/connect
+  | 'connect:list'
+  | 'connect:plan'
+  | 'connect:apply'
+  | 'connect:undo'
+  | 'connect:guide'
+  | 'connect:detect-web'
+  | 'connect:test'
+  | 'connect:folders'
+  | 'connect:map-folder'
+  | 'connect:share-sign-in';
+  // ── connect tools (end) ──
+
+// ── first run: permissions + on-device AI setup (begin) ── main: src/main/permissions, src/main/models/setup.ts
+import type { PermissionKind, PermissionsStatusDto } from './permissions';
+export type { PermissionKind, PermissionState, PermissionsStatusDto } from './permissions';
+
+/** What the first-run "Set up on-device AI" screen needs before and while downloading. */
+export interface ModelsSetupInfoDto {
+  totalBytes: number;
+  remainingBytes: number;
+  /** null when free space could not be read. */
+  freeBytes: number | null;
+  neededBytes: number;
+  enoughDisk: boolean;
+  totalMemBytes: number;
+  /** ≤ 8 GB of memory: the smaller models are used. */
+  smallModel: boolean;
+  paused: boolean;
+  /** The person has chosen to download (all, or a feature's model). Nothing is fetched before that. */
+  chosen: boolean;
+  /** Helpers inside the app. false = missing from this build. */
+  bundled: { runtime: boolean; transcriber: boolean; textReader: boolean };
+}
+
+export interface PermissionsBridge {
+  status(): Promise<PermissionsStatusDto>;
+  /** The right thing for the current state: the macOS prompt, or System Settings when macOS will not ask again. */
+  request(kind: PermissionKind): Promise<PermissionsStatusDto>;
+  openSettings(kind: PermissionKind): Promise<void>;
+  /** Main polls every 1.5 s while anything is subscribed, and re-checks when the app regains focus. */
+  onChange(listener: (status: PermissionsStatusDto) => void): () => void;
+  /** Quit and reopen (macOS only applies a new Screen Recording answer to a fresh process). */
+  relaunch(): Promise<void>;
+}
+// ── first run (end) ──
 
 /** Google sign-in in the system browser (main: src/main/auth). Errors cross IPC as a tagged value, never a throw. */
 export type GoogleAuthResultDto = { id_token: string } | { error: 'cancelled' | 'timeout' | 'failed'; message: string };
@@ -85,6 +163,11 @@ export interface ModelStatusDto {
   receivedBytes: number;
   state: ModelStateDto;
   error?: string;
+  /** The open-source model, as shown before download: its name, licence (SPDX), model card and download source. */
+  name?: string;
+  license?: string;
+  card?: string;
+  source?: string;
 }
 
 /** Pushed at most 4×/s per file while downloading, plus one final event per file. */
@@ -187,6 +270,35 @@ export interface ScreenshotResultDto {
   notes: string[];
 }
 
+// ── In-app updates (main: src/main/update; see apps/desktop/README.md "Updates") ──
+
+export type UpdatePhaseDto = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error';
+
+export interface UpdateStatusDto {
+  /** The running build: `0.3.<run>` from CI, `0.3.0-dev.0` from source. */
+  version: string;
+  commit: string;
+  builtAt: string;
+  channel: string;
+  /** `custom`: verified self-update for ad-hoc signed builds · `signed`: electron-updater (Developer ID) · `disabled`: dev build / not macOS. */
+  mode: 'custom' | 'signed' | 'disabled';
+  phase: UpdatePhaseDto;
+  /** "Download updates automatically" (default on). */
+  auto: boolean;
+  lastCheckedAt: string | null;
+  /** The newer version the feed offers, once a check found one. */
+  available: { version: string; notes: string[]; releasedAt: string; size: number } | null;
+  progress: { receivedBytes: number; totalBytes: number; bytesPerSec: number } | null;
+  /** Last failure, in words. */
+  error: string | null;
+  /** Where the app runs from. `ok: false` blocks installing; `canMove` → offer "Move to Applications". */
+  location: { ok: boolean; message: string | null; canMove: boolean };
+  /** Shown once after an update: "Updated to 0.3.128 — what's new". */
+  whatsNew: { version: string; from: string; notes: string[] } | null;
+  /** Two starts of this version never became healthy and the previous copy is still there. */
+  rollback: { from: string; to: string } | null;
+}
+
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
 export interface OpenKTBridge {
   platform: string;
@@ -208,13 +320,28 @@ export interface OpenKTBridge {
     hotkeys(): Promise<HotkeyInfo[]>;
     /** Main asks the main window to navigate (tray → "New voice note"). */
     onNavigate(listener: (route: string) => void): () => void;
+    /** first run: what the hotkey does, for the person whose hotkey is taken — opens the voice pill or the screenshot picker. */
+    startCapture(kind: 'voice' | 'screenshot'): Promise<void>;
   };
   models: {
     status(): Promise<LocalAiStatusDto>;
-    /** Downloads whatever is missing (embeddings first). Resolves when embeddings + LLM are on disk. Safe to call repeatedly. */
-    ensure(): Promise<ModelsEnsureResult>;
+    /**
+     * The person's choice to download. No roles: everything missing (embeddings first); resolves when
+     * embeddings + LLM are on disk. With roles (a feature asking for its model, e.g. ['whisper']):
+     * those go first and it resolves when they are on disk. Safe to call repeatedly; joins a run in flight.
+     */
+    ensure(roles?: ModelRoleDto[]): Promise<ModelsEnsureResult>;
     onProgress(listener: (progress: ModelsProgressDto) => void): () => void;
+    // ── first run (begin) ──
+    setupInfo(): Promise<ModelsSetupInfoDto>;
+    /** Stops the transfer and keeps what arrived. `resume()` continues the same models from there. */
+    pause(): Promise<ModelsSetupInfoDto>;
+    resume(): Promise<ModelsSetupInfoDto>;
+    // ── first run (end) ──
   };
+  // ── first run (begin) ──
+  permissions: PermissionsBridge;
+  // ── first run (end) ──
   localAi: {
     extractNote(input: { text: string; title?: string; date?: string; source?: string; author?: string }): Promise<ExtractedNoteDto>;
     /** Unit-norm 1024-dim vectors. kind "query" adds the retrieval instruction prefix. */
@@ -248,12 +375,34 @@ export interface OpenKTBridge {
       cancel(): Promise<void>;
     };
   };
+  // ── connect tools (begin) ──
+  /** Connect AI tools on this Mac (packages/connect). Errors come back as `{error}` values. */
+  connect: ConnectBridge;
+  // ── connect tools (end) ──
   /** OS-keychain-encrypted strings (the access token). */
   secureStore: {
     get(key: string): Promise<string | null>;
     set(key: string, value: string): Promise<void>;
     delete(key: string): Promise<void>;
   };
+  // ── in-app updates ──
+  update: {
+    status(): Promise<UpdateStatusDto>;
+    /** Asks the feed now. Downloads in the background when "automatically" is on. */
+    check(): Promise<UpdateStatusDto>;
+    download(): Promise<UpdateStatusDto>;
+    /** Quits, swaps the bundle and relaunches. Resolves only if it could not start. */
+    install(): Promise<UpdateStatusDto>;
+    setAuto(on: boolean): Promise<UpdateStatusDto>;
+    /** Moves the app to /Applications and relaunches it (Electron's moveToApplicationsFolder). */
+    moveToApplications(): Promise<UpdateStatusDto>;
+    /** "Go back to the previous version". */
+    rollback(): Promise<UpdateStatusDto>;
+    /** The "what's new" note has been seen. */
+    seen(): Promise<UpdateStatusDto>;
+    onEvent(listener: (status: UpdateStatusDto) => void): () => void;
+  };
+  // ── end in-app updates ──
 }
 
 declare global {

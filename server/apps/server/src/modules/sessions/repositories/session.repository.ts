@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, count, desc, eq, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { ValidationDomainError } from "@openkt/core-errors";
@@ -48,6 +48,16 @@ export class SessionRepository {
   async findById(sessionId: string): Promise<SessionRecord | null> {
     const row = await this.db.query.sessions.findFirst({ where: eq(sessions.id, sessionId) });
     return row ? this.toRecord(row) : null;
+  }
+
+  // Which of these sessions belong to this project.
+  async idsInProject(sessionIds: string[], projectId: string): Promise<string[]> {
+    if (sessionIds.length === 0) return [];
+    const rows = await this.db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(and(eq(sessions.projectId, projectId), inArray(sessions.id, sessionIds)));
+    return rows.map((row) => row.id);
   }
 
   async listByProject(

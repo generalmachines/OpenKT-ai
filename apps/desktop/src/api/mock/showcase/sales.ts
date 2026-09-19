@@ -1,0 +1,212 @@
+/**
+ * Sales — B2B sales team.
+ * Every statement, page summary, fork, change and relation below is copied from the
+ * OpenKT knowledge-synthesis report (https://dwlabs.org/work/openkt-kb). Session titles,
+ * sources and times are sample glue. Keep the statements verbatim when editing.
+ */
+import type { ShowcaseTeam } from './types';
+
+export const sales: ShowcaseTeam = {
+  space: { id: 'sp-sales', name: 'sales', label: 'Sales', description: 'B2B sales team.', myRole: 'editor', owner: 'dana', team: ['t-sales', 'Sales'] },
+  stats: { memories: 36, people: 6, pages: 9 },
+  people: [
+    { key: 'dana', name: 'Dana', title: 'VP Sales' },
+    { key: 'nadia', name: 'Nadia', title: 'RevOps / Sales Ops' },
+    { key: 'marcus', name: 'Marcus', title: 'Account Executive' },
+    { key: 'greg', name: 'Greg', title: 'Customer Success / Renewals' },
+    { key: 'tomas', name: 'Tomas', title: 'Sales Engineer' },
+    { key: 'priya', name: 'Priya', title: 'Sales Development Rep' },
+  ],
+  sessions: [
+    { id: 's-sales-acmeflow', source: 'meeting', title: 'Acmeflow deal review', by: 'me', day: 0, time: '10:02', durationSec: 2040, facts: ['f-sales-14', 'f-sales-15', 'f-sales-16', 'f-sales-12', 'f-sales-6', 'f-sales-30', 'f-sales-1'], question: 'Competitive positioning: price vs. differentiation' },
+    { id: 's-sales-forecast', source: 'meeting', title: 'Monday forecast call', by: 'dana', day: 4, time: '09:00', durationSec: 2460, facts: ['f-sales-18', 'f-sales-20', 'f-sales-21', 'f-sales-28', 'f-sales-19', 'f-sales-33', 'f-sales-4'] },
+    { id: 's-sales-usage-pricing', source: 'chatgpt', title: 'Usage-based pricing: CPQ and CAC payback', by: 'nadia', day: 9, time: '13:15', facts: ['f-sales-11', 'f-sales-35'] },
+    { id: 's-sales-list-price', source: 'note', title: 'List pricing', by: 'nadia', day: 27, time: '10:40', facts: ['f-sales-9'] },
+    { id: 's-sales-reprice', source: 'claude', title: 'Repricing memo', by: 'dana', day: 10, time: '18:05', facts: ['f-sales-10', 'f-sales-17'] },
+    { id: 's-sales-trial-deck', source: 'voice', title: 'Trial length, and the first-call deck', by: 'dana', day: 7, time: '08:30', durationSec: 41, facts: ['f-sales-2', 'f-sales-8'] },
+    { id: 's-sales-icp', source: 'note', title: 'ICP and territories', by: 'dana', day: 15, time: '16:20', facts: ['f-sales-31', 'f-sales-34'] },
+    { id: 's-sales-trial-rules', source: 'note', title: 'Trial rules', by: 'marcus', day: 24, time: '11:10', facts: ['f-sales-0'] },
+    { id: 's-sales-salesforce', source: 'screenshot', title: 'Salesforce opportunity: trial dates synced', by: 'nadia', day: 6, time: '14:48', shot: { caption: 'Opportunity page in Salesforce after the trial-date sync.', text: 'Close date ← trial end (30 days) · Forecast category: Commit · Outreach and Gong synced nightly' }, facts: ['f-sales-3', 'f-sales-27'] },
+    { id: 's-sales-renewals', source: 'meeting', title: 'Renewal risk review', by: 'greg', day: 3, time: '15:30', durationSec: 1680, facts: ['f-sales-22', 'f-sales-23', 'f-sales-24', 'f-sales-25', 'f-sales-26', 'f-sales-13'] },
+    { id: 's-sales-sdr-playbook', source: 'connector', via: 'Notion', title: 'SDR playbook', by: 'priya', day: 13, time: '09:25', facts: ['f-sales-5', 'f-sales-7', 'f-sales-29', 'f-sales-32'] },
+  ],
+  facts: [
+    { id: 'f-sales-0', by: 'marcus', kind: 'decision', page: 'p-sales-trial-poc-management', supersededBy: 'f-sales-2', text: 'Standard POC trial length is 14 days; AE owns the trial close.' },
+    { id: 'f-sales-1', by: 'tomas', kind: 'how-to', page: 'p-sales-trial-poc-management', text: 'Every trial gets a kickoff call where we define 2-3 success criteria up front, written into the deal notes.' },
+    { id: 'f-sales-2', by: 'dana', kind: 'decision', page: 'p-sales-trial-poc-management', text: 'Decision: we\'re moving the standard trial from 14 to 30 days — reps kept asking for extensions and 14 days never covered a real eval cycle.' },
+    { id: 'f-sales-3', by: 'nadia', kind: 'fact', page: 'p-sales-trial-poc-management', text: 'Trial start/end dates now auto-sync to Salesforce opportunity close date so forecasting reflects the 30-day window.' },
+    { id: 'f-sales-4', by: 'dana', kind: 'decision', page: 'p-sales-sales-qualification-discovery', text: 'We qualify with MEDDICC; an opp can\'t move to Stage 3 without an identified Economic Buyer and Champion.' },
+    { id: 'f-sales-5', by: 'priya', kind: 'how-to', page: 'p-sales-sales-operations-technology', text: 'On cold outreach, lead with a customer proof point in the same vertical, not a feature list — reply rate roughly doubled.' },
+    { id: 'f-sales-6', by: 'marcus', kind: 'how-to', page: 'p-sales-sales-qualification-discovery', text: 'In discovery I always ask \'what happens if you do nothing?\' to surface the cost of inaction; it\'s the strongest forcing function for a deal.' },
+    { id: 'f-sales-7', by: 'priya', kind: 'fact', page: 'p-sales-sales-qualification-discovery', text: 'SDR target is 15 qualified meetings booked per month; a meeting only counts qualified if it hits BANT minimums.' },
+    { id: 'f-sales-8', by: 'dana', kind: 'how-to', page: 'p-sales-sales-presentation-deal', text: 'Stop sending the 12-slide corporate deck on the first call — single-slide problem framing converts far better.' },
+    { id: 'f-sales-9', by: 'nadia', kind: 'decision', page: 'p-sales-pricing-strategy-deal', supersededBy: 'f-sales-10', text: 'List pricing is per-seat at $50/user/month; annual prepay is the default term.' },
+    { id: 'f-sales-10', by: 'dana', kind: 'decision', page: 'p-sales-pricing-strategy-deal', text: 'Decision: we are repricing to usage-based (per 1,000 API calls) starting next quarter; per-seat capped large accounts too early.' },
+    { id: 'f-sales-11', by: 'nadia', kind: 'fact', page: 'p-sales-pricing-strategy-deal', text: 'Under the new usage model, CPQ now quotes a committed-usage tier plus overage rate; legacy seat deals are grandfathered through renewal.' },
+    { id: 'f-sales-12', by: 'marcus', kind: 'decision', page: 'p-sales-pricing-strategy-deal', text: 'Max discount an AE can give without VP approval is 15%; anything deeper routes to Dana in the approval queue.' },
+    { id: 'f-sales-13', by: 'greg', kind: 'how-to', page: 'p-sales-pricing-strategy-deal', text: 'Never discount to win a logo we\'ll churn — a 30%-off deal that ramps usage to zero is worse than no deal.' },
+    { id: 'f-sales-14', by: 'tomas', kind: 'how-to', page: 'p-sales-sales-presentation-deal', text: 'Against Acmeflow our wedge is native SSO + audit logs they charge extra for; I demo that in the first 10 minutes.' },
+    { id: 'f-sales-15', by: 'marcus', kind: 'decision', page: 'p-sales-sales-presentation-deal', text: 'My position: we win competitive deals on PRICE — we\'re 20% under Acmeflow on list and that\'s what closes procurement.' },
+    { id: 'f-sales-16', by: 'tomas', kind: 'decision', page: 'p-sales-sales-presentation-deal', text: 'My position: we should NEVER lead with price vs Acmeflow — it commoditizes us and trains buyers to negotiate; lead with security/compliance depth.' },
+    { id: 'f-sales-17', by: 'dana', kind: 'fact', page: 'p-sales-sales-presentation-deal', text: 'Acmeflow\'s weakness is implementation time: their median go-live is 90 days, ours is under 30. Quantify it in every competitive deal.' },
+    { id: 'f-sales-18', by: 'nadia', kind: 'decision', page: 'p-sales-forecast-accuracy-pipeline', text: 'Forecast categories are Commit / Best Case / Pipeline; an opp slips out of Commit if it hasn\'t moved a stage in 14 days.' },
+    { id: 'f-sales-19', by: 'nadia', kind: 'how-to', page: 'p-sales-forecast-accuracy-pipeline', text: 'Pipeline coverage target is 3x of quota per quarter; below that we open more SDR capacity to the segment.' },
+    { id: 'f-sales-20', by: 'dana', kind: 'fact', page: 'p-sales-forecast-accuracy-pipeline', text: 'Weekly forecast call is Monday; reps come with next-step and close-date for every Commit deal or it gets pulled.' },
+    { id: 'f-sales-21', by: 'marcus', kind: 'issue', page: 'p-sales-forecast-accuracy-pipeline', text: 'We missed Q2 forecast by 18% because three \'Commit\' deals had no Economic Buyer engaged — pure happy-ear forecasting.' },
+    { id: 'f-sales-22', by: 'greg', kind: 'decision', page: 'p-sales-sales-to-customer', text: 'Sales-to-CS handoff happens within 48 hours of close via a structured handoff doc: success criteria, champion, risks.' },
+    { id: 'f-sales-23', by: 'greg', kind: 'how-to', page: 'p-sales-sales-to-customer', text: 'I open the renewal conversation 90 days before term end — surprises at day 30 are how you lose a renewal.' },
+    { id: 'f-sales-24', by: 'greg', kind: 'fact', page: 'p-sales-sales-to-customer', text: 'Net revenue retention is the CS north-star; expansion is booked by CS, not the original AE, after day 1.' },
+    { id: 'f-sales-25', by: 'marcus', kind: 'fact', page: 'p-sales-trial-poc-management', text: 'The success criteria Tomas writes at trial kickoff become the literal agenda for Greg\'s QBRs — same doc travels the whole lifecycle.' },
+    { id: 'f-sales-26', by: 'greg', kind: 'issue', page: 'p-sales-sales-to-customer', text: 'Lost a $120k renewal because the champion left and we\'d never multi-threaded — now I require 3 contacts per account minimum.' },
+    { id: 'f-sales-27', by: 'nadia', kind: 'fact', page: 'p-sales-sales-operations-technology', text: 'Salesforce is the single source of truth; Outreach for sequences, Gong for call recording — all sync nightly.' },
+    { id: 'f-sales-28', by: 'nadia', kind: 'how-to', page: 'p-sales-forecast-accuracy-pipeline', text: 'Deals without an amount or close date are excluded from the board — \'no fields, no forecast credit\'.' },
+    { id: 'f-sales-29', by: 'priya', kind: 'fact', page: 'p-sales-sales-operations-technology', text: 'SDR-sourced leads carry the original campaign UTM through to the opp so we can attribute pipeline by channel.' },
+    { id: 'f-sales-30', by: 'tomas', kind: 'idea', page: 'p-sales-sales-operations-technology', text: 'I log every objection I hear in a Gong tracker so we can build a living objection-handling library.' },
+    { id: 'f-sales-31', by: 'dana', kind: 'decision', page: 'p-sales-target-customer-profile', text: 'Our ICP is mid-market fintech, 200-2000 employees, with a named security owner — that\'s where win rates are highest.' },
+    { id: 'f-sales-32', by: 'priya', kind: 'fact', page: 'p-sales-target-customer-profile', text: 'Outbound is now ICP-only; we killed the spray-and-pray SMB lists that filled pipeline with deals that never closed.' },
+    { id: 'f-sales-33', by: 'marcus', kind: 'fact', page: 'p-sales-target-customer-profile', text: 'Average sales cycle for ICP mid-market fintech is 62 days; SMB experiments were faster but churned within two quarters.' },
+    { id: 'f-sales-34', by: 'dana', kind: 'fact', page: 'p-sales-territory-model-compensation', text: 'Territories are split by region, not named accounts, so SDRs and AEs share the same book and comp on team-sourced pipeline.' },
+    { id: 'f-sales-35', by: 'nadia', kind: 'fact', page: 'p-sales-pricing-strategy-deal', text: 'We measure CAC payback at 14 months blended; usage-based pricing is expected to shorten it by pulling expansion forward.' },
+  ],
+  pages: [
+    {
+      id: 'p-sales-pricing-strategy-deal',
+      title: 'Pricing Strategy & Deal Economics',
+      by: ['dana', 'nadia', 'marcus', 'greg'],
+      stands: [
+        ['The company transitioned from per-seat ($50/user/month) to usage-based pricing (per 1,000 API calls) with committed-usage tiers and overage rates, effective next quarter.', ['f-sales-10']],
+        ['Legacy seat deals are grandfathered through renewal.', ['f-sales-11']],
+        ['AEs can approve discounts up to 15% without VP approval; deeper discounts route to Dana.', ['f-sales-12']],
+        ['The team will not offer deep discounts (30%+) as they lead to low usage and churn; customer fit is prioritized over winning poor-fit logos.', ['f-sales-13']],
+        ['Usage-based pricing is expected to shorten CAC payback (currently 14 months blended) by accelerating expansion revenue.', ['f-sales-35']],
+      ],
+      changes: [
+        { topic: 'Pricing model transition rationale', now: 'Usage-based pricing (per 1,000 API calls) with committed tiers and overage structure', was: 'Per-seat pricing at $50/user/month with annual prepay default', nowFact: 'f-sales-10', wasFact: 'f-sales-9' },
+      ],
+      related: [
+        ['p-sales-sales-presentation-deal', 'Competitive positioning on implementation speed (30 vs 90 days) is quantified differentiator; price is secondary positioning'],
+      ],
+    },
+    {
+      id: 'p-sales-forecast-accuracy-pipeline',
+      title: 'Forecast Accuracy & Pipeline Management',
+      by: ['nadia', 'dana', 'marcus', 'priya'],
+      stands: [
+        ['Forecast categories are Commit / Best Case / Pipeline with strict enforcement rules.', ['f-sales-18']],
+        ['Deals without both amount and close date are excluded (\'no fields, no forecast credit\').', ['f-sales-28']],
+        ['Opportunities slip out of Commit if not advanced within 14 days.', ['f-sales-18']],
+        ['Weekly Monday forecast calls require reps to bring next-step and close-date for all Commit deals or deals are pulled.', ['f-sales-20']],
+        ['Economic Buyer identification is non-negotiable for Commit category.', ['f-sales-21']],
+        ['Pipeline coverage target is 3x quota per quarter; SDR capacity opens when coverage falls below target.', ['f-sales-19']],
+        ['The team missed Q2 forecast by 18% due to \'happy-ear\' deals with no Economic Buyer engaged, driving stricter enforcement.', ['f-sales-21']],
+        ['Pipeline attribution tracks UTM parameters end-to-end from lead to opportunity by channel.', []],
+      ],
+      related: [
+        ['p-sales-sales-presentation-deal', 'MEDDICC qualification (Economic Buyer + Champion) is enforced as non-negotiable requirement for Commit forecast category'],
+        ['p-sales-target-customer-profile', 'ICP-only outbound targeting improves pipeline quality; pipeline coverage ratio (3x quota) drives SDR capacity allocation to ICP segments'],
+        ['p-sales-sales-presentation-deal', 'Salesforce as single source of truth; trial date auto-sync enables accurate forecasting; UTM attribution tracks pipeline by channel'],
+        ['p-sales-territory-model-compensation', 'Shared pipeline compensation aligns SDR and AE incentives on pipeline quality and coverage targets'],
+      ],
+    },
+    {
+      id: 'p-sales-trial-poc-management',
+      title: 'Trial & POC Management',
+      by: ['marcus', 'tomas', 'dana', 'nadia'],
+      stands: [
+        ['The team conducts structured trials with kickoff calls where 2-3 success criteria are defined upfront and documented in deal notes.', ['f-sales-1']],
+        ['Standard trial length was extended from 14 to 30 days after field feedback indicated 14 days was insufficient for real evaluation cycles.', ['f-sales-2', 'f-sales-0']],
+        ['Trial dates auto-sync to Salesforce opportunity close dates for accurate forecasting.', ['f-sales-3']],
+        ['Success criteria travel the full customer lifecycle and become the agenda for QBRs, creating continuity from trial through renewal.', ['f-sales-25']],
+      ],
+      changes: [
+        { topic: 'Trial ownership and duration', now: '30-day standard trial length with structured kickoff and success criteria definition', was: '14-day standard trial length with AE ownership model', nowFact: 'f-sales-2', wasFact: 'f-sales-0' },
+      ],
+      related: [
+        ['p-sales-sales-to-customer', 'Success criteria defined at trial kickoff travel the full lifecycle and become QBR agendas; handoff doc includes success criteria'],
+      ],
+    },
+    {
+      id: 'p-sales-sales-presentation-deal',
+      title: 'Sales Presentation & Deal Framing Strategy',
+      by: ['dana', 'marcus', 'tomas'],
+      stands: [
+        ['First-call presentations use single-slide problem framing rather than 12-slide corporate decks, which converts significantly better.', ['f-sales-8']],
+        ['Against Acmeflow, the team leads with security/compliance depth (native SSO + audit logs) demonstrated in the first 10 minutes, positioning implementation speed (30 days vs Acmeflow\'s 90 days) as a quantified differentiator in every competitive deal.', ['f-sales-14', 'f-sales-17']],
+      ],
+      forks: [
+        { topic: 'Competitive positioning: price vs. differentiation', sides: [['marcus', 'Price is the closing factor in procurement-driven deals; we win on 20% list price advantage vs Acmeflow', 'f-sales-15'], ['tomas', 'Never lead with price vs Acmeflow; it commoditizes the product and trains buyers to negotiate; lead with security/compliance depth instead', 'f-sales-16']] },
+      ],
+      related: [
+        ['p-sales-forecast-accuracy-pipeline', 'MEDDICC qualification (Economic Buyer + Champion) is enforced as non-negotiable requirement for Commit forecast category'],
+        ['p-sales-pricing-strategy-deal', 'Competitive positioning on implementation speed (30 vs 90 days) is quantified differentiator; price is secondary positioning'],
+        ['p-sales-forecast-accuracy-pipeline', 'Salesforce as single source of truth; trial date auto-sync enables accurate forecasting; UTM attribution tracks pipeline by channel'],
+      ],
+    },
+    {
+      id: 'p-sales-sales-operations-technology',
+      title: 'Sales Operations & Technology Stack',
+      by: ['nadia', 'priya', 'tomas'],
+      stands: [
+        ['Salesforce is the single source of truth for the team.', ['f-sales-27']],
+        ['Outreach manages sequences; Gong records calls and tracks objections.', ['f-sales-27']],
+        ['Nightly automated sync maintains data consistency across Salesforce, Outreach, and Gong.', ['f-sales-27']],
+        ['Trial start/end dates auto-sync to opportunity close dates.', ['f-sales-3']],
+        ['SDR-sourced leads carry original campaign UTM through to opportunities for pipeline attribution by channel.', ['f-sales-29']],
+        ['Objection library is systematically built in Gong tracker to support team learning.', ['f-sales-30']],
+      ],
+    },
+    {
+      id: 'p-sales-sales-to-customer',
+      title: 'Sales-to-Customer Success Handoff & Renewal Management',
+      by: ['greg', 'marcus', 'tomas'],
+      stands: [
+        ['Sales-to-CS handoff occurs within 48 hours of close via structured handoff documentation including success criteria, champion, and risks.', ['f-sales-22']],
+        ['Success criteria from trial kickoff travel the full lifecycle and become the literal agenda for QBRs.', ['f-sales-22']],
+        ['Renewal conversations open 90 days before term end to prevent day-30 surprises that lose renewals.', ['f-sales-23']],
+        ['Net revenue retention is the CS north-star metric.', ['f-sales-24']],
+        ['CS books expansion revenue after day-1 handoff; original AE does not receive credit for post-sale expansion.', ['f-sales-24']],
+        ['Multi-threading requirement now mandates minimum 3 contacts per account to prevent single-champion dependency and account resilience risk (triggered by $120k renewal loss when champion departed).', ['f-sales-26']],
+      ],
+      related: [
+        ['p-sales-trial-poc-management', 'Success criteria defined at trial kickoff travel the full lifecycle and become QBR agendas; handoff doc includes success criteria'],
+      ],
+    },
+    {
+      id: 'p-sales-sales-qualification-discovery',
+      title: 'Sales Qualification & Discovery Methodology',
+      by: ['dana', 'marcus', 'priya', 'tomas'],
+      stands: [
+        ['The team uses MEDDICC framework for qualification with strict enforcement: opportunities cannot advance to Stage 3 without identified Economic Buyer and Champion.', ['f-sales-4']],
+        ['BANT is the minimum standard for SDR-qualified meetings (15 per month target).', ['f-sales-7']],
+        ['Discovery relies on the \'what happens if you do nothing?\' question to surface cost of inaction as a deal forcing function.', ['f-sales-6']],
+        ['Cold outreach leads with customer proof points from the same vertical rather than feature lists, which has doubled reply rates.', ['f-sales-5']],
+      ],
+    },
+    {
+      id: 'p-sales-target-customer-profile',
+      title: 'Target Customer Profile & Segment Strategy',
+      by: ['dana', 'priya', 'marcus'],
+      stands: [
+        ['ICP is mid-market fintech with 200-2000 employees and a named security owner, where win rates are highest.', ['f-sales-31']],
+        ['Outbound strategy shifted from spray-and-pray SMB lists to ICP-only targeting.', ['f-sales-32']],
+        ['Empirical analysis showed SMB segments have faster sales cycles (62 days vs ICP) but churn within two quarters, making ICP the preferred segment despite longer cycles.', ['f-sales-33']],
+        ['Pipeline quality is prioritized over volume; non-closing SMB deals were eliminated from outbound lists.', ['f-sales-32']],
+      ],
+      related: [
+        ['p-sales-forecast-accuracy-pipeline', 'ICP-only outbound targeting improves pipeline quality; pipeline coverage ratio (3x quota) drives SDR capacity allocation to ICP segments'],
+      ],
+    },
+    {
+      id: 'p-sales-territory-model-compensation',
+      title: 'Territory Model & Compensation Structure',
+      by: ['dana', 'nadia'],
+      stands: [
+        ['Territories are split by region, not named accounts.', ['f-sales-34']],
+        ['SDRs and AEs share the same book and commission on team-sourced pipeline, creating alignment on shared pipeline quality.', ['f-sales-34']],
+      ],
+      related: [
+        ['p-sales-forecast-accuracy-pipeline', 'Shared pipeline compensation aligns SDR and AE incentives on pipeline quality and coverage targets'],
+      ],
+    },
+  ],
+};

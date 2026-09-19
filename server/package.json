@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "OpenKT backend — the HTTP + MCP API server and the background worker (NestJS, Drizzle, Postgres + pgvector).",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "npm run build:api && npm run build:worker",
     "build:api": "nest build server && tsc-alias -p apps/server/tsconfig.app.json",

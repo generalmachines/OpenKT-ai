@@ -1,7 +1,7 @@
 import { HttpAuth, MockAuth, type AuthApi } from './auth';
 import { secureStore } from './bridge';
 import type { OpenKTClient } from './client';
-import { DEFAULT_SERVER_URL } from './config';
+import { DEFAULT_SERVER_URL, RETIRED_DEFAULT_SERVER_URLS } from './config';
 import { HttpClient } from './http';
 import { MockClient } from './mock';
 
@@ -61,7 +61,7 @@ const inElectron = (): boolean => typeof window !== 'undefined' && Boolean(windo
  */
 export async function loadApiSettings(): Promise<ApiSettings> {
   const s: ApiSettings = { ...DEFAULT_API_SETTINGS, ...(inElectron() ? { adapter: 'http' as const } : {}), ...fromEnv(), ...fromStorage() };
-  if (!s.baseUrl) s.baseUrl = DEFAULT_SERVER_URL;
+  if (!s.baseUrl || RETIRED_DEFAULT_SERVER_URLS.includes(s.baseUrl.replace(/\/+$/, ''))) s.baseUrl = DEFAULT_SERVER_URL;
   if (secureStore.available()) s.token = (await secureStore.get(TOKEN_KEY).catch(() => null)) ?? s.token;
   return s;
 }

@@ -308,9 +308,25 @@ export const KnowledgeNodeSchema = z.object({
 });
 export type KnowledgeNode = z.infer<typeof KnowledgeNodeSchema>;
 
+/** A page section returned by recall (Spec 01 §4 lists C and D): the default retrieval unit. */
+export interface RecallSection {
+  id: string;
+  type: "section";
+  heading: string;
+  /** The section's text with the citation markers removed. */
+  text: string;
+  page: { id: string; title: string };
+  space: { id: string; name: string };
+  locked: boolean;
+  updated_at: string;
+  score: number;
+}
+
 export interface RecallMeta {
   query_ms: number;
   knowledge?: KnowledgeNode[];
+  /** Page sections from the same spaces the facts came from, best first. */
+  sections?: RecallSection[];
 }
 
 export const EpisodeIdParamsSchema = z.object({ id: UUID });

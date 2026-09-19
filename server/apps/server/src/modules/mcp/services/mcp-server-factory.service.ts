@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { createUIResource } from "@mcp-ui/server";
 import { z } from "zod";
 
@@ -21,7 +21,14 @@ import {
   CreateSessionSchema,
 } from "../../sessions/contracts/session.contract";
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
+import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
+import { SkillsApplicationService } from "../../skills/services/skills-application.service";
+import { registerCardTools } from "./mcp-card-tools";
+import { registerTeamTools } from "../../teams/mcp/team-tools";
+import { TeamsService } from "../../teams/services/teams.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
+import { PagesApplicationService } from "../../pages/services/pages-application.service";
+import { registerPageTools } from "./mcp-page-tools";
 
 // The contract every connected tool should follow — kept here (not
 // inline in `new McpServer(...)`) so its size is easy to eyeball.
@@ -29,13 +36,17 @@ import { McpUiRendererService } from "./mcp-ui-renderer.service";
 // connection; some clients truncate long ones, so this stays well
 // under the 2KB budget architecture.md §4 sets for it and every tool
 // description.
-const SERVER_INSTRUCTIONS = `OpenKT is your team's shared memory: what one person saved should reach a teammate's session, not just yours.
+export const SERVER_INSTRUCTIONS = `OpenKT is your team's shared memory: what one person saved should reach a teammate's session, not just yours.
 
 Contract for every session:
 1. START — call kt_session_start at the beginning of work. It returns a session_id and a brief for the project. Read the brief before doing anything else.
 2. RECALL — call kt_recall(query, session_id) before any non-trivial work: before answering a question, before implementing something that might already have a decided approach, before debugging something that might already have a known cause. A teammate's session may have already solved this.
 3. SAVE — call kt_save_memory(content, session_id) at decision points as they happen, not only at the end: a decision made, an incident and its fix, a convention, a gotcha. Small and frequent beats one big dump at close.
 4. END — call kt_session_end(session_id, summary) when the work is done. Idle sessions close themselves, but an explicit summary is better than none.
+
+TEAMS — to start a team or bring someone in, kt_create_team / kt_invite_link return a join link to share; when the user pastes a …/join/<code> link, call kt_join_team.
+
+SKILLS — when the user asks to do something "the way we do it", or mentions a team procedure, template or house style, call kt_list_skills and follow the matching skill (kt_get_skill returns it in full).
 
 Passing session_id to kt_recall/kt_save_memory keeps provenance (who learned what, when, from which tool) accurate and keeps the session from being closed as idle mid-work. It is optional — omitting it still saves/recalls, just without that link.
 
@@ -75,13 +86,26 @@ export class McpServerFactoryService {
     private readonly briefing: BriefingService,
     private readonly ui: McpUiRendererService,
     private readonly sessionsApp: SessionsApplicationService,
+    private readonly skillsApp: SkillsApplicationService,
+    // Optional so a factory built by hand (the proof test) still works; Nest
+    // always injects it.
+    @Optional() private readonly teams?: TeamsService,
+    // Pages and the space brief (living context). Optional for the same reason.
+    @Optional() private readonly pagesApp?: PagesApplicationService,
   ) {}
 
   async sdk(): Promise<SdkExports> {
     return sdkExportsPromise;
   }
 
-  async build(context: ActorContext): Promise<InstanceType<SdkExports["McpServer"]>> {
+  // `ui`: the client advertised the MCP Apps extension (io.modelcontextprotocol/ui),
+  // so the card tools and the ui://openkt/cards.html resource are registered too.
+  // See mcp-apps.ts for how the controller works that out.
+  // `serverUrl`: this server's public /mcp URL, for kt_setup (default: the hosted one).
+  async build(
+    context: ActorContext,
+    options: { ui?: boolean; serverUrl?: string } = {},
+  ): Promise<InstanceType<SdkExports["McpServer"]>> {
     const { McpServer } = await sdkExportsPromise;
     const server = new McpServer(
       {
@@ -319,10 +343,21 @@ export class McpServerFactoryService {
           title: input.title ?? null,
           metadata: {},
         });
-        const brief = await this.briefing
-          .getBriefing(context, session.project_id)
-          .catch(() => null);
-        return jsonResult({ session, brief });
+        const [brief, briefMd] = await Promise.all([
+          this.briefing.getBriefing(context, session.project_id).catch(() => null),
+          // The space brief (T3), kept current from the space's pages by members' Macs.
+          this.pagesApp ? this.pagesApp.briefFor(session.project_id) : Promise.resolve(null),
+        ]);
+        const lead = briefMd
+          ? `${briefMd}\n\n---\n`
+          : "No brief for this space yet: it appears once sessions here have been processed into pages.\n\n";
+        // content[0] stays the JSON clients already parse; content[1] is the brief to read.
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ session, brief_md: briefMd, brief }, null, 2) },
+            { type: "text" as const, text: `${lead}Your session id is ${session.id}. Pass it to kt_recall / kt_save_memory / kt_session_end.` },
+          ],
+        };
       },
     );
 
@@ -352,6 +387,125 @@ export class McpServerFactoryService {
       },
     );
 
+    // ── kt_page ───────────────────────────────────────────────────
+    if (this.pagesApp) registerPageTools(server as never, this.pagesApp, context);
+
+    // ── kt_list_skills ────────────────────────────────────────────
+    // Skills: the team's written procedures — a SKILL.md plus optional
+    // reference files, versioned and granted like a space.
+    server.registerTool(
+      "kt_list_skills",
+      {
+        title: "List the team's skills",
+        description:
+          "List the skills the user can use: written, versioned team procedures (\"how we sharpen a " +
+          "marketing message\", \"how we cut a release\"). Call this when the user asks to do something " +
+          "\"the way we do it\", mentions a team procedure, template or house style, or asks what skills " +
+          "exist. Then call kt_get_skill on the one that matches and follow it. Read-only.",
+        inputSchema: ListSkillsToolSchema.shape,
+        annotations: {
+          title: "List the team's skills",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const skills = await this.skillsApp.list(context, {
+          project_id: input.project ?? undefined,
+          q: input.q ?? undefined,
+          archived: false,
+        });
+        const lines = skills.map(
+          (s, i) =>
+            `${i + 1}. ${s.title} (${s.slug}) — ${s.description} — ${s.space_name ?? (s.project_id ? "shared with you" : "personal")}`,
+        );
+        const text = skills.length
+          ? `${lines.join("\n")}\n\nCall kt_get_skill with a skill's name (in brackets) to read it in full.`
+          : "No skills yet in the spaces you can read. kt_save_skill creates one.";
+        return textAndStructured(text, { count: skills.length, skills });
+      },
+    );
+
+    // ── kt_get_skill ──────────────────────────────────────────────
+    server.registerTool(
+      "kt_get_skill",
+      {
+        title: "Read a skill",
+        description:
+          "Return one skill in full: its SKILL.md, then every other file under a `--- <path> ---` " +
+          "header. Follow what it says for the task at hand. `skill` is the id or the name from " +
+          "kt_list_skills; pass `project` when two spaces have a skill with the same name. " +
+          "Counts as one use of the skill.",
+        inputSchema: GetSkillToolSchema.shape,
+        annotations: {
+          title: "Read a skill",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        const id = await this.skillsApp.resolveId(context, input.skill, input.project ?? undefined);
+        const run = await this.skillsApp.recordRun(context, id, "mcp");
+        return textAndStructured(renderSkillText(run.files), run);
+      },
+    );
+
+    // ── kt_save_skill ─────────────────────────────────────────────
+    server.registerTool(
+      "kt_save_skill",
+      {
+        title: "Save a skill",
+        description:
+          "Create a skill, or save a new version of an existing one (pass `skill`). `skill_md` is the " +
+          "whole SKILL.md: YAML frontmatter with `name` (lowercase-kebab, at most 64 characters) and " +
+          "`description` (what it does and when to use it, at most 1024), then the markdown " +
+          "instructions. Use when the user asks to write down a procedure so the team and their tools " +
+          "can reuse it. Omit `project` for a personal skill. Updating needs edit access; every save is " +
+          "a new version and the skill's other files are kept.",
+        inputSchema: SaveSkillToolSchema.shape,
+        annotations: {
+          title: "Save a skill",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        let saved;
+        if (input.skill) {
+          const id = await this.skillsApp.resolveId(context, input.skill, input.project ?? undefined);
+          const current = await this.skillsApp.get(context, id);
+          saved = await this.skillsApp.saveVersion(context, id, {
+            files: [
+              { path: SKILL_MD, content: input.skill_md },
+              ...current.files.filter((f) => f.path !== SKILL_MD).map((f) => ({ path: f.path, content: f.content })),
+            ],
+            title: input.title,
+            change_note: input.change_note ?? null,
+            base_version: current.current_version,
+          });
+        } else {
+          saved = await this.skillsApp.create(context, {
+            title: input.title,
+            project_id: input.project ?? null,
+            skill_md: input.skill_md,
+            change_note: input.change_note ?? null,
+          });
+        }
+        const { files: _files, versions: _versions, ...skill } = saved;
+        return textAndStructured(
+          `Saved "${saved.title}" (${saved.slug}) as version ${saved.current_version} — ` +
+            `${saved.space_name ?? (saved.project_id ? "in a shared space" : "personal to you")}.`,
+          { skill },
+        );
+      },
+    );
+
+    // ── kt_create_team · kt_join_team · kt_invite_link ─────────────
+    if (this.teams) registerTeamTools(server, context, this.teams);
+
     // ── kt_setup ────────────────────────────────────────────────────
     // Returns setup guidance as plain text. No sign-in flow and no
     // token minting happens here — reaching this tool already required
@@ -361,8 +515,9 @@ export class McpServerFactoryService {
       {
         title: "Setup guidance",
         description:
-          "Return paste-able steps for connecting an AI tool to this OpenKT server. " +
-          "Call this when the user asks how to set OpenKT up in another client.",
+          "Return paste-able steps for connecting an AI tool (claude.ai, Cowork, ChatGPT, Codex, Claude Code, " +
+          "Cursor, a browser agent) to this OpenKT server. Call this when the user asks how to set OpenKT up in " +
+          "another client or for a teammate.",
         inputSchema: z.object({
           client: z
             .string()
@@ -377,8 +532,19 @@ export class McpServerFactoryService {
           idempotentHint: true,
         },
       },
-      async (input) => textResult(setupGuidance(input.client)),
+      async (input) => textResult(setupGuidance(input.client, options.serverUrl)),
     );
+
+    if (options.ui) {
+      registerCardTools(server, context, {
+        memoryCommands: this.memoryCommands,
+        memoryQueries: this.memoryQueries,
+        memoryRecall: this.memoryRecall,
+        projectsApp: this.projectsApp,
+        projectScope: this.projectScope,
+        sessionsApp: this.sessionsApp,
+      });
+    }
 
     return server;
   }
@@ -466,22 +632,123 @@ const CloseSessionToolSchema = z.object({
     .describe("A few sentences: what was asked, what changed, what's left open."),
 });
 
+const ListSkillsToolSchema = z.object({
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space UUID or slug to list skills from. Omit to list every skill the user can use."),
+  q: z.string().max(200).optional().describe("Optional words to match in the skill's title, name or description."),
+});
+
+const GetSkillToolSchema = z.object({
+  skill: z.string().min(1).max(200).describe("The skill's id, or its name (the slug shown by kt_list_skills)."),
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space UUID or slug — only needed when two spaces hold a skill with the same name."),
+});
+
+const SaveSkillToolSchema = z.object({
+  title: z.string().min(1).max(200).describe("The skill's human title, e.g. 'Sharpen a marketing message'."),
+  skill_md: z
+    .string()
+    .min(1)
+    .describe("The whole SKILL.md: `---` frontmatter with name and description, then the markdown body."),
+  project: z.string().min(1).max(256).optional().describe("Space UUID or slug to file a NEW skill in. Omit for personal."),
+  skill: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("Id or name of an existing skill to save a new version of. Omit to create a new skill."),
+  change_note: z.string().max(500).optional().describe("One line on what changed, shown in the version history."),
+});
+
 function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
-function setupGuidance(client?: string): string {
-  const target = client?.trim() ? client.trim() : "your AI tool";
+// A text block a model can use on its own, plus the same facts as data.
+function textAndStructured(text: string, structured: object) {
+  return {
+    content: [{ type: "text" as const, text }],
+    structuredContent: structured as Record<string, unknown>,
+  };
+}
+
+// Paste-able setup steps. Says the same as plugin/SETUP-PROMPT.md: OAuth in
+// the browser for every client, no token to paste, then the session contract.
+export const HOSTED_MCP_URL = "https://mcp.openkt.ai/mcp";
+const SETUP_STEPS: Array<{ match: RegExp; label: string; steps: (url: string) => string }> = [
+  {
+    match: /claude\.ai|claude[ -]?(desktop|web|app)|cowork|^claude$/i,
+    label: "claude.ai, Claude Desktop, Cowork",
+    steps: (url) =>
+      `Customize (or Settings) → Connectors → Add custom connector → name "OpenKT", URL ${url} → Add → Connect, and sign in. ` +
+      "Team/Enterprise: an owner adds it first under Organization settings → Connectors. " +
+      "Cowork can also install the plugin: Customize → Plugins → Add marketplace → masti-ai/OpenKT-ai → install OpenKT.",
+  },
+  {
+    match: /chatgpt|openai(?! ?codex)/i,
+    label: "ChatGPT",
+    steps: (url) =>
+      "Settings → Security and login → turn on Developer mode. Open https://chatgpt.com/plugins → + → " +
+      `name "OpenKT", MCP server URL ${url}, authentication OAuth → create, and sign in. Then add OpenKT to the chat from the tools menu.`,
+  },
+  {
+    match: /codex/i,
+    label: "Codex (CLI, IDE, app)",
+    steps: (url) =>
+      `codex mcp add openkt --url ${url}  then  codex mcp login openkt. ` +
+      `Same as ~/.codex/config.toml: [mcp_servers.openkt] url = "${url}".`,
+  },
+  {
+    match: /claude[ -]?code|^cc$/i,
+    label: "Claude Code",
+    steps: (url) =>
+      `claude mcp add --transport http --scope user openkt ${url}  then /mcp → openkt → sign in. ` +
+      "Or the plugin (server + skill + commands): /plugin marketplace add masti-ai/OpenKT-ai, then /plugin install openkt@openkt.",
+  },
+  {
+    match: /cursor/i,
+    label: "Cursor",
+    steps: (url) =>
+      `In ~/.cursor/mcp.json add "openkt": { "url": "${url}" } inside mcpServers (merge, do not overwrite), ` +
+      "then enable openkt in Cursor's MCP settings and sign in.",
+  },
+  {
+    match: /.*/,
+    label: "A browser agent or any other MCP client",
+    steps: (url) =>
+      `Add a remote MCP server (Streamable HTTP) named openkt, URL ${url}, authentication OAuth. ` +
+      "Leave client ID and secret empty; the server registers the client itself.",
+  },
+];
+
+export function setupGuidance(client?: string, serverUrl: string = HOSTED_MCP_URL): string {
+  const wanted = client?.trim();
+  const first = wanted ? SETUP_STEPS.find((s) => s.match.test(wanted)) : undefined;
+  const ordered = first ? [first, ...SETUP_STEPS.filter((s) => s !== first)] : SETUP_STEPS;
   return [
-    `Connecting ${target} to OpenKT:`,
-    "1. Add a remote MCP server (Streamable HTTP) pointing at <your OpenKT server URL>/mcp.",
-    "2. Authenticate. Clients that support OAuth sign in through the browser when they first connect. " +
-      "Otherwise create a personal access token (POST /v1/me/tokens) and send it as " +
-      "`Authorization: Bearer okt_pat_…`.",
-    "3. Check the connection by calling kt_list_projects — it lists the spaces you can read and write.",
-    "4. Then work as the server instructions describe: kt_session_start at the start of work, " +
-      "kt_recall before non-trivial work, kt_save_memory when something durable is settled, " +
-      "kt_session_end when the work ends.",
+    `Add this MCP server: ${serverUrl} — it signs you in by itself.`,
+    "",
+    `Connect ${wanted || "your AI tool"} to OpenKT — server ${serverUrl}. Sign-in is OAuth in the browser ` +
+      "(email and password, or Create an account). Nobody pastes a password, token or API key into a chat or a config file.",
+    "",
+    ...ordered.map((s) => `• ${s.label}: ${s.steps(serverUrl)}`),
+    "",
+    "Some clients show new tools only in a new chat or after a restart.",
+    "",
+    "Then, in every session: kt_session_start at the start of real work (keep the session_id) · kt_recall before non-trivial " +
+      "work and whenever the user mentions a decision, person, customer or system · kt_save_memory right when something " +
+      "durable is settled, one short self-contained statement, never secrets · kt_list_skills / kt_get_skill for " +
+      '"the way we do it" · kt_session_end with a 2–3 sentence summary.',
+    "Check the connection: call kt_session_start and kt_list_projects.",
+    `The same steps as text an agent can follow: ${serverUrl.replace(/\/mcp$/, "")}/connect — and as a prompt anyone can paste: https://github.com/masti-ai/OpenKT-ai/blob/main/plugin/SETUP-PROMPT.md`,
   ].join("\n");
 }
 

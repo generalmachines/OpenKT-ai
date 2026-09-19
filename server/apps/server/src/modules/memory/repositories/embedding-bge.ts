@@ -18,12 +18,36 @@ export const EMBEDDING_DIM = 1024;
 const EMBEDDING_TIMEOUT_MS = 60_000;
 const RETRY_DELAY_MS = 800;
 
+// Saving a fact embeds the same text twice within milliseconds (synthesis
+// dedup, then embedNow), and a room of people asking the same question embeds
+// it once each. A short memo of recent texts — requests still in flight
+// included — makes each of those one call to the embedding server, which is
+// the bottleneck on a small host. Failures are not remembered.
+const MEMO_MAX = 512;
+const MEMO_TTL_MS = 10 * 60_000;
+const memo = new Map<string, { at: number; vector: Promise<number[] | null> }>();
+
 export async function embed(text: string): Promise<number[] | null> {
   const trimmed = text.trim();
   if (!trimmed) {
     return null;
   }
+  const now = Date.now();
+  const hit = memo.get(trimmed);
+  if (hit && now - hit.at < MEMO_TTL_MS) {
+    memo.delete(trimmed);
+    memo.set(trimmed, hit); // most recently used last
+    return (await hit.vector)?.slice() ?? null;
+  }
+  const vector = embedUncached(trimmed);
+  memo.set(trimmed, { at: now, vector });
+  if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value as string);
+  const settled = await vector.catch(() => null);
+  if (!settled && memo.get(trimmed)?.vector === vector) memo.delete(trimmed);
+  return settled?.slice() ?? null;
+}
 
+async function embedUncached(trimmed: string): Promise<number[] | null> {
   if (EMBEDDING_BACKEND === "openai") {
     return embedOpenAi(trimmed);
   }

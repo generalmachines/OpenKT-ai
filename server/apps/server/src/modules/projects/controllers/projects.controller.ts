@@ -39,13 +39,16 @@ const ListProjectsSchema = z
     orgId: value.org_id,
     visibility: value.visibility,
   }));
+// `slug` is optional: without one it is made from the name (and made unique
+// among the caller's own spaces), so `{name}` alone creates a team space.
 const CreateProjectSchema = z
   .object({
     slug: z
       .string()
       .min(2)
       .max(41)
-      .regex(/^[a-z0-9][a-z0-9-]{1,40}$/, "lowercase-kebab, 2-41 chars"),
+      .regex(/^[a-z0-9][a-z0-9-]{1,40}$/, "lowercase-kebab, 2-41 chars")
+      .optional(),
     name: z.string().min(1).max(120),
     visibility: z.enum(["personal", "org", "public"]).default("personal"),
     org_id: z.string().uuid().nullable().default(null),
@@ -96,7 +99,7 @@ export class ProjectsController {
   }
 
   @Post()
-  @ApiOperation({ summary: "Create a project" })
+  @ApiOperation({ summary: "Create a project (a space). `{name}` alone is enough: the slug is made from the name." })
   @ApiBody({
     schema: {
       type: "object",
@@ -111,7 +114,7 @@ export class ProjectsController {
         visibility: { type: "string", enum: ["personal", "org", "public"], default: "personal" },
         org_id: { type: "string", format: "uuid", nullable: true, default: null },
       },
-      required: ["slug", "name"],
+      required: ["name"],
     },
   })
   async create(
