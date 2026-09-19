@@ -1,6 +1,6 @@
 # Spec 03 — vision, speech and how local reasoning works
 
-> Owner: senior. Status: decided. Applies to the desktop engine (`apps/desktop/engine`, Swift) and to the server when it receives images.
+> Owner: maintainers. Status: decided. Applies to the desktop engine (`apps/desktop/engine`, Swift) and to the server when it receives images.
 
 ## 1. The principle
 

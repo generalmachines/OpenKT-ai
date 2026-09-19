@@ -2,7 +2,9 @@
 
 > Generated from `docs/tasks/issues.py` — edit that file, then run `python3 docs/tasks/build.py`. Mirrored as GitHub issues.
 
-How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies are closed. One task = one branch = one pull request.
+How to work: read `AGENTS.md`. Pick a task marked `junior` whose dependencies are closed. One task = one branch = one pull request.
+
+The **Who** column uses the GitHub label names: `senior` is a maintainer task (design decisions and the risky core), `junior` is a contributor task (small, fully specified, open to anyone, human or AI agent). The names are kept because the tooling depends on them.
 
 
 ---
@@ -31,13 +33,13 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 `senior`
 
-**Context.** The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) is being finished on branch `feat/context-cloud-v0.1` of the private `openkt-server` repository. It moves here as a clean snapshot so all work happens in one place.
+**Context.** The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) was built in an earlier codebase that predates this repository. It moves here as a clean snapshot so all work happens in one place.
 
 **Do exactly this**
 1. Finish and verify milestones M1–M6 on the branch.
 2. Scan the tree for secrets; remove deploy-specific files.
 3. Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.
-4. Write `server/WHERE_THINGS_LIVE.md` for junior engineers.
+4. Write `server/WHERE_THINGS_LIVE.md` for contributors.
 
 **Acceptance — every line must be true and tested**
 - [ ] `server/` builds and its unit tests pass from a clean clone.
@@ -50,7 +52,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 `senior` `blocked`
 
-**Context.** Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a junior task.
+**Context.** Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a contributor task.
 
 **Do exactly this**
 1. Issue the server's own JWTs; keep accepting Supabase JWTs while `OPENKT_SUPABASE_JWKS_URL` is set.
@@ -121,7 +123,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 `senior`
 
-**Context.** Prompts and schemas in `packages/agents` are senior-owned (AGENTS.md rule 5).
+**Context.** Prompts and schemas in `packages/agents` are maintainer-owned (AGENTS.md rule 5).
 
 **Do exactly this**
 1. Run `npm run eval -w @openkt/agents` against Qwen3.5-4B.
@@ -412,7 +414,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #1
 
-**Branch:** `task/<issue-number>-j7` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j7` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J8 · server: switch embeddings to Qwen3-Embedding-0.6B with an index guard and a re-embed script  #12
 
@@ -456,7 +458,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #1
 
-**Branch:** `task/<issue-number>-j8` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j8` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J9 · server: Postgres job queue (`jobs` table + worker loop)  #13
 
@@ -501,7 +503,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #1
 
-**Branch:** `task/<issue-number>-j9` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j9` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J10 · server: `GET /v1/meta` and 404-instead-of-403 audit  #14
 
@@ -972,7 +974,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #13, #17, #18, #19, #20, #21, #24, #25
 
-**Branch:** `task/<issue-number>-j31` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j31` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J32 · server: job handlers J5–J8 (route, write section, brief, lint)  #27
 
@@ -1010,7 +1012,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #26, #22, #23
 
-**Branch:** `task/<issue-number>-j32` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j32` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J33 · server: pages and briefs REST API + `kt_page` tool  #28
 
@@ -1044,7 +1046,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #27
 
-**Branch:** `task/<issue-number>-j33` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j33` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J34 · server: register the MCP Apps cards  #29
 
@@ -1080,7 +1082,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #1
 
-**Branch:** `task/<issue-number>-j34` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j34` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J35 · server: connector defaults API  #30
 
@@ -1188,7 +1190,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #3
 
-**Branch:** `task/<issue-number>-j41` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j41` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J42 · desktop: page view editing and revision history  #33
 
@@ -1368,7 +1370,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #36, #4
 
-**Branch:** `task/<issue-number>-j52` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j52` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J53 · engine: global hotkeys and the voice pipeline  #38
 
@@ -1476,7 +1478,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #38
 
-**Branch:** `task/<issue-number>-j60` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j60` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ---
 
@@ -1550,7 +1552,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #41
 
-**Branch:** `task/<issue-number>-j71` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j71` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ### J72 · connectors: interface + Obsidian (local vault)  #43
 
@@ -1648,7 +1650,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Depends on:** #42, #44, #26, #3
 
-**Branch:** `task/<issue-number>-j74` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j74` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ---
 
@@ -1715,7 +1717,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block).
 
 **Out of scope**
-- Changing the live site — that is a separate, senior-approved deploy.
+- Changing the live site — that is a separate, maintainer-approved deploy.
 
 **Depends on:** nothing — can start now
 

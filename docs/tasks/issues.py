@@ -9,20 +9,20 @@ M01, M02, M03, M04, M05, M06, M10 = (
 PKG_RULES = "Pure function: no database, no network, no `Date.now()`, no randomness. One source file, one test file, one export line in `src/index.ts`."
 
 ISSUES = [
-# ───────────────────────────── senior ─────────────────────────────
+# ───────────────────────────── maintainer tasks (label: senior) ─────────────────────────────
 dict(key="S1", who="senior", ms=M01, title="Import the server into this repository as `server/`",
-  context="The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) is being finished on branch `feat/context-cloud-v0.1` of the private `openkt-server` repository. It moves here as a clean snapshot so all work happens in one place.",
-  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Write `server/WHERE_THINGS_LIVE.md` for junior engineers."],
+  context="The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) was built in an earlier codebase that predates this repository. It moves here as a clean snapshot so all work happens in one place.",
+  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Write `server/WHERE_THINGS_LIVE.md` for contributors."],
   accept=["`server/` builds and its unit tests pass from a clean clone.", "No secret, account id or internal hostname in the tree."], deps=[]),
 dict(key="S2", who="senior", ms=M01, title="Built-in sign-in (email link + OIDC) so a server needs no third party",
-  context="Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a junior task.",
+  context="Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a contributor task.",
   steps=["Issue the server's own JWTs; keep accepting Supabase JWTs while `OPENKT_SUPABASE_JWKS_URL` is set.", "Email magic link and OIDC (Google, GitHub).", "Enforce PAT scopes `context:read`, `context:write`, `admin`.", "Add Client ID Metadata Documents beside Dynamic Client Registration."],
   accept=["The v0.1 proof test passes with built-in sign-in only.", "A read-only token calling a write tool gets 403 `insufficient_scope`."], deps=["S1"]),
 dict(key="S3", who="senior", ms=M03, title="Design the missing app screens on the canvas",
   context="Screens are built only from the canvas. Missing: sign-in, transcript tab, hotkeys, access defaults, page editing, empty states, provider setup (Composio key), connector container picker.",
   steps=["Design each on the canvas in the established look.", "Export the artboards to `design/canvas/`."], accept=["Each listed screen exists as an artboard file."], deps=[]),
 dict(key="S4", who="senior", ms=M02, title="Review and tune agent prompts against the evaluation set",
-  context="Prompts and schemas in `packages/agents` are senior-owned (AGENTS.md rule 5).",
+  context="Prompts and schemas in `packages/agents` are maintainer-owned (AGENTS.md rule 5).",
   steps=["Run `npm run eval -w @openkt/agents` against Qwen3.5-4B.", "Tune until valid-JSON ≥ 99 % and quote-gate drops < 15 %.", "Record the table in `packages/agents/EVAL.md`."], accept=["EVAL.md committed with the table and the model id used."], deps=[]),
 
 # ───────────────────────────── 0.1 · recall ─────────────────────────────
@@ -395,5 +395,5 @@ dict(key="J80", who="junior", ms=M10, title="Docs site with interactive examples
 dict(key="J81", who="junior", ms=M10, title="Landing page copy for openkt.ai from product.md",
   context="The current site speaks only to engineers (\"skip the 47k-token repo scan\"). The product is now for every knowledge worker.", read=["docs/product.md"],
   steps=["Write `docs/site/landing.md`: hero (≤ 12 words) + one-sentence sub; the three losses (between sessions, tools, people); four before/after cards from product.md personas; how it works in 5 steps; open source and self-run section; the three install levels. Every claim must be traceable to product.md.", "No benchmarks, no customer logos, no \"10x\"."],
-  files=["docs/site/landing.md"], accept=["A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block)."], out=["Changing the live site — that is a separate, senior-approved deploy."], deps=[]),
+  files=["docs/site/landing.md"], accept=["A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block)."], out=["Changing the live site — that is a separate, maintainer-approved deploy."], deps=[]),
 ]

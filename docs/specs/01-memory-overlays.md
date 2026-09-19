@@ -1,6 +1,6 @@
 # Spec 01 — memory overlays and data model
 
-> Owner: senior. Status: decided. Juniors implement this exactly; if something here looks wrong, open an issue labelled `question` — do not improvise.
+> Owner: maintainers. Status: decided. Contributor tasks implement this exactly; if something here looks wrong, open an issue labelled `question` — do not improvise.
 
 Vocabulary: **space** is the product word; the database table is still called `projects`. **Fact** is the product word; the table is still called `memories`. Do not rename tables.
 

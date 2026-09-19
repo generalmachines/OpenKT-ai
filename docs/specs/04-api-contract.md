@@ -1,6 +1,6 @@
 # Spec 04 — API and MCP contract
 
-> Owner: senior. Status: decided for v0.1–v0.2. The server (`apps/server`), the desktop app's `http` adapter, the plugin and the MCP cards all code against this file. Change it here first, in its own pull request.
+> Owner: maintainers. Status: decided for v0.1–v0.2. The server (`apps/server`), the desktop app's `http` adapter, the plugin and the MCP cards all code against this file. Change it here first, in its own pull request.
 
 Conventions: JSON everywhere; `Authorization: Bearer <jwt | okt_pat_…>`; ids are UUIDs; times are ISO-8601 UTC; errors are `{ "error": { "code": "snake_case", "message": "…" } }` with 400/401/403/404/409/422/429. **A resource the caller cannot read returns 404, not 403** — existence is not leaked. Lists take `?limit=` (default 50, max 200) and `?cursor=`, and return `{ items, next_cursor }`.
 
