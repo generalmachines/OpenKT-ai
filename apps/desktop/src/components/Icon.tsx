@@ -71,6 +71,17 @@ const PATHS = {
       <path d="M5 15V5a1 1 0 0 1 1-1h9" />
     </>
   ),
+  /** Not on the canvas: a session imported through a connector. */
+  import: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14" />,
+  /** Not on the canvas: the knowledge graph. */
+  graph: (
+    <>
+      <circle cx="6" cy="7" r="2.2" />
+      <circle cx="18" cy="6" r="2.2" />
+      <circle cx="12" cy="18" r="2.2" />
+      <path d="M8 7.8l8-1.2M7.2 9l3.8 7M16.9 8l-3.8 8" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -104,4 +115,6 @@ export const SOURCE_ICON: Record<SessionSource, IconName> = {
   voice: 'mic',
   screenshot: 'shot',
   note: 'note',
+  codex: 'code',
+  connector: 'import',
 };

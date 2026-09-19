@@ -26,9 +26,11 @@ export const PACKAGED = process.env.OPENKT_E2E_APP || '';
 
 /** Strings that exist only in src/api/mock/seed.ts. Any of them on a signed-in screen is sample data. */
 export const MOCK_MARKERS = [
-  'Northgate', 'Pratham Bhatnagar', 'Ana Reyes', 'Ravi Menon', 'Ojas Sinha', 'Lena Fischer', 'Deepwork',
-  'Fix auth refresh storm', 'per-store onboarding kit', 'Q4 launch messaging', 'Inbox triage', 'Competitor pricing page',
-  'Hiring plan notes', 'Draft proposal v1', 'Intro call notes', 'Sales team', 'Everyone in Deepwork',
+  'Northgate', 'Pratham Bhatnagar', 'Ana Reyes', 'Ravi Menon', 'Deepwork', 'Everyone in Deepwork',
+  // the sample workspace: six teams from the OpenKT knowledge report
+  'Acmeflow', 'Dr. Ekwueme', 'Sam Okoro', 'Recall: one layer or two', 'Contract playbook', 'Tuesday cuts', 'Brand budget: 10% or 30%',
+  'Monday forecast call', '2026 antibiogram', 'Sales brief', 'OpenKT brief', 'Sample workspace',
+  'Run a sales discovery call', 'Start the sepsis bundle', 'Negotiate the liability cap', 'Recover a table',
   'Sharpen a marketing message', 'Follow-up after a customer call', 'Write a pull request description', 'Weekly update for founders',
   'remote MCP · signed in', 'personal agent · access token', 'Parakeet (streaming)', 'Omnilingual ASR',
 ];

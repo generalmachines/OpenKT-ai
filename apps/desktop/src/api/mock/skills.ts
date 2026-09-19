@@ -335,8 +335,8 @@ export function createSeedSkills(at: (daysAgo: number, hh: number, mm: number) =
       id: 'sk-followup',
       slug: 'follow-up-after-a-customer-call',
       title: 'Follow-up after a customer call',
-      spaceId: 'sp-northgate',
-      spaceName: 'sales / northgate',
+      spaceId: 'sp-sales',
+      spaceName: 'sales',
       owner: ana,
       runCount30d: 12,
       myRole: 'reader',
@@ -350,7 +350,7 @@ export function createSeedSkills(at: (daysAgo: number, hh: number, mm: number) =
       slug: 'write-a-pull-request-description',
       title: 'Write a pull request description',
       spaceId: 'sp-openkt',
-      spaceName: 'engineering / openkt',
+      spaceName: 'openkt',
       owner: me,
       runCount30d: 18,
       myRole: 'owner',
@@ -361,7 +361,7 @@ export function createSeedSkills(at: (daysAgo: number, hh: number, mm: number) =
       slug: 'triage-a-bug-report',
       title: 'Triage a bug report',
       spaceId: 'sp-openkt',
-      spaceName: 'engineering / openkt',
+      spaceName: 'openkt',
       owner: ravi,
       runCount30d: 7,
       myRole: 'editor',
@@ -390,18 +390,18 @@ export function createSeedSkills(at: (daysAgo: number, hh: number, mm: number) =
   const grants: Grant[] = [
     // Skill.dc.html "Who can use it"
     { id: 'g-sk-1', resource: on('sk-marketing'), subject: user(ana, 'AN'), role: 'owner', note: 'wrote this skill', inherited: true },
-    { id: 'g-sk-2', resource: on('sk-marketing'), subject: team('t-marketing', 'Marketing', 'MK'), role: 'editor', note: '3 people' },
-    { id: 'g-sk-3', resource: on('sk-marketing'), subject: team('t-sales', 'Sales', 'SA'), role: 'reader', note: '6 people' },
+    { id: 'g-sk-2', resource: on('sk-marketing'), subject: team('t-marketing', 'Marketing', 'MK'), role: 'editor', note: '7 people' },
+    { id: 'g-sk-3', resource: on('sk-marketing'), subject: team('t-sales', 'Sales', 'SA'), role: 'reader', note: '7 people' },
 
     { id: 'g-sk-4', resource: on('sk-followup'), subject: user(ana, 'AN'), role: 'owner', note: 'wrote this skill', inherited: true },
-    { id: 'g-sk-5', resource: on('sk-followup'), subject: team('t-sales', 'Sales', 'SA'), role: 'reader', note: '6 people' },
+    { id: 'g-sk-5', resource: on('sk-followup'), subject: team('t-sales', 'Sales', 'SA'), role: 'reader', note: '7 people' },
 
     { id: 'g-sk-6', resource: on('sk-pr'), subject: user(me, 'PB'), role: 'owner', note: 'you · wrote this skill', inherited: true },
-    { id: 'g-sk-7', resource: on('sk-pr'), subject: team('t-eng', 'Engineering', 'EN'), role: 'editor', note: '5 people' },
+    { id: 'g-sk-7', resource: on('sk-pr'), subject: team('t-openkt', 'OpenKT', 'OK'), role: 'editor', note: '3 people' },
     { id: 'g-sk-8', resource: on('sk-pr'), subject: user(ana, 'AN'), role: 'reader', note: 'added by you' },
 
     { id: 'g-sk-9', resource: on('sk-triage'), subject: user(ravi, 'RM'), role: 'owner', note: 'wrote this skill', inherited: true },
-    { id: 'g-sk-10', resource: on('sk-triage'), subject: team('t-eng', 'Engineering', 'EN'), role: 'editor', note: '5 people' },
+    { id: 'g-sk-10', resource: on('sk-triage'), subject: team('t-openkt', 'OpenKT', 'OK'), role: 'editor', note: '3 people' },
 
     { id: 'g-sk-11', resource: on('sk-weekly'), subject: user(me, 'PB'), role: 'owner', note: 'you · wrote this skill', inherited: true },
   ];

@@ -20,7 +20,10 @@ export type SessionSource =
   | 'hermes'
   | 'voice'
   | 'screenshot'
-  | 'note';
+  | 'note'
+  | 'codex'
+  /** Imported through a connector (a Notion page, a shared doc); `Session.via` names it. */
+  | 'connector';
 
 export type SessionStatus = 'open' | 'closed';
 
@@ -34,6 +37,8 @@ export interface Person {
   email?: string;
   /** External people (a customer on a call) are attributed but hold no grants. */
   external?: string;
+  /** What they do, as their team would say it: "VP Sales", "Charge Nurse". */
+  title?: string;
 }
 
 export interface Team {
@@ -129,6 +134,8 @@ export interface Session {
   /** Who saved it, as a name. Empty when the server does not say. */
   authorName?: string;
   createdAt: string;
+  /** The app it came through when the source alone does not say: "Cowork", "Notion". */
+  via?: string;
   /** Seconds; only meaningful for meetings and voice notes. */
   durationSec?: number;
   /** Where extraction ran. */
@@ -168,6 +175,61 @@ export interface PageSection {
   id: Id;
   heading: string;
   spans: PageSpan[];
+  /** Two people holding different positions on the same question, each in their own words. Nothing is settled. */
+  fork?: PageFork;
+  /** What the team believes now, and what it believed before. */
+  changes?: PageChange[];
+  /** The facts under the page, each with who said it. */
+  facts?: PageFact[];
+}
+
+export interface PageForkSide {
+  who: string;
+  position: string;
+  cites?: number[];
+}
+
+export interface PageFork {
+  topic: string;
+  sides: PageForkSide[];
+  /** Where the disagreement lives, when shown on another page (a space's brief). */
+  pageId?: Id;
+  pageTitle?: string;
+}
+
+export interface PageChange {
+  topic: string;
+  now: string;
+  was: string;
+  cites?: number[];
+  /** The source of the superseded position. */
+  wasCites?: number[];
+  pageId?: Id;
+  pageTitle?: string;
+}
+
+export interface PageFact {
+  id: Id;
+  kind: ContextKind;
+  statement: string;
+  author: string;
+  cites: number[];
+  /** Replaced by a later fact: shown struck through, never deleted. */
+  superseded?: boolean;
+}
+
+/** Another page this one depends on or feeds, and why. */
+export interface PageRelation {
+  id: Id;
+  title: string;
+  why: string;
+}
+
+/** Someone whose saved context the page is built from. */
+export interface PageContributor {
+  name: string;
+  title?: string;
+  facts: number;
 }
 
 export interface PageSource {
@@ -189,6 +251,8 @@ export interface Page {
   sections: PageSection[];
   citations: PageSource[];
   reach: string;
+  related?: PageRelation[];
+  contributors?: PageContributor[];
 }
 
 export type PageListItem = Pick<Page, 'id' | 'spaceId' | 'title' | 'summary' | 'sessionCount' | 'updatedAt'>;
@@ -352,4 +416,47 @@ export interface NewSessionInput {
   turns?: string[];
   /** `none`: nothing was extracted on this Mac; the session must not say it was. Default `device`. */
   extractedOn?: 'device' | 'none';
+}
+
+/** A person and what they have added to a space: the People panel. */
+export interface Contributor {
+  personId: Id;
+  name: string;
+  title?: string;
+  initials: string;
+  /** Facts they said or saved here. */
+  facts: number;
+  sessions: number;
+  /** The pages their context feeds, most first. */
+  topics: { pageId: Id; title: string }[];
+}
+
+/** How a space's people, pages and facts connect: the knowledge graph. */
+export interface KnowledgeGraph {
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+}
+
+export interface KnowledgeNode {
+  id: Id;
+  type: 'fact' | 'page' | 'person';
+  label: string;
+  /** Mono line in the detail panel: the kind and author of a fact, a page's summary, a person's title. */
+  detail: string;
+  /** Route that opens it. */
+  href: string;
+  kind?: ContextKind;
+  /** Page this fact feeds (colour grouping). */
+  pageId?: Id;
+  /** Who said this fact. */
+  personId?: Id;
+  superseded?: boolean;
+}
+
+export interface KnowledgeEdge {
+  from: Id;
+  to: Id;
+  type: 'feeds' | 'contributes' | 'relates';
+  /** Why two pages are related. */
+  label?: string;
 }

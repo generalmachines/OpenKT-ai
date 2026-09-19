@@ -52,6 +52,7 @@ import { NotFoundError, type OpenKTClient } from './client';
 import { ApiError, kindForStatus } from './errors';
 import { relativeDay, sourceLabel } from './format';
 import { MockClient } from './mock';
+import { createDeviceSeed } from './mock/seed';
 import { byteLength } from './skillFiles';
 import { isSlugTaken, joinCodeFrom, localDescription, nextFreeSlug, setLocalDescription, spaceSlug } from './spaces';
 import type {
@@ -218,7 +219,8 @@ export class HttpClient implements OpenKTClient {
   private readonly token: string;
   private readonly fetchImpl: typeof fetch | null;
   private readonly onUnauthorized?: () => void;
-  private readonly fallback = new MockClient();
+  /** Settings kept on this Mac (connectors, models). Never the sample workspace: no spaces, sessions, pages or skills. */
+  private readonly fallback = new MockClient(createDeviceSeed());
   private listeners = new Set<() => void>();
   private me?: Promise<Me>;
   private members?: Promise<Member[]>;

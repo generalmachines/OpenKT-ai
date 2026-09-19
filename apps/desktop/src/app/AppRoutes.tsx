@@ -7,6 +7,7 @@ import { Shell } from '../components/Shell';
 import { CaptureOverlay, CapturePreview } from '../screens/capture/CaptureRoutes';
 import { NewNote } from '../screens/NewNote';
 import { Onboarding } from '../screens/Onboarding';
+import { GraphView } from '../screens/GraphView';
 import { PageView } from '../screens/PageView';
 import { SessionView } from '../screens/SessionView';
 import { Settings } from '../screens/settings/Settings';
@@ -60,6 +61,7 @@ export function AppRoutes() {
           <Route path="/sessions/:id/:tab?" element={<SessionView />} />
           <Route path="/new" element={<NewNote />} />
           <Route path="/spaces" element={<SpacesList />} />
+          <Route path="/spaces/:id/graph" element={<GraphView />} />
           <Route path="/spaces/:id/:tab?" element={<SpaceView />} />
           <Route path="/pages/:id" element={<PageView />} />
           <Route path="/skills" element={<Skills />} />

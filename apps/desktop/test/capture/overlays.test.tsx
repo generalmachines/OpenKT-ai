@@ -121,15 +121,15 @@ describe('voice pill', () => {
 
   it('files into the space saved into last, and a space picked here becomes the next default', async () => {
     const user = userEvent.setup();
-    localStorage.setItem('openkt.last-space', 'sp-northgate');
+    localStorage.setItem('openkt.last-space', 'sp-sales');
     const { client, onClose, toggle, recorder } = mountVoice();
     await waitFor(() => expect(recorder.start).toHaveBeenCalled());
     toggle();
     await screen.findByText(TRANSCRIPT);
-    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('sales / northgate'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('sales'));
 
     await user.click(screen.getByRole('button', { name: /Save to/ }));
-    await user.click(screen.getByRole('option', { name: /engineering \/ openkt/ }));
+    await user.click(screen.getByRole('option', { name: /^openkt/ }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
 
@@ -245,15 +245,15 @@ describe('screenshot sheet', () => {
 
   it('the screenshot goes to the space saved into last', async () => {
     const user = userEvent.setup();
-    localStorage.setItem('openkt.last-space', 'sp-ideas');
+    localStorage.setItem('openkt.last-space', 'sp-marketing');
     fake.screenshot.capture.mockResolvedValue(SHOT);
     const { client, onClose } = mountShot();
     await screen.findByRole('textbox', { name: 'Title' });
-    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('ideas'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('marketing'));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const [s] = await voiceSessions(client);
-    expect(s).toMatchObject({ source: 'screenshot', spaceId: 'sp-ideas' });
+    expect(s).toMatchObject({ source: 'screenshot', spaceId: 'sp-marketing' });
   });
 
   it('a typed title becomes the caption turn, first (Spec 03 §4)', async () => {

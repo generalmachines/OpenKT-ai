@@ -102,7 +102,7 @@ describe('new space', () => {
 
   it('the + beside Spaces in the sidebar makes a private space and opens it', async () => {
     const user = userEvent.setup();
-    const client = renderApp('/sessions/s-northgate-pricing') as MockClient;
+    const client = renderApp('/sessions/s-sales-acmeflow') as MockClient;
     await user.click(await screen.findByRole('button', { name: 'New space' }));
     const dialog = await screen.findByRole('dialog', { name: 'New space' });
     expect(within(dialog).getByRole('radio', { name: /Just me/ })).toBeChecked();
@@ -126,7 +126,7 @@ describe('the space a save goes into', () => {
     renderApp('/new', client);
     await waitFor(() => expect(saveTo()).toHaveTextContent('Personal'));
     await user.click(saveTo());
-    await user.click(screen.getByRole('option', { name: /^engineering \/ openkt/ }));
+    await user.click(screen.getByRole('option', { name: /^openkt/ }));
     await user.type(screen.getByLabelText('Note', { exact: true }), 'The staging database moves to the new cluster on Monday.');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('tab', { name: 'Summary' });
@@ -135,12 +135,12 @@ describe('the space a save goes into', () => {
     cleanup();
 
     renderApp('/new', client);
-    await waitFor(() => expect(saveTo()).toHaveTextContent('engineering / openkt'));
+    await waitFor(() => expect(saveTo()).toHaveTextContent('openkt'));
     cleanup();
 
-    renderApp('/spaces/sp-northgate', client);
+    renderApp('/spaces/sp-sales', client);
     await userEvent.setup().click(await screen.findByRole('link', { name: 'New note here' }));
-    await waitFor(() => expect(saveTo()).toHaveTextContent('sales / northgate'));
+    await waitFor(() => expect(saveTo()).toHaveTextContent('sales'));
   });
 });
 
@@ -256,16 +256,16 @@ describe('join by link', () => {
 describe('moving a session', () => {
   it('offered when the server can, and the session lands in the other space', async () => {
     const user = userEvent.setup();
-    const client = renderApp('/sessions/s-northgate-pricing') as MockClient;
+    const client = renderApp('/sessions/s-sales-acmeflow') as MockClient;
     await user.click(await screen.findByRole('button', { name: 'More' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Move to another space…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Move to another space' });
     await user.click(within(dialog).getByRole('button', { name: /^Move to:/ }));
-    await user.click(within(dialog).getByRole('option', { name: /^ideas/ }));
+    await user.click(within(dialog).getByRole('option', { name: /^marketing/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Move' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect((await client.getSession('s-northgate-pricing')).spaceId).toBe('sp-ideas');
-    expect(await screen.findByRole('link', { name: 'ideas' })).toHaveAttribute('href', '/spaces/sp-ideas');
+    expect((await client.getSession('s-sales-acmeflow')).spaceId).toBe('sp-marketing');
+    expect(await screen.findByRole('link', { name: 'marketing' })).toHaveAttribute('href', '/spaces/sp-marketing');
   });
 
   it('not offered on a server without PATCH /v1/sessions/:id', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DEFAULT_SERVER_URL, MIN_PASSWORD_LENGTH, createAuth, describeAuthError, onboarding, type AuthProviders, type AuthSession } from '../api';
 import { MockAuth, type AuthMode } from '../api/auth';
 import { GoogleSignInError, googleAuth } from '../api/bridge';
@@ -46,9 +46,11 @@ const Spinner = () => <span className="spinner" aria-hidden="true" />;
 export function Welcome() {
   const { settings, expired, connect } = useConnection();
   const navigate = useNavigate();
+  const { search } = useLocation();
 
   const remembered = settings.baseUrl && settings.baseUrl !== DEFAULT_SERVER_URL ? settings.baseUrl : '';
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  // "Sign up" on the sample workspace's banner opens straight into creating an account.
+  const [mode, setMode] = useState<'signin' | 'signup'>(() => (new URLSearchParams(search).get('mode') === 'signup' ? 'signup' : 'signin'));
   const [name, setName] = useState('');
   const [email, setEmail] = useState(settings.email ?? '');
   const [password, setPassword] = useState('');
@@ -276,6 +278,15 @@ export function Welcome() {
             </>
           )}
         </p>
+
+        {!withToken && (
+          <div className="welcome__demo-wrap">
+            <button type="button" className="btn welcome__demo" onClick={() => void useSample()} disabled={locked}>
+              See a demo with sample data
+            </button>
+            <p className="welcome__demo-note">Six teams’ shared knowledge to look around in. No account needed.</p>
+          </div>
+        )}
       </main>
 
       <footer className="welcome__foot">
@@ -302,9 +313,6 @@ export function Welcome() {
                   Sign in with an access token
                 </button>
               )}
-              <button type="button" className="welcome__quiet" onClick={() => void useSample()} disabled={locked}>
-                Look around with sample data
-              </button>
             </p>
           </div>
         )}

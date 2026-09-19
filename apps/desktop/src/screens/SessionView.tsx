@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { describeError } from '../api/errors';
-import { accessSummary, duration, offset, relativeDayTime, sourceLabel } from '../api/format';
+import { accessSummary, duration, offset, relativeDayTime, viaLabel } from '../api/format';
 import { useClient, useQuery } from '../api/hooks';
 import { useHotkeys, voiceKeys } from '../api/hotkeys';
 import { writableSpaces } from '../api/spaces';
@@ -98,7 +98,7 @@ function Header({ session, spaceName, access }: { session: Session; spaceName: s
   const caps = useQuery((c) => c.capabilities(), []);
   const me = useQuery((c) => c.getMe(), []);
   const canMove = Boolean(caps.data?.moveSession && me.data && session.authorId === me.data.id);
-  const bits = [sourceLabel(session.source)];
+  const bits = [viaLabel(session)];
   if (session.durationSec) bits.push(duration(session.durationSec));
   bits.push(relativeDayTime(session.createdAt));
   // A teammate's session says whose it is.

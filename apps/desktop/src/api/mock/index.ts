@@ -6,10 +6,13 @@ import type {
   Capabilities,
   Connector,
   ContextItem,
+  Contributor,
   Grant,
   GrantSubject,
   Id,
   JoinLink,
+  KnowledgeGraph,
+  KnowledgeNode,
   ModelJob,
   ModelSettings,
   NewSkillInput,
@@ -30,7 +33,7 @@ import type {
   SpaceMember,
   SpaceMembers,
 } from '../types';
-import { sourceLabel } from '../format';
+import { initialsOf, viaLabel } from '../format';
 import { createSeed, type SeedData } from './seed';
 import type { SeedSkill } from './skills';
 
@@ -254,6 +257,8 @@ export class MockClient implements OpenKTClient {
 
   async createSession(input: NewSessionInput) {
     const me = this.db.workspace.me;
+    const into = this.db.spaces.find((s) => s.id === input.spaceId);
+    if (into?.myRole === 'reader') throw new ApiError('forbidden', `You can read ${into.name} but not save into it.`, 403, 'forbidden', '/sessions');
     const id = this.nextId('s');
     const parts = (input.turns?.length ? input.turns : [input.text ?? '']).map((t) => t.trim()).filter(Boolean);
     const text = parts.join('\n');
@@ -574,56 +579,179 @@ export class MockClient implements OpenKTClient {
     return clone(this.db.models);
   }
 
+  // ── search, people, graph ─────────────────────────────────────────────
+
+  /** "sales", or "healthcare · read only" where you are a reader. */
+  private where(spaceId: Id): string {
+    const s = this.db.spaces.find((x) => x.id === spaceId);
+    if (!s) return '';
+    return s.myRole === 'reader' ? `${s.name} · read only` : s.name;
+  }
+
   /**
-   * Client-side stand-in for POST /v1/memories/recall: case-insensitive
-   * substring match over sessions, context and pages. No ranking model.
+   * Client-side stand-in for POST /v1/memories/recall: every word of the query
+   * must appear (a plural matches its singular); when nothing has them all, the
+   * closest partial matches. Facts come first — with who said them and where —
+   * then the page sections that say it, then the sessions it came from.
    */
   async recall(query: string, opts?: { spaceId?: Id; limit?: number }): Promise<RecallHit[]> {
-    const q = query.trim().toLowerCase();
     const limit = opts?.limit ?? 12;
     const inSpace = (spaceId: Id) => (opts?.spaceId ? spaceId === opts.spaceId : true);
-    const spaceName = (id: Id) => this.db.spaces.find((s) => s.id === id)?.name ?? '';
-    const hits: RecallHit[] = [];
+    const terms = searchTerms(query);
 
-    for (const s of this.db.sessions) {
-      if (!inSpace(s.spaceId)) continue;
-      if (!q || `${s.title} ${s.summary}`.toLowerCase().includes(q)) {
-        hits.push({
-          id: s.id,
-          type: 'session',
-          title: s.title,
-          meta: `${sourceLabel(s.source)} · ${spaceName(s.spaceId)}`,
-          source: s.source,
-          author: this.personName(s.authorId),
-          spaceName: spaceName(s.spaceId),
-          href: `/sessions/${s.id}`,
-        });
-      }
+    if (terms.length === 0) {
+      return [...this.db.sessions]
+        .filter((s) => inSpace(s.spaceId))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, limit)
+        .map((s) => this.sessionHit(s));
     }
-    if (q) {
-      for (const p of this.db.pages) {
-        if (!inSpace(p.spaceId)) continue;
-        if (`${p.title} ${p.summary}`.toLowerCase().includes(q)) {
-          hits.push({ id: p.id, type: 'page', title: p.title, meta: `page · ${spaceName(p.spaceId)}`, spaceName: spaceName(p.spaceId), href: `/pages/${p.id}` });
-        }
-      }
-      for (const c of this.db.context) {
-        if (!inSpace(c.spaceId)) continue;
-        if (`${c.statement} ${c.tags.join(' ')}`.toLowerCase().includes(q)) {
-          const session = this.db.sessions.find((s) => s.id === c.sessionId);
-          hits.push({
+
+    const run = (need: number) => {
+      const score = (text: string) => {
+        const t = text.toLowerCase();
+        return terms.filter((term) => t.includes(term)).length;
+      };
+      const facts = this.db.context
+        .filter((c) => inSpace(c.spaceId))
+        .map((c) => ({ c, n: score(`${c.statement} ${c.tags.join(' ')} ${c.author}`) }))
+        .filter((x) => x.n >= need)
+        .sort((a, b) => b.n - a.n || Number(Boolean(a.c.supersededBy)) - Number(Boolean(b.c.supersededBy)) || b.c.createdAt.localeCompare(a.c.createdAt))
+        .map(({ c }): RecallHit => {
+          return {
             id: c.id,
             type: 'context',
             kind: c.kind,
             title: c.statement,
-            meta: `${c.author} · ${session?.title ?? 'session'}`,
+            meta: [c.author, this.where(c.spaceId), c.supersededBy ? 'superseded' : ''].filter(Boolean).join(' · '),
             author: c.author,
-            spaceName: spaceName(c.spaceId),
+            spaceName: [this.where(c.spaceId), c.supersededBy ? 'superseded' : ''].filter(Boolean).join(' · '),
             href: `/sessions/${c.sessionId}/context`,
-          });
-        }
+          };
+        });
+      const pages = this.db.pages
+        .filter((p) => inSpace(p.spaceId) && !p.id.endsWith('-brief'))
+        .map((p) => {
+          const lines = [
+            ...p.sections.flatMap((sec) => [
+              sec.spans.map((x) => x.text).join('').trim(),
+              ...(sec.fork ? sec.fork.sides.map((side) => `${side.who}: ${side.position}`) : []),
+              ...(sec.changes ?? []).map((c) => `Now ${c.now} (was ${c.was})`),
+            ]),
+          ].flatMap((line) => line.split(/(?<=\.)\s+(?=[A-Z])/));
+          let best = { n: score(p.title), text: p.summary };
+          for (const line of lines) {
+            const n = score(line);
+            if (n > best.n) best = { n, text: line };
+          }
+          return { p, ...best };
+        })
+        .filter((x) => x.n >= need)
+        .sort((a, b) => b.n - a.n)
+        .map(({ p, text }): RecallHit => ({ id: p.id, type: 'page', title: text, meta: `${p.title} · ${this.where(p.spaceId)}`, href: `/pages/${p.id}` }));
+      const sessions = this.db.sessions
+        .filter((s) => inSpace(s.spaceId) && score(`${s.title} ${s.summary}`) >= need)
+        .sort((a, b) => score(b.title) - score(a.title) || b.createdAt.localeCompare(a.createdAt))
+        .map((s) => this.sessionHit(s));
+      return { facts, pages, sessions };
+    };
+
+    let found = run(terms.length);
+    if (found.facts.length + found.pages.length + found.sessions.length === 0 && terms.length > 1) found = run(Math.ceil(terms.length / 2));
+
+    // A mix that fills the palette: mostly facts, a couple of pages, a couple of sessions; then whatever is left.
+    const picked = [...found.facts.slice(0, Math.max(1, limit - 4)), ...found.pages.slice(0, 2), ...found.sessions.slice(0, 2)];
+    const rest = [...found.facts, ...found.pages, ...found.sessions].filter((h) => !picked.includes(h));
+    return [...picked, ...rest].slice(0, limit);
+  }
+
+  private sessionHit(s: Session): RecallHit {
+    return {
+      id: s.id,
+      type: 'session',
+      title: s.title,
+      meta: `${viaLabel(s)} · ${this.where(s.spaceId)}`,
+      source: s.source,
+      author: this.personName(s.authorId),
+      spaceName: this.where(s.spaceId),
+      href: `/sessions/${s.id}`,
+    };
+  }
+
+  /** Who has said what in a space, and which pages it feeds. */
+  async listContributors(spaceId: Id): Promise<Contributor[]> {
+    if (!this.db.spaces.some((s) => s.id === spaceId)) throw new NotFoundError('space', spaceId);
+    const titles = new Map(this.db.pages.filter((p) => p.spaceId === spaceId).map((p) => [p.id, p.title]));
+    const rows = new Map<Id, { facts: number; sessions: Set<Id>; topics: Map<Id, number> }>();
+    for (const c of this.db.context) {
+      if (c.spaceId !== spaceId || !c.authorId) continue;
+      const row = rows.get(c.authorId) ?? { facts: 0, sessions: new Set<Id>(), topics: new Map<Id, number>() };
+      row.facts += 1;
+      row.sessions.add(c.sessionId);
+      const page = this.db.factPage[c.id];
+      if (page && titles.has(page)) row.topics.set(page, (row.topics.get(page) ?? 0) + 1);
+      rows.set(c.authorId, row);
+    }
+    return [...rows.entries()]
+      .map(([personId, row]): Contributor => {
+        const p = this.db.workspace.people.find((x) => x.id === personId);
+        const name = p?.name ?? '';
+        return {
+          personId,
+          name,
+          title: p?.title,
+          initials: p?.initials ?? initialsOf(name),
+          facts: row.facts,
+          sessions: row.sessions.size,
+          topics: [...row.topics.entries()].sort((a, b) => b[1] - a[1]).map(([pageId]) => ({ pageId, title: titles.get(pageId) ?? '' })),
+        };
+      })
+      .sort((a, b) => b.facts - a.facts);
+  }
+
+  /** Facts feed pages, people contribute to pages, pages relate to pages. */
+  async getKnowledgeGraph(spaceId: Id): Promise<KnowledgeGraph> {
+    const people = await this.listContributors(spaceId);
+    const fed = new Set(Object.values(this.db.factPage));
+    const pages = this.db.pages.filter((p) => p.spaceId === spaceId && fed.has(p.id));
+    const pageIds = new Set(pages.map((p) => p.id));
+    const nodes: KnowledgeNode[] = [
+      ...pages.map((p): KnowledgeNode => ({ id: p.id, type: 'page', label: p.title, detail: p.summary, href: `/pages/${p.id}` })),
+      ...people.map((p): KnowledgeNode => ({ id: p.personId, type: 'person', label: p.name, detail: [p.title, `${p.facts} ${p.facts === 1 ? 'fact' : 'facts'}`].filter(Boolean).join(' · '), href: `/spaces/${spaceId}` })),
+    ];
+    const edges: KnowledgeGraph['edges'] = [];
+    for (const c of this.db.context) {
+      const page = this.db.factPage[c.id];
+      if (c.spaceId !== spaceId || !page || !pageIds.has(page)) continue;
+      nodes.push({ id: c.id, type: 'fact', label: c.statement, detail: `${c.kind} · ${c.author}`, href: `/sessions/${c.sessionId}/context`, kind: c.kind, pageId: page, personId: c.authorId, ...(c.supersededBy ? { superseded: true } : {}) });
+      edges.push({ from: c.id, to: page, type: 'feeds' });
+    }
+    for (const p of people) for (const t of p.topics) if (pageIds.has(t.pageId)) edges.push({ from: p.personId, to: t.pageId, type: 'contributes' });
+    const pairs = new Set<string>();
+    for (const p of pages) {
+      for (const r of p.related ?? []) {
+        const key = [p.id, r.id].sort().join('|');
+        if (!pageIds.has(r.id) || pairs.has(key)) continue;
+        pairs.add(key);
+        edges.push({ from: p.id, to: r.id, type: 'relates', label: r.why });
       }
     }
-    return hits.slice(0, limit);
+    return { nodes, edges };
   }
+}
+
+const STOPWORDS = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'we', 'our', 'is', 'are', 'was', 'what', 'how', 'did', 'do', 'does', 'who', 'why', 'about', 'with', 'it', 'at', 'be', 'by', 'said', 'say', 'decide', 'decided']);
+
+/** Lowercased words worth matching; "discounts" matches "discount". */
+export function searchTerms(query: string): string[] {
+  return [
+    ...new Set(
+      query
+        .toLowerCase()
+        .split(/[\s,;:!?"'“”‘’()]+/)
+        .map((w) => w.replace(/^[.-]+|[.-]+$/g, ''))
+        .filter((w) => w && !STOPWORDS.has(w))
+        .map((w) => (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)),
+    ),
+  ];
 }

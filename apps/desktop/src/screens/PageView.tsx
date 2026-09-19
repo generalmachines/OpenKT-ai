@@ -4,7 +4,9 @@ import { accessSummary, relativeDayTime } from '../api/format';
 import { useQuery } from '../api/hooks';
 import { ErrorNote, Loading } from '../components/bits';
 import { Icon, SOURCE_ICON } from '../components/Icon';
+import { ChangesBlock, Cites, FactsBlock, ForkBlock, PagePeople, RelatedPages } from '../components/PageBlocks';
 import { PreviewBadge } from '../components/PreviewBadge';
+import { ReadOnlyNote } from '../components/ReadOnlyNote';
 
 /** Page.dc.html — a living page with citations and its sources rail. */
 export function PageView() {
@@ -33,6 +35,8 @@ export function PageView() {
 
   const p = page.data;
   const crumbs = (space.data?.name ?? '').split(' / ').filter(Boolean);
+  const reader = space.data?.myRole === 'reader';
+  const cite = { lit, onLight: setLit };
 
   return (
     <main className="main main--page">
@@ -53,9 +57,11 @@ export function PageView() {
         <PreviewBadge area="pages" />
         <div className="titlebar">
           <h1 className="h1">{p.title}</h1>
-          <button type="button" className="btn btn--pill" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
-            {editing ? 'Done' : 'Edit'}
-          </button>
+          {!reader && (
+            <button type="button" className="btn btn--pill" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
+              {editing ? 'Done' : 'Edit'}
+            </button>
+          )}
         </div>
         <div className="page__meta mono">
           <span>
@@ -67,26 +73,27 @@ export function PageView() {
             {accessSummary(grants.data ?? [])}
           </span>
         </div>
+        <ReadOnlyNote space={space.data} />
         <div className="rule" />
         {p.sections.map((sec) => (
-          <section key={sec.id} className="page__section">
+          <section key={sec.id} className={`page__section${sec.fork ? ' page__section--fork' : ''}`}>
             <h2>{sec.heading}</h2>
-            <p contentEditable={editing} suppressContentEditableWarning className={editing ? 'is-editing' : undefined}>
-              {sec.spans.map((span, i) => (
-                <Fragment key={i}>
-                  {span.struck ? <s>{span.text}</s> : span.text}
-                  {span.cites?.map((n) => (
-                    <sup key={n} className={`cite mono${lit === n ? ' is-lit' : ''}`} onMouseEnter={() => setLit(n)} onMouseLeave={() => setLit(null)}>
-                      <a href={`#source-${n}`} aria-label={`Source ${n}`}>
-                        {n}
-                      </a>
-                    </sup>
-                  ))}
-                </Fragment>
-              ))}
-            </p>
+            {sec.spans.length > 0 && (
+              <p contentEditable={editing} suppressContentEditableWarning className={editing ? 'is-editing' : undefined}>
+                {sec.spans.map((span, i) => (
+                  <Fragment key={i}>
+                    {span.struck ? <s>{span.text}</s> : span.text}
+                    <Cites ns={span.cites} {...cite} />
+                  </Fragment>
+                ))}
+              </p>
+            )}
+            {sec.fork && <ForkBlock fork={sec.fork} {...cite} />}
+            {sec.changes && sec.changes.length > 0 && <ChangesBlock changes={sec.changes} {...cite} />}
+            {sec.facts && sec.facts.length > 0 && <FactsBlock facts={sec.facts} {...cite} />}
           </section>
         ))}
+        {p.related && p.related.length > 0 && <RelatedPages related={p.related} />}
         <div className="grow" />
         <footer className="sfoot sfoot--page">
           <span className="sfoot__icon">
@@ -118,6 +125,7 @@ export function PageView() {
             </li>
           ))}
         </ul>
+        {p.contributors && p.contributors.length > 0 && <PagePeople people={p.contributors} />}
         <h3 className="caps mono" style={{ margin: '22px 0 8px' }}>
           Reached
         </h3>

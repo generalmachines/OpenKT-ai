@@ -575,7 +575,7 @@ try {
 
   await rec.step('Pages', async (row) => {
     // There is no page to click for a real account; the route still answers from sample data.
-    await a.goto('/pages/p-northgate-pricing'); // a sample page's id, typed in: it must not open for a real account
+    await a.goto('/pages/p-sales-brief'); // a sample page's id, typed in: it must not open for a real account
     row.shot = await a.shot('page-direct');
     const hits = await classifyMock(a, 'Page (direct URL)', row.shot, { selector: 'main', severity: 'major', labelledSeverity: 'minor' });
     if (!hits.length) rec.finding({ screen: 'Page (direct URL)', item: `a sample page's address says "${(await a.text('main')).replace(/\s+/g, ' ').slice(0, 90)}"`, cls: 'EMPTY-HONEST', evidence: row.shot });

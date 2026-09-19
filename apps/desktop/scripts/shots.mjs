@@ -30,7 +30,7 @@ const executablePath =
 
 const APP = { width: 1280, height: 800 };
 const CAPTURE = { width: 760, height: 460 };
-const S = '/sessions/s-northgate-pricing';
+const S = '/sessions/s-sales-acmeflow';
 
 /** A stand-in for the Electron bridge's local AI, so the note confirmation can be shot in a browser. */
 function fakeLocalAi() {
@@ -270,7 +270,7 @@ const SHOTS = [
     },
     null,
   ],
-  ['08-session-access-role-menu', `${S}/access`, APP, async (p) => p.getByRole('button', { name: /Role for Ana Reyes/ }).click(), null],
+  ['08-session-access-role-menu', `${S}/access`, APP, async (p) => p.getByRole('button', { name: /Role for Marcus/ }).click(), null],
   [
     '08b-access-share-by-email',
     `${S}/access`,
@@ -279,7 +279,7 @@ const SHOTS = [
       await p.getByLabel('Invite by email').fill('ravi@example.com');
       await p.getByLabel('Invite by email').press('Enter');
       await p.getByText('Ravi Menon', { exact: true }).waitFor();
-      await p.getByLabel('Invite by email').fill('dana@northgate.com');
+      await p.getByLabel('Invite by email').fill('nina@partner.test');
       await p.getByRole('button', { name: 'Invite as: Reader' }).click();
       await p.getByRole('option', { name: 'Editor' }).click();
       await p.getByRole('button', { name: 'Invite', exact: true }).click();
@@ -337,7 +337,7 @@ const SHOTS = [
     },
     null,
   ],
-  ['11-space', '/spaces/sp-northgate', APP, async (p) => p.getByRole('list', { name: 'Context in this space' }).getByRole('listitem').first().waitFor(), 'Space.dc.html'],
+  ['11-space', '/spaces/sp-sales', APP, async (p) => p.getByRole('list', { name: 'Context in this space' }).getByRole('listitem').first().waitFor(), 'Space.dc.html'],
   [
     '11b-space-new-empty',
     '/spaces',
@@ -353,7 +353,7 @@ const SHOTS = [
   ],
   [
     '11c-space-invite',
-    '/spaces/sp-northgate',
+    '/spaces/sp-openkt',
     APP,
     async (p) => {
       await p.getByRole('button', { name: 'Invite', exact: true }).click();
@@ -364,7 +364,7 @@ const SHOTS = [
   ],
   [
     '11d-space-invite-link',
-    '/spaces/sp-northgate',
+    '/spaces/sp-openkt',
     APP,
     async (p) => {
       await p.getByRole('button', { name: 'Copy invite link' }).click();
@@ -372,8 +372,8 @@ const SHOTS = [
     },
     null,
   ],
-  ['12-space-access', '/spaces/sp-northgate/access', APP, null, null],
-  ['13-page', '/pages/p-northgate-pricing', APP, null, 'Page.dc.html'],
+  ['12-space-access', '/spaces/sp-openkt/access', APP, null, null],
+  ['13-page', '/pages/p-sales-trial-poc-management', APP, null, 'Page.dc.html'],
   ['14-skills', '/skills', APP, null, 'Skills.dc.html'],
   [
     '14b-new-skill-dialog',
@@ -440,10 +440,51 @@ const SHOTS = [
     APP,
     async (p) => {
       await p.keyboard.press('Control+k');
-      await p.getByRole('combobox').fill('legacy pos');
+      await p.getByRole('combobox').fill('acmeflow');
     },
     null,
   ],
+  // ── the sample workspace: six teams from the OpenKT knowledge report ──
+  ['50-demo-welcome', '/welcome', APP, async (p) => p.getByRole('button', { name: 'See a demo with sample data' }).waitFor(), null],
+  ['51-demo-spaces', '/spaces', APP, null, null],
+  ['52-demo-space-people', '/spaces/sp-sales', APP, async (p) => p.getByRole('region', { name: 'Who contributes what' }).waitFor(), 'Space.dc.html'],
+  ['53-demo-brief-forks-and-changes', '/pages/p-openkt-brief', APP, null, 'Page.dc.html'],
+  ['54-demo-page-fork', '/pages/p-sales-sales-presentation-deal', APP, async (p) => p.getByRole('group', { name: /^Open disagreement/ }).waitFor(), 'Page.dc.html'],
+  ['55-demo-page-supersede', '/pages/p-sales-trial-poc-management', APP, async (p) => p.getByRole('list', { name: 'What changed' }).scrollIntoViewIfNeeded(), 'Page.dc.html'],
+  ['56-demo-page-who-said-what', '/pages/p-legal-liability-cap-strategy', APP, async (p) => p.getByRole('heading', { name: 'Who said what' }).scrollIntoViewIfNeeded(), null],
+  ['57-demo-reader-space', '/spaces/sp-healthcare', APP, async (p) => p.getByText(/Ask Dr\. Ekwueme for edit access/).waitFor(), null],
+  ['58-demo-reader-page-fork-and-change', '/pages/p-healthcare-inpatient-glucose-management', APP, async (p) => p.getByRole('group', { name: /^Open disagreement/ }).scrollIntoViewIfNeeded(), null],
+  ['59-demo-graph', '/spaces/sp-sales/graph', APP, async (p) => p.getByRole('button', { name: 'page: Sales Presentation & Deal Framing Strategy' }).click(), null],
+  ['59b-demo-graph-openkt', '/spaces/sp-openkt/graph', APP, async (p) => p.getByRole('button', { name: 'person: Claude' }).click(), null],
+  [
+    '60-demo-palette-across-teams',
+    S,
+    APP,
+    async (p) => {
+      await p.keyboard.press('Control+k');
+      await p.getByRole('combobox').fill('glucose');
+      await p.getByRole('group', { name: 'Context' }).waitFor();
+    },
+    null,
+  ],
+  [
+    '60b-demo-palette-acmeflow',
+    S,
+    APP,
+    async (p) => {
+      await p.keyboard.press('Control+k');
+      await p.getByRole('combobox').fill('acmeflow');
+      await p.getByRole('group', { name: 'Pages' }).waitFor();
+    },
+    null,
+  ],
+  ['61-demo-meeting-transcript', `${S}/transcript`, APP, null, null],
+  ['61b-demo-meeting-context', `${S}/context`, APP, null, null],
+  ['62-demo-screenshot-session', '/sessions/s-healthcare-antibiogram/transcript', APP, null, null],
+  ['62b-demo-screenshot-summary', '/sessions/s-marketing-channels', APP, null, null],
+  ['63-demo-notion-import', '/sessions/s-legal-playbook', APP, null, null],
+  ['64-demo-cowork-session', '/sessions/s-openkt-kb-synthesis/transcript', APP, null, null],
+  ['65-demo-skill-from-knowledge', '/skills/sk-liability', APP, null, null],
   ['24-capture-voice', '/capture/voice', CAPTURE, null, 'Capture-Voice.dc.html'],
   ['25-capture-meeting', '/capture/meeting', CAPTURE, null, 'Capture-Meeting.dc.html'],
   ['26-capture-screenshot', '/capture/screenshot', CAPTURE, null, 'Capture-Screenshot.dc.html'],
@@ -541,6 +582,8 @@ function audit() {
   const doc = document.documentElement;
   if (doc.scrollWidth > doc.clientWidth + 1) problems.push(`page overflows horizontally by ${doc.scrollWidth - doc.clientWidth}px`);
   for (const el of document.querySelectorAll('#root *')) {
+    // An SVG <title> is a tooltip, never laid out.
+    if (el.tagName.toLowerCase() === 'title' && el.closest('svg')) continue;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
     const r = el.getBoundingClientRect();
