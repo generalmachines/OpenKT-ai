@@ -95,10 +95,13 @@ export class AppExceptionFilter implements ExceptionFilter {
         (request.get ? request.get("host") : null) ??
         "localhost";
       const origin = `${proto}://${host}`;
-      response.setHeader(
-        "WWW-Authenticate",
-        `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
-      );
+      // /v1/mcp (legacy alias) is its own resource, with its own metadata
+      // (RFC 9728 §3.1 path-suffixed); /mcp keeps the root document.
+      const path = (request.originalUrl ?? request.url ?? "").split("?")[0] ?? "";
+      const metadataPath = path.startsWith("/v1/mcp")
+        ? "/.well-known/oauth-protected-resource/v1/mcp"
+        : "/.well-known/oauth-protected-resource";
+      response.setHeader("WWW-Authenticate", `Bearer resource_metadata="${origin}${metadataPath}"`);
     }
 
     // ── RFC 7591 / RFC 6749 bare-error shape for /oauth/* ──

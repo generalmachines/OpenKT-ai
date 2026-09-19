@@ -56,10 +56,30 @@ const PATHS = {
     </>
   ),
   down: <path d="M6 9l6 6 6-6" />,
+  /** Not on the canvas: the Accessibility permission row (a pointer). */
+  cursor: <path d="M6 3.5l12 7.2-5.3 1.3 3.1 6.1-2.4 1.2-3.1-6.1L6.5 17z" />,
   agent: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="3" />
       <path d="M12 8V4M9 13v1.5M15 13v1.5" />
+    </>
+  ),
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a1 1 0 0 1 1-1h9" />
+    </>
+  ),
+  /** Not on the canvas: a session imported through a connector. */
+  import: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14" />,
+  /** Not on the canvas: the knowledge graph. */
+  graph: (
+    <>
+      <circle cx="6" cy="7" r="2.2" />
+      <circle cx="18" cy="6" r="2.2" />
+      <circle cx="12" cy="18" r="2.2" />
+      <path d="M8 7.8l8-1.2M7.2 9l3.8 7M16.9 8l-3.8 8" />
     </>
   ),
 } as const;
@@ -95,4 +115,6 @@ export const SOURCE_ICON: Record<SessionSource, IconName> = {
   voice: 'mic',
   screenshot: 'shot',
   note: 'note',
+  codex: 'code',
+  connector: 'import',
 };

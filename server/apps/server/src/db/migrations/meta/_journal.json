@@ -281,6 +281,34 @@
       "when": 1780900000000,
       "tag": "0039_built_in_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0040_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0041_login_attempt_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1781200000000,
+      "tag": "0042_join_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1781250000000,
+      "tag": "0043_personal_space_marker",
+      "breakpoints": true
     }
   ]
 }

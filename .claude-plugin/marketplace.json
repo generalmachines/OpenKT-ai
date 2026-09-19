@@ -1,14 +1,20 @@
 {
   "name": "openkt",
   "owner": { "name": "OpenKT", "url": "https://openkt.ai" },
-  "description": "OpenKT: shared team context over MCP.",
+  "description": "OpenKT: shared team context for AI tools, over MCP.",
   "plugins": [
     {
       "name": "openkt",
+      "displayName": "OpenKT",
       "source": "./plugin",
-      "description": "Connects the OpenKT MCP server and adds the OpenKT skill, /kt-* commands and optional session hooks.",
-      "category": "productivity",
-      "homepage": "https://openkt.ai"
+      "description": "Connects the hosted OpenKT MCP server and adds the OpenKT skill, the /openkt:kt-* commands and optional session hooks.",
+      "version": "0.3.0",
+      "author": { "name": "OpenKT", "url": "https://openkt.ai" },
+      "homepage": "https://openkt.ai",
+      "repository": "https://github.com/masti-ai/OpenKT-ai",
+      "license": "Apache-2.0",
+      "keywords": ["memory", "context", "team-knowledge", "mcp"],
+      "category": "productivity"
     }
   ]
 }

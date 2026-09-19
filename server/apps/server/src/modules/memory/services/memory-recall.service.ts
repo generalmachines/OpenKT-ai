@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
 import { requireProjectAccess } from "@openkt/auth-authorization";
+import { NotFoundDomainError } from "@openkt/core-errors";
 
 import type {
   KnowledgeNode,
@@ -64,14 +65,29 @@ export class MemoryRecallService {
       input.project_id,
     );
 
-    await requireProjectAccess(context, projectId, "read");
-    const workspaceIds = await this.projectScopeService.workspaceRing(context, projectId);
     // "access enforced inside the retrieval query, not after it"
     // (product.md "Privacy and trust") — the visible scope's granted
     // session ids let a `visibility: 'personal'` memory reach a
     // teammate who was granted exactly that session, without exposing
     // any of the owner's other personal-space memories.
     const scope = await this.accessScopeService.visibleScope(context);
+
+    // Whole-space access, or — failing that — a grant on some of this
+    // space's sessions (Spec 01 §2 visible_sessions). A session-only
+    // grantee recalls those sessions' facts and nothing else from the space:
+    // no workspace ring, no space-level knowledge. No grant at all → 404.
+    let onlySessionIds: string[] | null = null;
+    try {
+      await requireProjectAccess(context, projectId, "read");
+    } catch (err) {
+      if (!(err instanceof NotFoundDomainError)) throw err;
+      const granted = await this.sessionRepository.idsInProject(scope.sessionIds, projectId);
+      if (granted.length === 0) throw err;
+      onlySessionIds = granted;
+    }
+    const workspaceIds = onlySessionIds
+      ? []
+      : await this.projectScopeService.workspaceRing(context, projectId);
     const result = await this.memoryEngine.search(
       context,
       {
@@ -90,6 +106,7 @@ export class MemoryRecallService {
       },
       workspaceIds,
       scope.sessionIds,
+      onlySessionIds ? { onlySessionIds } : undefined,
     );
 
     const recalled = await this.memoryEngine.recall(
@@ -129,6 +146,9 @@ export class MemoryRecallService {
 
     if (!input.include_knowledge) {
       return recalled;
+    }
+    if (onlySessionIds) {
+      return { data: recalled.data, meta: { ...recalled.meta, knowledge: [] } };
     }
 
     // Opt-in: enrich `meta.knowledge` with the unarchived knowledge

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
@@ -20,23 +20,17 @@ export class ProjectScopeService {
       throw new ValidationDomainError("user principal required");
     }
 
-    const existing = await this.db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(
-        and(
-          eq(projects.ownerUserId, userId),
-          eq(projects.visibility, "personal"),
-          isNull(projects.orgId),
-        ),
-      )
-      .limit(1);
+    // THE personal space is the one marked `is_personal` (migration 0043) —
+    // never "an org-less space you own": team spaces made with
+    // POST /v1/projects are org-less with visibility `personal` too, and
+    // guessing between them filed private notes into shared spaces (QA S0).
+    const existing = await this.findPersonalProjectId(userId);
+    if (existing) return existing;
 
-    if (existing[0]) {
-      return existing[0].id;
-    }
-
-    const [created] = await this.db
+    // First use (sign-up does this too). The partial unique index
+    // `projects_one_personal_per_owner` makes concurrent first uses agree on
+    // one row: the loser's insert does nothing and it reads the winner's.
+    await this.db
       .insert(projects)
       .values({
         slug: "personal",
@@ -44,14 +38,25 @@ export class ProjectScopeService {
         visibility: "personal",
         orgId: null,
         ownerUserId: userId,
+        isPersonal: true,
       })
-      .returning({ id: projects.id })
+      .onConflictDoNothing()
       .catch((err: Error) => {
         throw new ValidationDomainError(err.message);
       });
 
+    const created = await this.findPersonalProjectId(userId);
     if (!created) throw new ValidationDomainError("personal project create failed");
-    return created.id;
+    return created;
+  }
+
+  private async findPersonalProjectId(userId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.ownerUserId, userId), eq(projects.isPersonal, true)))
+      .limit(1);
+    return row?.id ?? null;
   }
 
   async resolveProjectIdOrSlug(
@@ -109,6 +114,9 @@ export class ProjectScopeService {
     if (!userId) {
       throw new ValidationDomainError("user principal required");
     }
+
+    // `personal` names the personal space, whatever else carries that slug.
+    if (value === "personal") return this.resolvePersonalProjectId(context);
 
     const personalMatch = await this.db
       .select({ id: projects.id })
@@ -230,6 +238,10 @@ export class ProjectScopeService {
     if (!primary) return [];
 
     if (primary.visibility === "org" && primary.orgId) {
+      // Only siblings the caller can read on their own — the same rule as
+      // requireProjectAccess(…, "read"): owner, member of the org, or a grant
+      // on that project or on its org. A grant on ONE org space must never
+      // pull the org's other spaces into that person's recall.
       const siblings = await this.db
         .select({ id: projects.id })
         .from(projects)
@@ -237,6 +249,25 @@ export class ProjectScopeService {
           and(
             eq(projects.orgId, primary.orgId),
             eq(projects.visibility, "org"),
+            sql`(
+              ${projects.ownerUserId} = ${userId}::uuid
+              or exists (
+                select 1 from ${orgMembers}
+                 where ${orgMembers.orgId} = ${projects.orgId}
+                   and ${orgMembers.userId} = ${userId}::uuid
+                   and ${orgMembers.role} in ('owner', 'admin', 'member')
+              )
+              or exists (
+                select 1 from ${grants}
+                 where ${grants.subjectType} = 'user'
+                   and ${grants.subjectId} = ${userId}::uuid
+                   and ${grants.role} in ('reader', 'editor', 'owner')
+                   and (
+                     (${grants.resourceType} = 'project' and ${grants.resourceId} = ${projects.id})
+                     or (${grants.resourceType} = 'org' and ${grants.resourceId} = ${projects.orgId})
+                   )
+              )
+            )`,
           ),
         );
       return siblings.map((row) => row.id).filter((id) => id !== primaryProjectId);

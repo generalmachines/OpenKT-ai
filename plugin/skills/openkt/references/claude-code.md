@@ -5,11 +5,11 @@ Status: **verified** against https://code.claude.com/docs/en/mcp, /skills and /p
 ## Easiest: the plugin (server + skill + commands + optional hooks)
 
 ```bash
-claude plugin marketplace add masti-ai/openkt     # the OpenKT repository; use your fork or mirror if different
+claude plugin marketplace add masti-ai/OpenKT-ai     # the OpenKT repository; use your fork or mirror if different
 claude plugin install openkt@openkt
 ```
 
-Self-hosted server: add `--config server_url=https://kt.example.com/mcp` to the install command. Then start `claude`, run `/mcp`, choose **openkt**, and sign in in the browser.
+Inside Claude Code the same is `/plugin marketplace add masti-ai/OpenKT-ai` and `/plugin install openkt@openkt`. Then run `/mcp`, choose **openkt**, and sign in in the browser (email and password, or create an account). The plugin connects the hosted server; for a self-hosted server use "Server only" below with your own URL.
 
 ## Server only
 

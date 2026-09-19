@@ -4,6 +4,7 @@ import { models as modelsIpc, screenshot as screenshotIpc, voice as voiceIpc } f
 import { useClient } from '../api/hooks';
 import { CAPTURE_SIGNAL, drainPending } from '../capture/save';
 import { ScreenshotCapture } from '../screens/capture/ScreenshotCapture';
+import { DemoBanner } from './DemoBanner';
 import { Palette, type PaletteScope } from './Palette';
 import { Sidebar } from './Sidebar';
 
@@ -44,11 +45,11 @@ export function Shell() {
       if (e.type === 'screenshot.captured' && screenshotIpc.available()) return;
       if (e.type === 'voice.final' && e.text.trim()) {
         const title = e.text.split(/[.—,]/)[0]?.trim().slice(0, 60) || 'Voice note';
-        void client.createSession({ source: 'voice', title, spaceId: 'sp-ideas', text: e.text });
+        void client.createSession({ source: 'voice', title, spaceId: 'sp-personal', text: e.text });
       } else if (e.type === 'screenshot.captured') {
-        void client.createSession({ source: 'screenshot', title: e.description.split(' — ')[0] ?? 'Screenshot', spaceId: 'sp-northgate', text: e.description });
+        void client.createSession({ source: 'screenshot', title: e.description.split(' — ')[0] ?? 'Screenshot', spaceId: 'sp-personal', text: e.description });
       } else if (e.type === 'meeting.stopped') {
-        void client.createSession({ source: 'meeting', title: e.title, spaceId: 'sp-northgate' });
+        void client.createSession({ source: 'meeting', title: e.title, spaceId: 'sp-personal' });
       }
     });
     return () => {
@@ -107,10 +108,12 @@ export function Shell() {
   }, []);
 
   const ctx = useMemo(() => openSearch, [openSearch]);
+  const sample = client.kind === 'mock';
 
   return (
     <SearchContext.Provider value={ctx}>
-      <div className="app">
+      {sample && <DemoBanner />}
+      <div className={`app${sample ? ' app--sample' : ''}`}>
         <Sidebar onSearch={() => openSearch()} />
         <Outlet />
         {palette && <Palette scope={palette.scope} onClose={() => setPalette(null)} />}

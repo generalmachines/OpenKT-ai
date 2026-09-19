@@ -4,7 +4,8 @@
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
+import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind, PermissionsStatusDto } from '../shared/ipc';
+import type { UpdateStatusDto } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
 
@@ -32,12 +33,34 @@ const bridge: OpenKTBridge = {
     openMain: (route?: string) => ipcRenderer.invoke(ch('app:open-main'), typeof route === 'string' ? route : undefined),
     hotkeys: () => ipcRenderer.invoke(ch('app:hotkeys')) as Promise<HotkeyInfo[]>,
     onNavigate: (listener) => listen<string>(ch('app:navigate'), listener),
+    startCapture: (kind) => ipcRenderer.invoke(ch('app:start-capture'), kind === 'screenshot' ? 'screenshot' : 'voice'),
   },
   models: {
     status: () => ipcRenderer.invoke(ch('models:status')),
-    ensure: () => ipcRenderer.invoke(ch('models:ensure')),
+    ensure: (roles) => ipcRenderer.invoke(ch('models:ensure'), Array.isArray(roles) ? roles.filter((r) => ['embed', 'llm', 'whisper', 'mmproj'].includes(r)) : undefined),
     onProgress: (listener) => listen<ModelsProgressDto>(ch('models:progress'), listener),
+    // ── first run (begin) ──
+    setupInfo: () => ipcRenderer.invoke(ch('models:setup-info')),
+    pause: () => ipcRenderer.invoke(ch('models:pause')),
+    resume: () => ipcRenderer.invoke(ch('models:resume')),
+    // ── first run (end) ──
   },
+  // ── first run (begin) ──
+  permissions: {
+    status: () => ipcRenderer.invoke(ch('permissions:status')),
+    request: (kind) => ipcRenderer.invoke(ch('permissions:request'), String(kind)),
+    openSettings: (kind) => ipcRenderer.invoke(ch('permissions:open-settings'), String(kind)),
+    onChange: (listener) => {
+      const off = listen<PermissionsStatusDto>(ch('permissions:changed'), listener);
+      void ipcRenderer.invoke(ch('permissions:watch'), true);
+      return () => {
+        off();
+        void ipcRenderer.invoke(ch('permissions:watch'), false);
+      };
+    },
+    relaunch: () => ipcRenderer.invoke(ch('permissions:relaunch')),
+  },
+  // ── first run (end) ──
   localAi: {
     extractNote: (input) => ipcRenderer.invoke(ch('local-ai:extract-note'), { ...input, text: String(input?.text ?? '') }),
     embed: (texts, kind) => ipcRenderer.invoke(ch('local-ai:embed'), texts, kind === 'query' ? 'query' : 'document'),
@@ -68,11 +91,39 @@ const bridge: OpenKTBridge = {
       cancel: () => ipcRenderer.invoke(ch('auth:google:cancel')),
     },
   },
+  // ── connect tools (begin) ──
+  connect: {
+    list: () => ipcRenderer.invoke(ch('connect:list')),
+    plan: (id, options) => ipcRenderer.invoke(ch('connect:plan'), String(id), { nativeMemory: options?.nativeMemory !== false }),
+    apply: (id, options, signIn) =>
+      ipcRenderer.invoke(ch('connect:apply'), String(id), { nativeMemory: options?.nativeMemory !== false }, signIn ? { server: String(signIn.server), token: String(signIn.token) } : undefined),
+    undo: (id) => ipcRenderer.invoke(ch('connect:undo'), String(id)),
+    guide: (id) => ipcRenderer.invoke(ch('connect:guide'), String(id)),
+    detectWeb: (id, sinceIso) => ipcRenderer.invoke(ch('connect:detect-web'), String(id), String(sinceIso)),
+    test: (id) => ipcRenderer.invoke(ch('connect:test'), String(id)),
+    folders: () => ipcRenderer.invoke(ch('connect:folders')),
+    mapFolder: (path, spaceId, spaceName) => ipcRenderer.invoke(ch('connect:map-folder'), String(path), spaceId === null ? null : String(spaceId), spaceName === undefined ? undefined : String(spaceName)),
+    shareSignIn: (signIn) => ipcRenderer.invoke(ch('connect:share-sign-in'), { server: String(signIn?.server ?? ''), token: String(signIn?.token ?? '') }),
+  },
+  // ── connect tools (end) ──
   secureStore: {
     get: (key: string) => ipcRenderer.invoke(ch('secure:get'), key) as Promise<string | null>,
     set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,
     delete: (key: string) => ipcRenderer.invoke(ch('secure:delete'), key) as Promise<void>,
   },
+  // ── in-app updates ──
+  update: {
+    status: () => ipcRenderer.invoke(ch('update:status')) as Promise<UpdateStatusDto>,
+    check: () => ipcRenderer.invoke(ch('update:check')) as Promise<UpdateStatusDto>,
+    download: () => ipcRenderer.invoke(ch('update:download')) as Promise<UpdateStatusDto>,
+    install: () => ipcRenderer.invoke(ch('update:install')) as Promise<UpdateStatusDto>,
+    setAuto: (on: boolean) => ipcRenderer.invoke(ch('update:set-auto'), on === true) as Promise<UpdateStatusDto>,
+    moveToApplications: () => ipcRenderer.invoke(ch('update:move-to-applications')) as Promise<UpdateStatusDto>,
+    rollback: () => ipcRenderer.invoke(ch('update:rollback')) as Promise<UpdateStatusDto>,
+    seen: () => ipcRenderer.invoke(ch('update:seen')) as Promise<UpdateStatusDto>,
+    onEvent: (listener) => listen<UpdateStatusDto>(ch('update:event'), listener),
+  },
+  // ── end in-app updates ──
 };
 
 contextBridge.exposeInMainWorld('openkt', bridge);

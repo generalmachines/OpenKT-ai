@@ -10,7 +10,6 @@ import {
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
 
-import { parseWithSchema } from "../../../common/http/zod-parse";
 import { RateLimit } from "../../rate-limit/decorators/rate-limit.decorator";
 import { RateLimitGuard } from "../../rate-limit/guards/rate-limit.guard";
 import { OauthError, OauthService } from "../services/oauth.service";
@@ -27,12 +26,10 @@ import { OauthError, OauthService } from "../services/oauth.service";
 
 // Accepted values for token_endpoint_auth_method.
 // "none" → public client (PKCE-only, no secret issued).
-// "client_secret_post" → confidential client (default).
-// Anything else is treated as confidential for safety.
-const AUTH_METHOD_SCHEMA = z
-  .enum(["none", "client_secret_post"])
-  .optional()
-  .default("client_secret_post");
+// "client_secret_post" (default) / "client_secret_basic" → confidential client;
+// the secret comes in the token request body or in HTTP Basic.
+// Anything else is refused with RFC 7591's invalid_client_metadata.
+const AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"] as const;
 
 const RegisterBody = z.object({
   client_name: z.string().min(1).max(200).optional(),
@@ -40,7 +37,7 @@ const RegisterBody = z.object({
   grant_types: z.array(z.string()).optional(),
   response_types: z.array(z.string()).optional(),
   scope: z.string().optional(),
-  token_endpoint_auth_method: AUTH_METHOD_SCHEMA,
+  token_endpoint_auth_method: z.string().max(100).optional(),
 });
 
 @Controller("oauth")
@@ -54,8 +51,12 @@ export class OauthRegisterController {
   @RateLimit({
     key: "ip",
     name: "oauth_register",
-    capacity: 5,
-    refillPerSec: 5 / 60, // 5/min
+    // Every claude.ai (or ChatGPT) user registers from the same few backend
+    // addresses, and they register again on each reconnect: 5/min would turn
+    // one busy minute into "could not connect" for everyone. 60/min still
+    // stops a registration flood.
+    capacity: 60,
+    refillPerSec: 1, // 60/min
   })
   @ApiOperation({
     summary: "RFC 7591 dynamic client registration",
@@ -82,11 +83,22 @@ export class OauthRegisterController {
     },
   })
   async register(@Body() body: unknown) {
-    const input = parseWithSchema(RegisterBody, body);
-    // Coerce any unknown auth method to the confidential default so
-    // we never accidentally register a public client without PKCE.
-    const authMethod =
-      input.token_endpoint_auth_method === "none" ? "none" : "client_secret_post";
+    const parsed = RegisterBody.safeParse(body);
+    if (!parsed.success) {
+      throw new HttpException(
+        { error: "invalid_client_metadata", error_description: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const input = parsed.data;
+    const requested = input.token_endpoint_auth_method ?? "client_secret_post";
+    if (!(AUTH_METHODS as readonly string[]).includes(requested)) {
+      throw new HttpException(
+        { error: "invalid_client_metadata", error_description: `token_endpoint_auth_method must be one of ${AUTH_METHODS.join(", ")}` },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const authMethod = requested as (typeof AUTH_METHODS)[number];
     try {
       const client = await this.oauth.register({
         clientName: input.client_name,
@@ -108,7 +120,10 @@ export class OauthRegisterController {
       };
       if (client.clientSecret !== undefined) {
         response.client_secret = client.clientSecret;
+        // RFC 7591 §3.2.1: REQUIRED when a secret is issued; 0 = never expires.
+        response.client_secret_expires_at = 0;
       }
+      if (input.scope) response.scope = input.scope;
       return response;
     } catch (error) {
       if (error instanceof OauthError) {
