@@ -3,7 +3,7 @@ import { describeError } from '../../api';
 import { localAi } from '../../api/bridge';
 import { useClient, useQuery } from '../../api/hooks';
 import { captureAvailable, hotkeysTaken, startCapture } from '../../api/setup-bridge';
-import { CAPTURE_SIGNAL, fileCapture, modelsPending } from '../../capture/save';
+import { CAPTURE_SIGNAL, fileCapture, localAiReady } from '../../capture/save';
 import { Key } from '../../components/bits';
 import { Icon, type IconName } from '../../components/Icon';
 import { usePermissions } from '../../components/PermissionsList';
@@ -161,7 +161,8 @@ export function TryItStep({ setup, onFinish }: { setup: ModelsSetupState; onFini
     setBusy(true);
     setNoteError('');
     try {
-      const later = await modelsPending();
+      // Not ready (still downloading, or no runtime in this build): save as written now, extract later.
+      const later = !(await localAiReady());
       const note = later ? null : await localAi.extractNote(body);
       const saved = await fileCapture(client, { source: 'note', title: note?.title ?? '', summary: note?.summary, spaceId: space.id, turns: [body], facts: note?.facts ?? [], extractLater: later });
       setWriting(false);

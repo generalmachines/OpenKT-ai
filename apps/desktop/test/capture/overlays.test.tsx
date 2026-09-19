@@ -160,7 +160,7 @@ describe('voice pill', () => {
     expect(await voiceSessions(client)).toEqual([]);
   });
 
-  it('models not downloaded yet: saves without facts, says why, and files the facts once the models are ready', async () => {
+  it('models not downloaded yet: saves the words as written, says why, and files the facts once the models are ready', async () => {
     const user = userEvent.setup();
     fake.models.status.mockResolvedValue(modelRows('downloading'));
     const { client, onClose, toggle, recorder } = mountVoice();
@@ -174,7 +174,8 @@ describe('voice pill', () => {
     const [s] = await voiceSessions(client);
     expect(s).toMatchObject({ source: 'voice', status: 'closed' });
     expect(fake.voice.toSession).not.toHaveBeenCalled();
-    expect(await client.listContext(s!.id)).toEqual([]);
+    // Recallable at once: what was said is the context until the facts arrive.
+    expect((await client.listContext(s!.id)).map((c) => c.statement)).toEqual([TRANSCRIPT]);
     expect(readPending()).toEqual([{ sessionId: s!.id, spaceId: 'sp-personal', text: TRANSCRIPT }]);
 
     expect(await drainPending(client)).toBe(0); // still downloading: nothing happens

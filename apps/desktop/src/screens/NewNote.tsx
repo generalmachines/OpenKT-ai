@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { describeError, type ContextKind } from '../api';
 import { localAi } from '../api/bridge';
+import { asWritten, localAiReady } from '../capture/save';
 import { useClient, useQuery } from '../api/hooks';
 import { Key, KindChip } from '../components/bits';
 import { Icon } from '../components/Icon';
@@ -35,6 +36,8 @@ export function NewNote() {
   const [spaceId, setSpaceId] = useState('');
   const [phase, setPhase] = useState<Phase>({ step: 'write' });
   const [error, setError] = useState('');
+  const [aiReady, setAiReady] = useState(false);
+  useEffect(() => void localAiReady().then(setAiReady, () => setAiReady(false)), []);
 
   // Default to the personal space once the list arrives: nothing is ever dropped for lack of somewhere to put it.
   useEffect(() => {
@@ -53,18 +56,22 @@ export function NewNote() {
         title: title.trim() || draft?.title.trim() || firstLine,
         spaceId,
         text,
+        extractedOn: draft ? 'device' : 'none',
       });
-      for (const f of draft?.facts ?? []) {
-        if (f.keep && f.text.trim())
-          await client.saveFact({
-            sessionId: session.id,
-            spaceId,
-            statement: f.text,
-            kind: f.kind,
-          });
+      const kept = (draft?.facts ?? []).filter((f) => f.keep && f.text.trim());
+      for (const f of kept) {
+        await client.saveFact({
+          sessionId: session.id,
+          spaceId,
+          statement: f.text,
+          kind: f.kind,
+        });
       }
+      // No on-device AI (or it found nothing to split out): the note itself is the context, so ⌘K, a
+      // teammate it is shared with and every connected tool can recall it. A refusal keeps the session.
+      if (kept.length === 0) await client.saveFact(asWritten(session.id, spaceId, title.trim() || draft?.title.trim() || '', text)).catch(() => undefined);
       await client.closeSession(session.id, draft?.summary.trim() || text.trim().slice(0, 600));
-      navigate(`/sessions/${session.id}${draft?.facts.some((f) => f.keep) ? '/context' : ''}`);
+      navigate(`/sessions/${session.id}${kept.length ? '/context' : ''}`);
     } catch (e) {
       setError(describeError(e));
       setPhase(draft ? { step: 'confirm', draft } : { step: 'write' });
@@ -75,7 +82,7 @@ export function NewNote() {
     e.preventDefault();
     if (empty || !spaceId) return;
     if (phase.step === 'confirm') return file(phase.draft);
-    if (!localAi.available() || !text.trim()) return file(null);
+    if (!text.trim() || !(await localAiReady())) return file(null);
     setPhase({ step: 'extracting' });
     const got = await localAi.extractNote(text);
     if (!got) return file(null);
@@ -160,7 +167,7 @@ export function NewNote() {
             <textarea
               id="note-body"
               className="note__body"
-              placeholder={localAi.available() ? 'Write it down. Context is extracted on this Mac when you save.' : 'Write it down.'}
+              placeholder={aiReady ? 'Write it down. Context is extracted on this Mac when you save.' : 'Write it down. It is saved as written — on-device AI would pull out the facts.'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               readOnly={busy}
