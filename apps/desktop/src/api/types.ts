@@ -85,7 +85,8 @@ export interface Session {
   /** Seconds; only meaningful for meetings and voice notes. */
   durationSec?: number;
   /** Where extraction ran. */
-  extractedOn: 'device' | 'server';
+  /** Where the context was pulled out: this Mac, the server, or nowhere (saved as written). */
+  extractedOn: 'device' | 'server' | 'none';
   turns: Turn[];
 }
 
@@ -296,4 +297,6 @@ export interface NewSessionInput {
   text?: string;
   /** Or several turns, in order (a screenshot: caption, description, text in image). Wins over `text`. */
   turns?: string[];
+  /** `none`: nothing was extracted on this Mac; the session must not say it was. Default `device`. */
+  extractedOn?: 'device' | 'none';
 }

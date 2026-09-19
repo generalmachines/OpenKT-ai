@@ -142,7 +142,7 @@ function toSession(j: Json, turns: Json[] = []): Session {
     authorId: str(j['owner_user_id']),
     createdAt: startedAt,
     durationSec: endedAt && (source === 'meeting' || source === 'voice') ? Math.max(0, Math.round((Date.parse(endedAt) - start) / 1000)) : undefined,
-    extractedOn: str(obj(j['metadata'])['extracted_on']) === 'device' ? 'device' : 'server',
+    extractedOn: ((on) => (on === 'device' || on === 'none' ? on : 'server'))(str(obj(j['metadata'])['extracted_on'])),
     turns: turns.map((t, i) => ({
       id: str(t['id'], `t${i + 1}`),
       speaker: str(obj(t['metadata'])['speaker'], str(t['role'], 'unknown')),
@@ -409,7 +409,7 @@ export class HttpClient implements OpenKTClient {
         source: fromSource(input.source),
         client: 'openkt-desktop',
         title: input.title.trim().slice(0, 200) || null,
-        metadata: { extracted_on: 'device' },
+        metadata: { extracted_on: input.extractedOn ?? 'device' },
       }),
     );
     const id = str(j['id']);

@@ -107,7 +107,7 @@ export function SessionView() {
   const items = context.data ?? [];
   const spaceName = spaces.data?.find((x) => x.id === s.spaceId)?.name ?? '';
   const tools = (connectors.data ?? []).filter((c) => c.connected && AI_TOOLS.has(c.source)).length;
-  const where = s.extractedOn === 'device' ? 'extracted on this Mac' : 'extracted on your server';
+  const where = s.extractedOn === 'device' ? 'extracted on this Mac' : s.extractedOn === 'none' ? 'saved as written' : 'extracted on your server';
 
   return (
     <main className="main main--session">

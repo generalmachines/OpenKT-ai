@@ -134,7 +134,7 @@ export class MockClient implements OpenKTClient {
       spaceId: input.spaceId,
       authorId: me.id,
       createdAt: new Date().toISOString(),
-      extractedOn: 'device',
+      extractedOn: input.extractedOn ?? 'device',
       turns: parts.map((t, i) => ({ id: `t${i + 1}`, speaker, at: 0, text: t })),
     };
     this.db.sessions.unshift(session);
