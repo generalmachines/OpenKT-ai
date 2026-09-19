@@ -1,0 +1,17 @@
+{
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "api answers /v1/health",
+        "description": "Traffic moves to a new release only after its web process answers.",
+        "path": "/v1/health",
+        "port": 4100,
+        "attempts": 20,
+        "wait": 3,
+        "timeout": 5,
+        "initialDelay": 2
+      }
+    ]
+  }
+}

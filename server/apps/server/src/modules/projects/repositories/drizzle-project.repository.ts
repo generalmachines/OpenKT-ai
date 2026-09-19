@@ -174,6 +174,7 @@ export class DrizzleProjectRepository implements ProjectRepository {
       visibility: row.visibility as ProjectRecord["visibility"],
       orgId: row.orgId,
       ownerUserId: row.ownerUserId,
+      isPersonal: row.isPersonal,
       createdAt: this.iso(row.createdAt),
       updatedAt: this.iso(row.updatedAt),
     };

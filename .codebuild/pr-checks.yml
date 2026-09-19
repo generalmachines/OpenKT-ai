@@ -1,0 +1,28 @@
+# CodeBuild project openkt-ai-pr-checks (us-east-1): runs on every pull request (opened, updated, reopened)
+# and reports its result to GitHub as the commit status "openkt-ai-pr-checks". The same checks the old
+# GitHub Actions CI ran: workspaces (packages + desktop), server, plugin manifests. Pull requests from forks
+# wait for a maintainer's approval comment before they run (webhook build policy).
+version: 0.2
+env:
+  shell: bash
+phases:
+  install:
+    commands:
+      # Node 22 is preinstalled on the image (/usr/local/n/versions/node). Putting it first on PATH is instant;
+      # `runtime-versions: nodejs: 22` makes CodeBuild copy it with `n` first (about 60 s, longer when it stalls).
+      - export PATH="/usr/local/n/versions/node/$(ls /usr/local/n/versions/node | grep '^22\.' | sort -V | tail -1)/bin:${PATH}"
+      - node --version && npm --version
+  build:
+    commands:
+      - echo "== Packages and desktop app" && npm ci --no-audit --no-fund
+      # Each command runs the script in every workspace that defines it (packages/* and apps/*).
+      - npm run typecheck --workspaces --if-present
+      - npm test --workspaces --if-present
+      - npm run build --workspaces --if-present
+      # packages/mcp-cards/dist/openkt-cards.html is committed on purpose; a build that changes it means it is stale.
+      - git diff --exit-code -- packages/mcp-cards/dist
+      - echo "== Server" && cd server && npm ci --no-audit --no-fund && npm run typecheck && npm run test:unit && npm run build:api && cd ..
+      - echo "== Plugin manifests" && npx --yes @anthropic-ai/claude-code plugin validate plugin --strict && npx --yes @anthropic-ai/claude-code plugin validate . --strict
+cache:
+  paths:
+    - /root/.npm/**/*

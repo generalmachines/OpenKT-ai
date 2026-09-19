@@ -4,6 +4,7 @@ import type { ActorContext } from "@openkt/core-context";
 import { requireMemoryWriteAccess } from "@openkt/auth-authorization";
 import { ValidationDomainError } from "@openkt/core-errors";
 
+import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { AuditService } from "../../audit/services/audit.service";
 
 import {
@@ -37,6 +38,7 @@ export class MemoryCommandsApplicationService {
     context: ActorContext,
     input: CreateMemoryInput,
   ): Promise<MemoryRecord | MemoryGateSuggestion> {
+    refuseSecrets("fact", input.content);
     if (input.content.length > MEMORY_CONTENT_MAX) {
       return {
         verdict: "reject-too-long",

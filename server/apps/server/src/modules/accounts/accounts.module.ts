@@ -5,6 +5,7 @@ import { BearerAuthGuard } from "../auth/guards/bearer-auth.guard";
 import { GrantsModule } from "../grants/grants.module";
 import { PersonalTokensModule } from "../personal-tokens/personal-tokens.module";
 import { ProjectsModule } from "../projects/projects.module";
+import { SkillsModule } from "../skills/skills.module";
 import { AccountsController } from "./controllers/accounts.controller";
 import { AccountsService } from "./services/accounts.service";
 import { fetchJwksOverHttp } from "../auth/services/jwks-key-cache";
@@ -17,7 +18,7 @@ import { LoginAttemptsService } from "./services/login-attempts.service";
 // here for the same reason McpModule provides its own: the guard's
 // dependencies must resolve in the module that uses it.
 @Module({
-  imports: [AuthModule, PersonalTokensModule, ProjectsModule, GrantsModule],
+  imports: [AuthModule, PersonalTokensModule, ProjectsModule, GrantsModule, SkillsModule],
   controllers: [AccountsController],
   providers: [
     AccountsService,

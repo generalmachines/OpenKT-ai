@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KIND_COLOR } from '../api/format';
+import { KIND_COLOR, sourceLabel } from '../api/format';
 import { useClient } from '../api/hooks';
 import type { RecallHit } from '../api/types';
+import { ErrorNote } from './bits';
 import { Icon, SOURCE_ICON } from './Icon';
 
 export interface PaletteScope {
@@ -16,6 +17,13 @@ const GROUPS: [RecallHit['type'], string][] = [
   ['context', 'Context'],
 ];
 
+/** "decision · Ana Reyes · Q4 launch": what it is, who saved it, and which space it lives in. */
+export function hitMeta(h: RecallHit): string {
+  if (h.author === undefined && h.spaceName === undefined) return h.type === 'context' && h.kind ? `${h.kind} · ${h.meta}` : h.meta;
+  const what = h.type === 'context' ? h.kind : h.type === 'page' ? 'page' : h.source ? sourceLabel(h.source) : undefined;
+  return [what, h.author, h.spaceName].filter(Boolean).join(' · ');
+}
+
 /** ⌘K — search over sessions, pages and context through `client.recall`. */
 export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClose: () => void }) {
   const client = useClient();
@@ -23,24 +31,38 @@ export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClos
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<RecallHit[]>([]);
   const [cursor, setCursor] = useState(0);
+  const [failed, setFailed] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => input.current?.focus(), []);
 
   useEffect(() => {
     let live = true;
-    client.recall(query, { spaceId: scope?.spaceId, limit: 9 }).then(
-      (r) => {
-        if (!live) return;
-        setHits(GROUPS.flatMap(([type]) => r.filter((h) => h.type === type)));
-        setCursor(0);
-      },
-      () => live && setHits([]),
+    // A short pause while typing, so each keystroke is not its own round trip to the server.
+    const timer = setTimeout(
+      () =>
+        client.recall(query, { spaceId: scope?.spaceId, limit: 9 }).then(
+          (r) => {
+            if (!live) return;
+            setFailed(null);
+            setHits(GROUPS.flatMap(([type]) => r.filter((h) => h.type === type)));
+            setCursor(0);
+          },
+          // A failed search is not "nothing relevant": say the server did not answer.
+          (e: unknown) => {
+            if (!live) return;
+            setFailed(e);
+            setHits([]);
+          },
+        ),
+      query ? 180 : 0,
     );
     return () => {
       live = false;
+      clearTimeout(timer);
     };
-  }, [client, query, scope?.spaceId]);
+  }, [client, query, scope?.spaceId, attempt]);
 
   const open = (h: RecallHit) => {
     onClose();
@@ -84,7 +106,13 @@ export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClos
           <span className="mono palette__esc">esc</span>
         </div>
         <div id="palette-results" role="listbox" aria-label="Results" className="palette__results">
-          {hits.length === 0 && <p className="palette__empty">Nothing relevant{query ? ` for “${query}”` : ''}.</p>}
+          {failed ? (
+            <div className="palette__empty">
+              <ErrorNote error={failed instanceof Error ? failed : new Error(String(failed))} onRetry={() => setAttempt((n) => n + 1)} />
+            </div>
+          ) : (
+            hits.length === 0 && <p className="palette__empty">{query.trim() ? `Nothing relevant for “${query}”.` : 'Search the sessions and context you can read.'}</p>
+          )}
           {GROUPS.map(([type, label]) => {
             const rows = hits.filter((h) => h.type === type);
             if (rows.length === 0) return null;
@@ -114,7 +142,7 @@ export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClos
                       </span>
                       <span className="srow__text">
                         <span className="srow__title">{h.title}</span>
-                        <span className="srow__sub mono">{h.type === 'context' && h.kind ? `${h.kind} · ${h.meta}` : h.meta}</span>
+                        <span className="srow__sub mono">{hitMeta(h)}</span>
                       </span>
                     </div>
                   );

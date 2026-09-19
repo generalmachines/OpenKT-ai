@@ -10,6 +10,14 @@ import type {
 
 export const MEMORY_ENGINE = Symbol("MEMORY_ENGINE");
 
+export interface MemorySearchScopeOptions {
+  // Search ONLY facts saved in these sessions. Set when the asker cannot
+  // read the space but holds a grant on some of its sessions (Spec 01 §2
+  // visible_sessions): they see those sessions' facts and nothing else
+  // from the space.
+  onlySessionIds?: string[];
+}
+
 export interface MemoryEngine {
   remember(context: ActorContext, memory: MemoryRecord): Promise<void>;
   forget(context: ActorContext, memoryId: string, hard: boolean): Promise<void>;
@@ -25,6 +33,7 @@ export interface MemoryEngine {
     // been updated yet (list/browse paths that don't touch personal
     // memories owned by someone else).
     grantedSessionIds?: string[],
+    options?: MemorySearchScopeOptions,
   ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: MemorySearchMeta }>;
   recall(
     context: ActorContext,

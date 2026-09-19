@@ -1,12 +1,14 @@
 {
   "name": "openkt",
   "owner": { "name": "OpenKT", "url": "https://openkt.ai" },
-  "description": "OpenKT: shared team context over MCP.",
+  "description": "OpenKT: shared team context for AI tools, over MCP. (Twin of the repository-root marketplace, for `marketplace add ./plugin`.)",
   "plugins": [
     {
       "name": "openkt",
+      "displayName": "OpenKT",
       "source": "./",
-      "description": "Connects the OpenKT MCP server and adds the OpenKT skill, /kt-* commands and optional session hooks.",
+      "description": "Connects the hosted OpenKT MCP server and adds the OpenKT skill, the /openkt:kt-* commands and optional session hooks.",
+      "version": "0.3.0",
       "category": "productivity",
       "homepage": "https://openkt.ai"
     }

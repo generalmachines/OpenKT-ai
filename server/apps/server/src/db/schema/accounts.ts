@@ -29,13 +29,15 @@ export const userCredentials = pgTable(
   }),
 );
 
-// One row per counted sign-in attempt; the limiter counts the last 15 minutes.
+// One row per counted sign-in attempt. `kind` (migration 0041): `failure` (a
+// failed login, 15-minute window) or `signup` (per IP only, 1-hour window).
 export const loginAttempts = pgTable(
   "login_attempts",
   {
     email: text("email"),
     ip: text("ip"),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    kind: text("kind").notNull().default("failure"),
   },
   (t) => ({
     emailAtIdx: index("login_attempts_email_at_idx").on(t.email, t.at),

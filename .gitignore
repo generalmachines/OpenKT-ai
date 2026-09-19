@@ -4,11 +4,11 @@ dist/
 dist-electron/
 release/
 coverage/
+*.dmg
 *.tsbuildinfo
 
 # environment and secrets
-.env
-.env.*
+.env*
 !.env.example
 
 # logs
@@ -32,4 +32,11 @@ Thumbs.db
 
 # review artefacts written by `npm run shots`; the few images the docs use live in docs/images/
 apps/desktop/shots/
+# what `npm run e2e` writes on every run (screenshots, logs, summary.json)
+apps/desktop/e2e/artifacts/
 packages/mcp-cards/screenshots/
+
+# Impeccable review captures are build artifacts, not source
+apps/site/.impeccable/review/
+# end-to-end test output (screenshots, traces, reports)
+e2e/artifacts/

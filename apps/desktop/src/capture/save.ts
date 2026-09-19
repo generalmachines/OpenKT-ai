@@ -9,7 +9,8 @@
 import type { ExtractedFact, ExtractedNote } from '../api/bridge';
 import { localAi, models } from '../api/bridge';
 import type { OpenKTClient } from '../api/client';
-import type { ContextKind, Id, Session, SessionSource } from '../api/types';
+import { modelsSetup } from '../api/setup-bridge';
+import type { ContextKind, Id, NewFactInput, Session, SessionSource } from '../api/types';
 
 const KINDS: readonly ContextKind[] = ['decision', 'action', 'fact', 'question', 'how-to', 'idea', 'issue'];
 export const asKind = (k: string): ContextKind => KINDS.find((x) => x === k) ?? 'fact';
@@ -25,11 +26,39 @@ export interface CaptureToFile {
   extractLater?: boolean;
 }
 
+/** The server keeps up to 20 000 characters per fact. */
+const FACT_MAX = 20_000;
+
+/**
+ * What was typed or said, as one fact: its title, then its words. Saved whenever nothing was
+ * extracted (no on-device AI, still downloading, or it found nothing), so it can always be
+ * recalled — by ⌘K, by a teammate it is shared with, by every connected tool.
+ */
+export function asWritten(sessionId: Id, spaceId: Id, title: string, text: string): NewFactInput {
+  const body = text.trim();
+  const head = title.trim();
+  const statement = head && !body.startsWith(head) ? `${head}\n\n${body}` : body || head;
+  return { sessionId, spaceId, kind: 'fact', statement: statement.length > FACT_MAX ? `${statement.slice(0, FACT_MAX - 1)}…` : statement };
+}
+
+/**
+ * True when extracting on this Mac can work right now: the IPC exists, every model is on disk and the
+ * runtime ships in this build. Otherwise asking would only make the person wait for a failure.
+ */
+export async function localAiReady(): Promise<boolean> {
+  if (!localAi.available() || (await modelsPending())) return false;
+  const info = await modelsSetup.setupInfo();
+  return info === null || info.bundled.runtime;
+}
+
 export async function fileCapture(client: OpenKTClient, c: CaptureToFile): Promise<Session> {
   const turns = c.turns.map((t) => t.trim()).filter(Boolean);
   const firstLine = (turns[0] ?? '').split('\n')[0]!.slice(0, 60);
-  const session = await client.createSession({ source: c.source, title: c.title.trim() || firstLine || 'Untitled', spaceId: c.spaceId, turns });
+  const title = c.title.trim() || firstLine || 'Untitled';
+  const session = await client.createSession({ source: c.source, title, spaceId: c.spaceId, turns, extractedOn: c.facts.length ? 'device' : 'none' });
   for (const f of c.facts) await client.saveFact({ sessionId: session.id, spaceId: c.spaceId, statement: f.statement, kind: asKind(f.kind) });
+  // Nothing extracted: the words themselves are the context. A refusal (a near-duplicate) keeps the session.
+  if (!c.facts.length && turns.length) await client.saveFact(asWritten(session.id, c.spaceId, c.title, turns.join('\n'))).catch(() => undefined);
   const closed = await client.closeSession(session.id, c.summary?.trim() || turns.join('\n').slice(0, 600));
   if (c.extractLater) enqueuePending({ sessionId: session.id, spaceId: c.spaceId, text: turns.join('\n') });
   announceCapture();
@@ -99,6 +128,11 @@ export async function drainPending(client: OpenKTClient, extract: (text: string)
       const note = await extract(item.text);
       if (!note) break; // local AI not answering yet: try again on the next tick
       for (const f of note.facts) await client.saveFact({ sessionId: item.sessionId, spaceId: item.spaceId, statement: f.statement, kind: asKind(f.kind) });
+      // The extracted facts take over from the words saved as written, so recall does not answer twice.
+      if (note.facts.length) {
+        const words = item.text.trim();
+        for (const c of await client.listContext(item.sessionId)) if (c.statement === words || c.statement.endsWith(`\n\n${words}`)) await client.deleteFact(c.id);
+      }
       writePending(readPending().filter((x) => x.sessionId !== item.sessionId));
       done += 1;
     }

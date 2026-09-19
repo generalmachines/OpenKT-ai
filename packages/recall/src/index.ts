@@ -1,4 +1,6 @@
 export * from "./errors.js";
 export * from "./types.js";
 export * from "./fuse.js";
-// Each task adds one line here, e.g.:  export * from "./weights.js";
+export * from "./constants.js";
+export * from "./weights.js";
+// Each task adds one line here, e.g.:  export * from "./chunker.js";

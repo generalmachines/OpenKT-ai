@@ -2,7 +2,7 @@
   "mcpServers": {
     "openkt": {
       "type": "http",
-      "url": "${user_config.server_url}"
+      "url": "https://mcp.openkt.ai/mcp"
     }
   }
 }
