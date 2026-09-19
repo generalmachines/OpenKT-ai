@@ -1,0 +1,42 @@
+{
+  "description": "Optional. OpenKT works without these: they remind Claude to open a session at launch and keep the OpenKT session_id across compaction and resume. No network calls, no dependencies beyond Node.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/openkt-hook.mjs", "session-start"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*openkt.*__kt_session_(start|end)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/openkt-hook.mjs", "track"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/openkt-hook.mjs", "session-end"],
+            "timeout": 1
+          }
+        ]
+      }
+    ]
+  }
+}

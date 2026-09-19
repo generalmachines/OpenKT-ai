@@ -1,6 +1,6 @@
 # Spec 01 — memory overlays and data model
 
-> Owner: senior. Status: decided. Juniors implement this exactly; if something here looks wrong, open an issue labelled `question` — do not improvise.
+> Owner: maintainers. Status: decided. Contributor tasks implement this exactly; if something here looks wrong, open an issue labelled `question` — do not improvise.
 
 Vocabulary: **space** is the product word; the database table is still called `projects`. **Fact** is the product word; the table is still called `memories`. Do not rename tables.
 
@@ -57,8 +57,8 @@ Roles: `reader` can recall. `editor` can also save, edit pages, correct facts. `
 Existing tables stay. New or changed:
 
 ```sql
--- sessions (T0)
-sessions(id uuid pk, org_id uuid null, project_id uuid not null, owner_user_id uuid not null,
+-- sessions (T0) — the real table names are kt_sessions / kt_session_turns (a legacy component owns `sessions`)
+kt_sessions(id uuid pk, org_id uuid null, project_id uuid not null, owner_user_id uuid not null,
          source text not null,          -- claude-code|cursor|codex|chatgpt|claude|mcp|voice|meeting|screenshot|image|note|connector
          client text null,              -- free text: client name + version
          title text null, summary text null,
@@ -69,7 +69,7 @@ sessions(id uuid pk, org_id uuid null, project_id uuid not null, owner_user_id u
          metadata jsonb not null default '{}')
 unique(source, external_id) where external_id is not null
 
-session_turns(id uuid pk, session_id uuid fk, seq int not null, role text not null,  -- user|assistant|speaker|system|note
+kt_session_turns(id uuid pk, session_id uuid fk, seq int not null, role text not null,  -- user|assistant|speaker|system|note
               speaker text null, content text not null, t0_ms int null, t1_ms int null,
               created_at timestamptz default now(), metadata jsonb default '{}')
 unique(session_id, seq)
@@ -83,7 +83,7 @@ attachments(id uuid pk, session_id uuid fk, kind text not null,   -- image|audio
 memories  + session_id uuid null fk, + source text null,
           + quote text null,              -- verbatim evidence from the session
           + valid_from timestamptz null, + valid_to timestamptz null,
-          + tsv tsvector generated always as (to_tsvector('simple', content)) stored   -- 'simple' on purpose: multilingual
+          (keyword column `content_tsv` already exists with a GIN index — reuse it, do not add another)
           (superseded_by, archived, confidence, importance already exist — reuse)
 index gin(tsv); index hnsw(embedding vector_cosine_ops)
 
@@ -137,7 +137,7 @@ Inputs: `user`, `query`, optional `project_id` (the named space), optional `sess
 1. `visible` CTE as §2.
 2. Candidates, each restricted to `visible`, each `LIMIT 40`:
    - **A** facts by vector: `memories` where `archived=false AND superseded_by IS NULL AND (valid_to IS NULL OR valid_to > now())`, order by `embedding <=> :q`.
-   - **B** facts by keyword: same filter, `tsv @@ websearch_to_tsquery('simple', :query)`, order by `ts_rank_cd`.
+   - **B** facts by keyword: same filter, `content_tsv @@ websearch_to_tsquery(…)` using the same text-search config the column was built with, order by `ts_rank_cd`.
    - **C** page sections by vector. **D** page sections by keyword.
 3. Fuse with reciprocal rank fusion: `score = Σ 1 / (60 + rank_in_list)` over the lists the item appears in.
 4. Multiply by these weights (constants live in one file, `recall.constants.ts`):

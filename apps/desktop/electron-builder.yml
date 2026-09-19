@@ -1,0 +1,62 @@
+# macOS packaging config — built and launch-tested on GitHub Actions macos-14 (.github/workflows/desktop.yml).
+# This file is the UNSIGNED baseline. scripts/dist-mac.mjs turns on Developer ID signing, hardened runtime
+# and notarisation when CSC_LINK / APPLE_* secrets are present. Usage: npm run dist:mac
+appId: ai.openkt.desktop
+productName: OpenKT
+copyright: Copyright © OpenKT contributors. Apache-2.0.
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - build/trayTemplate*.png
+  - package.json
+asar: true
+# llama.cpp runtime (scripts/fetch-llama.mjs) → Contents/Resources/llama
+extraResources:
+  - from: resources/llama
+    to: llama
+    filter:
+      - "**/*"
+      - "!.llama-release.json"
+  # whisper.cpp `whisper-cli`, built in CI (scripts/build-whisper.sh) → Contents/Resources/whisper
+  - from: resources/whisper
+    to: whisper
+    filter:
+      - "**/*"
+      - "!.whisper-build.json"
+  # Apple Vision OCR helper, compiled in CI (scripts/build-ocr.sh) → Contents/Resources/ocr
+  - from: resources/ocr
+    to: ocr
+afterPack: scripts/after-pack.cjs
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  # The pinned llama.cpp macOS binaries are built with minos 13.3 (LC_BUILD_VERSION); whisper-cli and openkt-ocr
+  # are compiled for the same target. CI fails if any bundled binary needs something newer than this.
+  minimumSystemVersion: "13.3"
+  # Unsigned baseline: no certificate needed. after-pack.cjs applies an ad-hoc signature.
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    LSUIElement: false
+    NSMicrophoneUsageDescription: OpenKT transcribes what you say on this Mac. Audio never leaves it.
+    NSAudioCaptureUsageDescription: OpenKT transcribes meetings you choose to record, on this Mac.
+    NSScreenCaptureUsageDescription: OpenKT reads screenshots you take, on this Mac.
+    NSDesktopFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
+    NSDocumentsFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
+    NSDownloadsFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
+  # The Swift engine will be added here once it exists:
+  # extraFiles:
+  #   - from: ../../engine/.build/release/openkt-engine
+  #     to: Helpers/openkt-engine
+dmg:
+  sign: false

@@ -1,0 +1,8 @@
+# Embedding service: llama.cpp serving Qwen3-Embedding-0.6B (1024-d) over the OpenAI embeddings protocol.
+# Same runtime and model file as the desktop app, so client- and server-made vectors match.
+# Internal only — reached by other apps on the private network as http://openkt-next-embedding.web:8080
+FROM ghcr.io/ggml-org/llama.cpp:server
+ADD --chmod=644 https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf /models/emb.gguf
+EXPOSE 8080
+ENTRYPOINT ["/app/llama-server"]
+CMD ["-m", "/models/emb.gguf", "--embedding", "--pooling", "last", "--host", "0.0.0.0", "--port", "8080", "-c", "8192", "-ub", "8192", "-t", "3"]

@@ -1,0 +1,37 @@
+{
+  "name": "model-fails-twice-fallback",
+  "description": "Both scripted replies are unusable. The fallback is a deterministic append: one bullet per fact.",
+  "input": {
+    "page_title": "Deploy — staging",
+    "section_title": "Incidents",
+    "section_md": "Staging deploys failed twice in August because of a full disk [^f:f_050].",
+    "facts": [
+      {
+        "id": "f_160",
+        "statement": "The staging deploy on 2026-09-14 failed because migration 0042 timed out while building an index on a large table.",
+        "author": "Ojas",
+        "date": "2026-09-14"
+      }
+    ],
+    "superseded_ids": []
+  },
+  "expect": {
+    "require_all": [
+      "[^f:f_160]",
+      "0042"
+    ]
+  },
+  "mock_replies": [
+    "Sure! Here is the updated section:\n\nStaging deploys failed…",
+    {
+      "section_md": "Migration 0042 timed out on 2026-09-14."
+    }
+  ],
+  "mock_expect": {
+    "status": "noop",
+    "attempts": 2,
+    "output": {
+      "section_md": "Staging deploys failed twice in August because of a full disk [^f:f_050].\n\n- The staging deploy on 2026-09-14 failed because migration 0042 timed out while building an index on a large table. [^f:f_160]"
+    }
+  }
+}

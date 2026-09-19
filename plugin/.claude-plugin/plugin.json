@@ -1,0 +1,18 @@
+{
+  "name": "openkt",
+  "displayName": "OpenKT",
+  "version": "0.2.0",
+  "description": "Shared team context for Claude: connects the OpenKT MCP server and teaches Claude to start a session, recall before working, save decisions as it goes, and close the session with a summary.",
+  "author": { "name": "OpenKT", "url": "https://openkt.ai" },
+  "homepage": "https://openkt.ai",
+  "license": "Apache-2.0",
+  "keywords": ["memory", "context", "team-knowledge", "mcp", "knowledge-base"],
+  "userConfig": {
+    "server_url": {
+      "type": "string",
+      "title": "OpenKT server URL",
+      "description": "MCP endpoint of your OpenKT server. Keep the default for the hosted service; self-hosters enter their own, for example https://kt.example.com/mcp.",
+      "default": "https://mcp.openkt.ai/mcp"
+    }
+  }
+}

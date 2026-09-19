@@ -1,0 +1,60 @@
+{
+  "name": "engineering-space",
+  "description": "Three pages, three changes, default budget.",
+  "input": {
+    "space": "openkt-server",
+    "pages": [
+      {
+        "title": "Auth — token refresh",
+        "summary": "Refresh tokens rotate on every use; access tokens last 1 hour. Hourly logouts were a race between tabs, fixed on 2026-09-17 with a BroadcastChannel lock; a 10 second server grace window is pending.",
+        "updated_at": "2026-09-17"
+      },
+      {
+        "title": "Deploy — staging",
+        "summary": "Staging deploys run from main. Large indexes must be built with CREATE INDEX CONCURRENTLY after migration 0042 timed out.",
+        "updated_at": "2026-09-14"
+      },
+      {
+        "title": "Integrations — vendor API",
+        "summary": "Vendor allows 600 requests per minute per key; our client is capped at 500. Webhooks are retried 5 times.",
+        "updated_at": "2026-09-17"
+      }
+    ],
+    "recent_changes": [
+      {
+        "date": "2026-09-17",
+        "page_title": "Auth — token refresh",
+        "change": "Known issues rewritten: logout race explained and fixed."
+      },
+      {
+        "date": "2026-09-17",
+        "page_title": "Integrations — vendor API",
+        "change": "Client cap changed from 300 to 500 requests per minute."
+      },
+      {
+        "date": "2026-09-14",
+        "page_title": "Deploy — staging",
+        "change": "New rule: build large indexes CONCURRENTLY."
+      }
+    ]
+  },
+  "expect": {
+    "require_any": [
+      "BroadcastChannel",
+      "refresh"
+    ],
+    "require_all": [
+      "500"
+    ]
+  },
+  "mock_replies": [
+    {
+      "brief_md": "## What matters now\n- Hourly dashboard logouts were a refresh race between tabs; fixed 2026-09-17 with a BroadcastChannel lock (Auth — token refresh)\n- Build large indexes with CREATE INDEX CONCURRENTLY; migration 0042 timed out on staging (Deploy — staging)\n- Vendor API client is capped at 500 requests per minute; the vendor allows 600 (Integrations — vendor API)\n\n## What changed\n- 2026-09-17: client cap raised from 300 to 500 (Integrations — vendor API)\n- 2026-09-14: new rule on CONCURRENTLY indexes (Deploy — staging)\n\n## Open\n- 10 second server-side grace window for refresh tokens is pending (Auth — token refresh)"
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

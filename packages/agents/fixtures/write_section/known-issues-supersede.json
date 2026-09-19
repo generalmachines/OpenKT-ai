@@ -1,0 +1,47 @@
+{
+  "name": "known-issues-supersede",
+  "description": "A new fact explains an issue the section called unexplained. The old claim is kept as 'was X; since <date> Y'.",
+  "input": {
+    "page_title": "Auth — token refresh",
+    "section_title": "Known issues",
+    "section_md": "Users are occasionally logged out of the dashboard; the cause is unknown [^f:f_088].\n\nNote from Pratham: check Sentry before touching this.",
+    "facts": [
+      {
+        "id": "f_120",
+        "statement": "Dashboard users were logged out after about an hour because two tabs could call refreshSession() at the same time; the second call sent an already revoked refresh token and the API answered 401 invalid_grant.",
+        "author": "Pratham",
+        "date": "2026-09-17"
+      },
+      {
+        "id": "f_121",
+        "statement": "refresh.ts now takes a lock using BroadcastChannel('auth-refresh'); tabs that lose the lock wait up to 5 seconds for the new token.",
+        "author": "Pratham",
+        "date": "2026-09-17"
+      }
+    ],
+    "superseded_ids": [
+      "f_088"
+    ],
+    "mode": "rewrite_section"
+  },
+  "expect": {
+    "require_all": [
+      "[^f:f_120]",
+      "[^f:f_121]",
+      "since 2026-09-17",
+      "check Sentry"
+    ],
+    "require_any": [
+      "was"
+    ]
+  },
+  "mock_replies": [
+    {
+      "section_md": "## Known issues\n\nThe cause of occasional dashboard logouts was unknown; since 2026-09-17 it is known to be two tabs calling refreshSession() at once, where the second sends an already revoked refresh token and gets 401 invalid_grant [^f:f_088][^f:f_120].\n\nrefresh.ts now takes a BroadcastChannel('auth-refresh') lock, and tabs that lose it wait up to 5 seconds for the new token [^f:f_121].\n\nNote from Pratham: check Sentry before touching this."
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1
+  }
+}

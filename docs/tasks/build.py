@@ -25,7 +25,7 @@ def body(i, for_github=False):
     deps = i.get("deps") or []
     out.append("**Depends on:** " + (", ".join(ref(d) for d in deps) if deps else "nothing — can start now") + "\n")
     if i["who"] == "junior":
-        out.append(f"**Branch:** `task/<issue-number>-{i['key'].lower()}` · **Rules:** `AGENTS.md`" + (" · a senior engineer reviews this pull request before merge" if i.get("review") else ""))
+        out.append(f"**Branch:** `task/<issue-number>-{i['key'].lower()}` · **Rules:** `AGENTS.md`" + (" · a maintainer reviews this pull request before merge" if i.get("review") else ""))
     return "\n".join(out)
 
 def labels(i):
@@ -37,7 +37,8 @@ def labels(i):
 
 def render():
     md = ["# Task breakdown\n", "> Generated from `docs/tasks/issues.py` — edit that file, then run `python3 docs/tasks/build.py`. Mirrored as GitHub issues.\n",
-          "How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies are closed. One task = one branch = one pull request.\n"]
+          "How to work: read `AGENTS.md`. Pick a task marked `junior` whose dependencies are closed. One task = one branch = one pull request.\n",
+          "The **Who** column uses the GitHub label names: `senior` is a maintainer task (design decisions and the risky core), `junior` is a contributor task (small, fully specified, open to anyone, human or AI agent). The names are kept because the tooling depends on them.\n"]
     ms_seen = []
     for i in ISSUES:
         if i["ms"] not in ms_seen:
@@ -56,8 +57,8 @@ def gh(*a, inp=None):
     return r
 
 def github(repo):
-    for name, color, desc in [("senior","5319e7","Decided and built by the senior engineer"),("junior","0e8a16","Ready for a junior engineer or local agent"),
-        ("blocked","d93f0b","Has an open dependency listed in the issue"),("needs-senior-review","fbca04","A senior reads the pull request before merge"),
+    for name, color, desc in [("senior","5319e7","Maintainer task: decided and built by a maintainer"),("junior","0e8a16","Contributor task: fully specified, ready for anyone, human or AI agent"),
+        ("blocked","d93f0b","Has an open dependency listed in the issue"),("needs-senior-review","fbca04","A maintainer reads the pull request before merge"),
         ("needs-mac","1d76db","Must be built and tested on Apple Silicon"),("question","cc317c","A decision is needed")]:
         gh("label","create",name,"--repo",repo,"--color",color,"--description",desc,"--force")
     existing = {m["title"]: m["number"] for m in json.loads(gh("api",f"repos/{repo}/milestones?state=all").stdout or "[]")}
@@ -69,8 +70,13 @@ def github(repo):
         r = gh("issue","create","--repo",repo,"--title",f"[{i['key']}] {i['title']}","--body","(filling in…)","--milestone",i["ms"],*sum((["--label",l] for l in labels(i)),[]))
         if r.returncode == 0:
             idmap[i["key"]] = int(r.stdout.strip().rsplit("/",1)[1]); MAP.write_text(json.dumps(idmap, indent=1))
+    closed = {x["number"] for x in json.loads(gh("issue","list","--repo",repo,"--state","closed","--limit","200","--json","number").stdout or "[]")}
     for i in ISSUES:
-        if i["key"] in idmap: gh("issue","edit",str(idmap[i["key"]]),"--repo",repo,"--body-file","-", inp=body(i, True))
+        if i["key"] not in idmap: continue
+        n = idmap[i["key"]]
+        gh("issue","edit",str(n),"--repo",repo,"--body-file","-", inp=body(i, True))
+        open_deps = [d for d in (i.get("deps") or []) if idmap.get(d) not in closed]
+        gh("issue","edit",str(n),"--repo",repo, *(["--add-label","blocked"] if open_deps else ["--remove-label","blocked"]))
 
 if __name__ == "__main__":
     if "--github" in sys.argv:

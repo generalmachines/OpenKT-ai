@@ -1,0 +1,60 @@
+{
+  "name": "idea-no-candidate-pages",
+  "description": "No candidate pages: both facts share one new page.",
+  "input": {
+    "facts": [
+      {
+        "id": "f_140",
+        "statement": "Pratham's idea: the session-start brief could be personalised, weighted by what each person worked on in the previous week.",
+        "kind": "idea"
+      },
+      {
+        "id": "f_141",
+        "statement": "Pratham thinks a personalised brief could be done by re-ranking the page summaries per user, with no extra model call.",
+        "kind": "idea"
+      }
+    ],
+    "pages": []
+  },
+  "expect": {
+    "equals": {
+      "decisions": [
+        {
+          "fact_id": "f_140",
+          "action": "new_page",
+          "page_id": null
+        },
+        {
+          "fact_id": "f_141",
+          "action": "new_page",
+          "page_id": null
+        }
+      ]
+    }
+  },
+  "mock_replies": [
+    {
+      "decisions": [
+        {
+          "fact_id": "f_140",
+          "action": "new_page",
+          "page_id": null,
+          "section_title": null,
+          "new_page_title": "Briefs — personalisation"
+        },
+        {
+          "fact_id": "f_141",
+          "action": "new_page",
+          "page_id": null,
+          "section_title": null,
+          "new_page_title": "Briefs — personalisation"
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

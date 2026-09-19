@@ -1,0 +1,2 @@
+release: node dist/apps/server/apps/server/src/db/migrate.js
+web: npm run start:api

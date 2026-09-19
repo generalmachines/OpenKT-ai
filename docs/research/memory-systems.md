@@ -105,7 +105,7 @@ Grant-filtered retrieval is the core of the product. I would not push it through
   - Large pages match every query.
   - Cap page size and split oversized pages.
   - Embed per section.
-  - Apply a retrieval-frequency penalty. You have already seen this work in Villa.
+  - Apply a retrieval-frequency penalty.
   - Apply an MMR-style diversity step (maximal marginal relevance) and a per-page cap on results.
 - **Extraction hallucination.**
   - Local models below roughly 14B tend to invent facts and break JSON output.

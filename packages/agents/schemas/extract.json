@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["facts"],
+  "properties": {
+    "facts": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Durable facts worth keeping. Empty when the session holds nothing worth keeping.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["statement", "quote", "kind"],
+        "properties": {
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "One self-contained sentence in the third person, names resolved, dates absolute."
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Verbatim substring of the session text that supports the statement."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["decision", "fact", "how-to", "question", "action", "idea", "issue"]
+          }
+        }
+      }
+    }
+  }
+}

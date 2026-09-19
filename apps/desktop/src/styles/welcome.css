@@ -1,0 +1,207 @@
+/* ── welcome / sign-in ────────────────────────────────────────────────────
+   One centred column with a lot of air. Same tokens as everywhere else. */
+.welcome {
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+  background: var(--bg);
+  position: relative;
+}
+.welcome__drag {
+  display: none;
+}
+[data-platform='darwin'] .welcome__drag {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40px;
+  -webkit-app-region: drag;
+}
+.welcome__card {
+  width: 100%;
+  max-width: 344px;
+  margin: auto 0;
+  padding: 72px 0 32px;
+  display: flex;
+  flex-direction: column;
+}
+.welcome__name {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-align: center;
+}
+.welcome__line {
+  margin: 10px 0 36px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-align: center;
+}
+.welcome__notice {
+  margin: -12px 0 24px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--side);
+  font-size: 13.5px;
+  color: var(--ink);
+  text-align: center;
+}
+.welcome__google,
+.welcome__submit {
+  width: 100%;
+  height: 46px;
+  border-radius: 23px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+.welcome__google {
+  gap: 10px;
+  border-color: var(--line-strong);
+}
+.welcome__or {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 18px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.welcome__or::before,
+.welcome__or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.welcome__waiting {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: center;
+}
+.welcome__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.welcome__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.welcome__field .field__label {
+  margin: 0;
+}
+.welcome__field .input {
+  width: 100%;
+  flex-grow: 0;
+  height: 46px;
+  border-radius: 12px;
+  font-size: 14.5px;
+}
+.welcome__hint {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.welcome__error {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--accent-hover);
+}
+.welcome__submit {
+  margin-top: 6px;
+}
+.welcome__switch {
+  margin: 22px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  text-align: center;
+}
+.welcome__foot {
+  width: 100%;
+  max-width: 344px;
+  padding: 0 0 26px;
+  display: flex;
+  justify-content: center;
+}
+.welcome__quiet {
+  border: none;
+  background: none;
+  padding: 4px 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.welcome__quiet:hover:not(:disabled) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.welcome__advanced {
+  width: 100%;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.welcome__field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.welcome__field-head .welcome__quiet {
+  padding: 0;
+}
+.welcome__advanced-links {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.85;
+  animation: spinner-turn 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+/* ── share by email (Access tab) ───────────────────────────────────────── */
+.access__hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.access__hint--error {
+  color: var(--accent-hover);
+}
+.person--pending .avatar {
+  background: var(--bg);
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-3);
+}
+.person--pending .person__name {
+  color: var(--ink-2);
+}
