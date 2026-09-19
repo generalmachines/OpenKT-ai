@@ -21,6 +21,8 @@ import {
   CreateSessionSchema,
 } from "../../sessions/contracts/session.contract";
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
+import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
+import { SkillsApplicationService } from "../../skills/services/skills-application.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
 
 // The contract every connected tool should follow — kept here (not
@@ -29,13 +31,15 @@ import { McpUiRendererService } from "./mcp-ui-renderer.service";
 // connection; some clients truncate long ones, so this stays well
 // under the 2KB budget architecture.md §4 sets for it and every tool
 // description.
-const SERVER_INSTRUCTIONS = `OpenKT is your team's shared memory: what one person saved should reach a teammate's session, not just yours.
+export const SERVER_INSTRUCTIONS = `OpenKT is your team's shared memory: what one person saved should reach a teammate's session, not just yours.
 
 Contract for every session:
 1. START — call kt_session_start at the beginning of work. It returns a session_id and a brief for the project. Read the brief before doing anything else.
 2. RECALL — call kt_recall(query, session_id) before any non-trivial work: before answering a question, before implementing something that might already have a decided approach, before debugging something that might already have a known cause. A teammate's session may have already solved this.
 3. SAVE — call kt_save_memory(content, session_id) at decision points as they happen, not only at the end: a decision made, an incident and its fix, a convention, a gotcha. Small and frequent beats one big dump at close.
 4. END — call kt_session_end(session_id, summary) when the work is done. Idle sessions close themselves, but an explicit summary is better than none.
+
+SKILLS — when the user asks to do something "the way we do it", or mentions a team procedure, template or house style, call kt_list_skills and follow the matching skill (kt_get_skill returns it in full).
 
 Passing session_id to kt_recall/kt_save_memory keeps provenance (who learned what, when, from which tool) accurate and keeps the session from being closed as idle mid-work. It is optional — omitting it still saves/recalls, just without that link.
 
@@ -75,6 +79,7 @@ export class McpServerFactoryService {
     private readonly briefing: BriefingService,
     private readonly ui: McpUiRendererService,
     private readonly sessionsApp: SessionsApplicationService,
+    private readonly skillsApp: SkillsApplicationService,
   ) {}
 
   async sdk(): Promise<SdkExports> {
@@ -352,6 +357,119 @@ export class McpServerFactoryService {
       },
     );
 
+    // ── kt_list_skills ────────────────────────────────────────────
+    // Skills: the team's written procedures — a SKILL.md plus optional
+    // reference files, versioned and granted like a space.
+    server.registerTool(
+      "kt_list_skills",
+      {
+        title: "List the team's skills",
+        description:
+          "List the skills the user can use: written, versioned team procedures (\"how we sharpen a " +
+          "marketing message\", \"how we cut a release\"). Call this when the user asks to do something " +
+          "\"the way we do it\", mentions a team procedure, template or house style, or asks what skills " +
+          "exist. Then call kt_get_skill on the one that matches and follow it. Read-only.",
+        inputSchema: ListSkillsToolSchema.shape,
+        annotations: {
+          title: "List the team's skills",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+        },
+      },
+      async (input) => {
+        const skills = await this.skillsApp.list(context, {
+          project_id: input.project ?? undefined,
+          q: input.q ?? undefined,
+          archived: false,
+        });
+        const lines = skills.map(
+          (s, i) =>
+            `${i + 1}. ${s.title} (${s.slug}) — ${s.description} — ${s.space_name ?? (s.project_id ? "shared with you" : "personal")}`,
+        );
+        const text = skills.length
+          ? `${lines.join("\n")}\n\nCall kt_get_skill with a skill's name (in brackets) to read it in full.`
+          : "No skills yet in the spaces you can read. kt_save_skill creates one.";
+        return textAndStructured(text, { count: skills.length, skills });
+      },
+    );
+
+    // ── kt_get_skill ──────────────────────────────────────────────
+    server.registerTool(
+      "kt_get_skill",
+      {
+        title: "Read a skill",
+        description:
+          "Return one skill in full: its SKILL.md, then every other file under a `--- <path> ---` " +
+          "header. Follow what it says for the task at hand. `skill` is the id or the name from " +
+          "kt_list_skills; pass `project` when two spaces have a skill with the same name. " +
+          "Counts as one use of the skill.",
+        inputSchema: GetSkillToolSchema.shape,
+        annotations: {
+          title: "Read a skill",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        const id = await this.skillsApp.resolveId(context, input.skill, input.project ?? undefined);
+        const run = await this.skillsApp.recordRun(context, id, "mcp");
+        return textAndStructured(renderSkillText(run.files), run);
+      },
+    );
+
+    // ── kt_save_skill ─────────────────────────────────────────────
+    server.registerTool(
+      "kt_save_skill",
+      {
+        title: "Save a skill",
+        description:
+          "Create a skill, or save a new version of an existing one (pass `skill`). `skill_md` is the " +
+          "whole SKILL.md: YAML frontmatter with `name` (lowercase-kebab, at most 64 characters) and " +
+          "`description` (what it does and when to use it, at most 1024), then the markdown " +
+          "instructions. Use when the user asks to write down a procedure so the team and their tools " +
+          "can reuse it. Omit `project` for a personal skill. Updating needs edit access; every save is " +
+          "a new version and the skill's other files are kept.",
+        inputSchema: SaveSkillToolSchema.shape,
+        annotations: {
+          title: "Save a skill",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+        },
+      },
+      async (input) => {
+        let saved;
+        if (input.skill) {
+          const id = await this.skillsApp.resolveId(context, input.skill, input.project ?? undefined);
+          const current = await this.skillsApp.get(context, id);
+          saved = await this.skillsApp.saveVersion(context, id, {
+            files: [
+              { path: SKILL_MD, content: input.skill_md },
+              ...current.files.filter((f) => f.path !== SKILL_MD).map((f) => ({ path: f.path, content: f.content })),
+            ],
+            title: input.title,
+            change_note: input.change_note ?? null,
+            base_version: current.current_version,
+          });
+        } else {
+          saved = await this.skillsApp.create(context, {
+            title: input.title,
+            project_id: input.project ?? null,
+            skill_md: input.skill_md,
+            change_note: input.change_note ?? null,
+          });
+        }
+        const { files: _files, versions: _versions, ...skill } = saved;
+        return textAndStructured(
+          `Saved "${saved.title}" (${saved.slug}) as version ${saved.current_version} — ` +
+            `${saved.space_name ?? (saved.project_id ? "in a shared space" : "personal to you")}.`,
+          { skill },
+        );
+      },
+    );
+
     // ── kt_setup ────────────────────────────────────────────────────
     // Returns setup guidance as plain text. No sign-in flow and no
     // token minting happens here — reaching this tool already required
@@ -466,8 +584,52 @@ const CloseSessionToolSchema = z.object({
     .describe("A few sentences: what was asked, what changed, what's left open."),
 });
 
+const ListSkillsToolSchema = z.object({
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space UUID or slug to list skills from. Omit to list every skill the user can use."),
+  q: z.string().max(200).optional().describe("Optional words to match in the skill's title, name or description."),
+});
+
+const GetSkillToolSchema = z.object({
+  skill: z.string().min(1).max(200).describe("The skill's id, or its name (the slug shown by kt_list_skills)."),
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space UUID or slug — only needed when two spaces hold a skill with the same name."),
+});
+
+const SaveSkillToolSchema = z.object({
+  title: z.string().min(1).max(200).describe("The skill's human title, e.g. 'Sharpen a marketing message'."),
+  skill_md: z
+    .string()
+    .min(1)
+    .describe("The whole SKILL.md: `---` frontmatter with name and description, then the markdown body."),
+  project: z.string().min(1).max(256).optional().describe("Space UUID or slug to file a NEW skill in. Omit for personal."),
+  skill: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("Id or name of an existing skill to save a new version of. Omit to create a new skill."),
+  change_note: z.string().max(500).optional().describe("One line on what changed, shown in the version history."),
+});
+
 function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
+}
+
+// A text block a model can use on its own, plus the same facts as data.
+function textAndStructured(text: string, structured: object) {
+  return {
+    content: [{ type: "text" as const, text }],
+    structuredContent: structured as Record<string, unknown>,
+  };
 }
 
 function setupGuidance(client?: string): string {
