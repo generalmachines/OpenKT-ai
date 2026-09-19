@@ -145,6 +145,15 @@ export function notionToSession(item: ExternalItem): SessionDraft {
   };
 }
 
+/**
+ * Notion's API returns `next_cursor: null` on the last page, so a provider
+ * may pass `nextCursor: null` through — treated like an absent cursor
+ * everywhere (a `null` cursor would otherwise loop a poll job forever).
+ */
+function normalizeCursor(value: string | undefined): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 function toExternalItem(entry: ListingEntry, blocks: Block[]): ExternalItem {
   return {
     externalId: entry.id,
@@ -177,22 +186,28 @@ export function createNotionConnector(): Connector {
         const content = await p.call<NotionPage>("notion.readPage", { pageId: entry.id });
         items.push(toExternalItem(entry, content.blocks));
       }
-      return page.nextCursor !== undefined ? { items, nextCursor: page.nextCursor } : { items };
+      const next = normalizeCursor(page.nextCursor);
+      return next !== undefined ? { items, nextCursor: next } : { items };
     },
 
     async poll(p, container, since) {
       // Page through the listing until it is exhausted, then read what
-      // changed — `listChildren` is paginated per the contract above.
+      // changed — `listChildren` is paginated per the contract above. A
+      // repeated cursor stops the loop, so a buggy provider cannot spin
+      // the poll job forever.
       const entries: ListingEntry[] = [];
       let cursor: string | undefined;
+      const seenCursors = new Set<string>();
       for (;;) {
         const page = await p.call<{ entries: ListingEntry[]; nextCursor?: string }>("notion.listChildren", {
           containerId: container.id,
           ...(cursor !== undefined ? { cursor } : {}),
         });
         entries.push(...page.entries);
-        if (page.nextCursor === undefined) break;
-        cursor = page.nextCursor;
+        const next = normalizeCursor(page.nextCursor);
+        if (next === undefined || seenCursors.has(next)) break;
+        seenCursors.add(next);
+        cursor = next;
       }
       const sinceMs = Date.parse(since);
       const items: ExternalItem[] = [];

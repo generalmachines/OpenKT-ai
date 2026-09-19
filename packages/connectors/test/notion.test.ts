@@ -160,7 +160,7 @@ describe("block helpers", () => {
 
 type Listing = Array<{ id: string; title: string; lastEditedTime: string; url: string }>;
 
-function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: string }>, listings: Record<string, Listing>, pageSize = 2): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
+function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: string }>, listings: Record<string, Listing>, pageSize = 2, fixedNextCursor?: string | null): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
   const calls: Array<[string, Record<string, unknown>]> = [];
   return {
     calls,
@@ -177,7 +177,9 @@ function fakeProvider(pages: Record<string, { blocks: Block[]; lastEditedTime?: 
         // pages of `pageSize` entries, driven by the cursor
         const start = cursor === undefined ? 0 : Number.parseInt(cursor, 10);
         const page = all.slice(start, start + pageSize);
-        const next = start + pageSize < all.length ? String(start + pageSize) : undefined;
+        const next = fixedNextCursor !== undefined
+          ? fixedNextCursor
+          : start + pageSize < all.length ? String(start + pageSize) : undefined;
         return { entries: page, nextCursor: next } as T;
       }
       if (action === "notion.readPage") {
@@ -285,6 +287,33 @@ describe("createNotionConnector", () => {
     const items = await c.poll(p, { id: "ts1", name: "ts1" }, "2026-09-19T05:00:00Z");
     expect(items.map((i) => i.externalId)).toEqual(["p2"]);
     // both listing pages were fetched before filtering
+    expect(p.calls.filter(([a]) => a === "notion.listChildren")).toHaveLength(2);
+  });
+
+  it("a null cursor ends the listing: one poll call, backfill returns no nextCursor key (#118)", async () => {
+    // the Notion API returns next_cursor: null on the last page
+    const listings = {
+      ts1: [{ id: "p1", title: "P1", lastEditedTime: "2026-09-19T09:00:00Z", url: "u" }],
+    };
+    const p = fakeProvider({ p1: { blocks: PLAIN_PAGE } }, listings, 2, null);
+    const c = createNotionConnector();
+    const items = await c.poll(p, { id: "ts1", name: "ts1" }, "2026-09-19T05:00:00Z");
+    expect(items.map((i) => i.externalId)).toEqual(["p1"]);
+    expect(p.calls.filter(([a]) => a === "notion.listChildren")).toHaveLength(1);
+    const r = await c.backfill(p, { id: "ts1", name: "ts1" });
+    expect(r.items.map((i) => i.externalId)).toEqual(["p1"]);
+    expect("nextCursor" in r).toBe(false);
+  });
+
+  it("poll stops when a buggy provider repeats the same cursor (#118)", async () => {
+    const listings = {
+      ts1: [{ id: "p1", title: "P1", lastEditedTime: "2026-09-19T09:00:00Z", url: "u" }],
+    };
+    const p = fakeProvider({ p1: { blocks: PLAIN_PAGE } }, listings, 2, "same");
+    const c = createNotionConnector();
+    const items = await c.poll(p, { id: "ts1", name: "ts1" }, "2026-09-19T05:00:00Z");
+    expect(items.map((i) => i.externalId)).toEqual(["p1"]);
+    // one follow-up call with the repeated cursor, then the loop stops
     expect(p.calls.filter(([a]) => a === "notion.listChildren")).toHaveLength(2);
   });
 });
