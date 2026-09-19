@@ -27,7 +27,9 @@ npm test -w @openkt/desktop
 npm run build -w @openkt/desktop
 ```
 
-The app uses mock data unless told otherwise. To point it at a server, set `VITE_OPENKT_API=http`, `VITE_OPENKT_BASE_URL` and `VITE_OPENKT_TOKEN` before starting.
+The installed app opens on a sign-in screen (Google, or email and password) against the hosted service, `https://api.openkt.ai` — the one constant `DEFAULT_SERVER_URL` in `src/api/config.ts`; build with `VITE_OPENKT_SERVER_URL=https://…` to ship a different default. People running their own server use the quiet "Using your own server?" link on that screen, which is also where signing in with an access token lives. Google sign-in runs in the system browser (`src/main/auth/`, loopback + PKCE) with the client id the server publishes at `GET /v1/auth/providers`.
+
+In a plain browser (`npm run dev`, the screenshot run, the tests) the app uses sample data and a stand-in sign-in that accepts any email with a password of 10+ characters. To develop against a server instead, set `VITE_OPENKT_API=http` (and optionally `VITE_OPENKT_TOKEN`) before starting.
 
 `npm run shots -w @openkt/desktop` screenshots every route into `shots/` (not tracked) and checks that fonts loaded and nothing overflows. It needs a local Chromium; set `CHROMIUM_PATH`. It never downloads a browser.
 
