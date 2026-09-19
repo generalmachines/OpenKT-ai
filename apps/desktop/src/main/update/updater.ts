@@ -203,7 +203,8 @@ export class Updater {
     }
     for (const name of await readdir(this.o.dataDir).catch(() => [] as string[])) {
       if (!parseSemver(name)) continue;
-      const keep = this.feed && name === this.feed.version && compareSemver(name, this.o.version) > 0;
+      // A newer download is kept (quitting without "Restart to update" must not cost a second download).
+      const keep = compareSemver(name, this.o.version) > 0 && (!this.feed || name === this.feed.version);
       if (!keep) await rm(join(this.o.dataDir, name), { recursive: true, force: true }).catch(() => undefined);
     }
   }

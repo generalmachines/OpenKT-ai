@@ -153,7 +153,25 @@ describe('Updater — the custom (ad-hoc) path', () => {
     expect(make('0.3.8').status().auto).toBe(false);
   });
 
-  it('never downgrades', async () => {
+  it('keeps a finished download across a restart and does not fetch it again', async () => {
+    publish('0.3.9');
+    const n = make('0.3.8');
+    await n.check();
+    await n.idle();
+    expect(n.status().phase).toBe('ready');
+    // Quit without "Restart to update"; next launch cleans the staging folder but keeps the zip.
+    const again = make('0.3.8');
+    again.launch();
+    await again.cleanup();
+    expect(readdirSync(apps)).toEqual(['OpenKT.app']);
+    srv.seen.length = 0;
+    await again.check();
+    await again.idle();
+    expect(again.status().phase).toBe('ready');
+    expect(srv.seen.map((x) => x.path)).toEqual(['/latest.json']);
+  });
+
+    it('never downgrades', async () => {
     publish('0.3.7');
     const n = make('0.3.8');
     const s = await n.check();
