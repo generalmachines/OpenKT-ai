@@ -50,21 +50,32 @@ the download resumes where it stopped. Sizes: embeddings 0.64 GB, 4B 2.74 GB (2B
 `models.ensure()` resolves once embeddings + LLM are on disk; whisper and mmproj continue in the background and
 show up in `models.status()` / `onProgress` like the others.
 
-### First run: one download, pause, disk and permissions
+### First run: the person chooses, then one download
 
-`controller.ts` is the one download for the whole app — first launch, the onboarding screen,
-Settings → Models and Retry all join it, so Pause means pause everywhere. It checks free space
-before every start (`setup.ts`: `statfs` on the models folder, remaining bytes + 1 GB headroom) and
-resolves `models.ensure()` once search + understanding are on disk; speech (the transcriber's model)
-and images follow in the same run. Every model a feature needs is in this one manifest-driven list.
+**Nothing is downloaded until the person chooses** — on the first-run screen ("Download models" / "Later"),
+in Settings → Models, or where a feature needs its model (the voice pill offers just the speech model).
+The screen lists each open-source model with its job, size, licence and Hugging Face model card, all from
+`models.manifest.json` (`name`, `model`, `license`; `scripts/gen-models-manifest.mjs` refreshes the licence
+from the card). The choice is saved in `userData/models-choice.json`; `autoEnsureModels` only finishes a
+download that was chosen (a quit or a lost connection), it never starts one.
+
+`controller.ts` is the one download for the whole app, so Pause means pause everywhere. It is a queue,
+one file at a time: `ensure()` queues everything (search + understanding first, resolves when those two
+are on disk), `ensure(['whisper'])` puts the speech model next and resolves when it is on disk. A pause
+or a failure keeps the queue, so Resume / Try again continue the same models. Free space for what was
+asked is checked before every run (`setup.ts`: `statfs` on the models folder, remaining bytes + 1 GB).
 
 ```ts
 const info = await window.openkt.models.setupInfo();
 // { totalBytes, remainingBytes, freeBytes | null, neededBytes, enoughDisk, totalMemBytes,
 //   smallModel (≤ 8 GB → the 2B line-up), paused, bundled: { runtime, transcriber, textReader } }
-await window.openkt.models.pause();   // keeps the .part files; ensure() or resume() continue from them
-await window.openkt.models.resume();
+// info.chosen: false until the person chose to download anything
+await window.openkt.models.ensure();              // everything (the person's choice)
+await window.openkt.models.ensure(['whisper']);   // just the speech model, first in line
+await window.openkt.models.pause();               // keeps the .part files
+await window.openkt.models.resume();              // continues the queued models
 // ensure() → { ok: false, error: 'low_disk' | 'paused' | <message> } when it did not finish
+// models.status().models[i] also carries { name, license, card, source } for the list
 ```
 
 macOS permissions live in `../permissions/` (`service.ts` is the state machine, `ipc.ts` the Electron

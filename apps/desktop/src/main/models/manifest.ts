@@ -17,6 +17,12 @@ export interface ModelFile {
   saveAs?: string;
   bytes: number;
   sha256: string;
+  /** What people see before they download: the model's own name, its original model card and licence. */
+  name?: string;
+  /** Original model on Hugging Face, e.g. "Qwen/Qwen3.5-4B" (the file comes from `repo`, a GGUF build of it). */
+  model?: string;
+  /** SPDX id from that model card. */
+  license?: string;
 }
 
 export interface Manifest {

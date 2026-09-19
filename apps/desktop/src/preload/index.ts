@@ -36,7 +36,7 @@ const bridge: OpenKTBridge = {
   },
   models: {
     status: () => ipcRenderer.invoke(ch('models:status')),
-    ensure: () => ipcRenderer.invoke(ch('models:ensure')),
+    ensure: (roles) => ipcRenderer.invoke(ch('models:ensure'), Array.isArray(roles) ? roles.filter((r) => ['embed', 'llm', 'whisper', 'mmproj'].includes(r)) : undefined),
     onProgress: (listener) => listen<ModelsProgressDto>(ch('models:progress'), listener),
     // ── first run (begin) ──
     setupInfo: () => ipcRenderer.invoke(ch('models:setup-info')),
