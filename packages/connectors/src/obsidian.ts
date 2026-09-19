@@ -5,7 +5,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { Block, Connector, ExternalItem, SessionDraft, Turn } from "./types.js";
+import type { Block, Connector, ExternalItem, ProviderHandle, SessionDraft, Turn } from "./types.js";
 
 /** Spec 05 §4: items over 200 KB of text are truncated with a marker turn. */
 export const MAX_BODY_CHARS = 200 * 1024;
@@ -106,7 +106,13 @@ export function toSession(item: ExternalItem): SessionDraft {
   };
 }
 
-function toExternalItem(relPath: string, content: string): ExternalItem {
+interface ListingEntry {
+  name: string;
+  type: string;
+  mtime?: string;
+}
+
+function toExternalItem(entry: ListingEntry, relPath: string, content: string): ExternalItem {
   const frontmatter = parseFrontmatter(content);
   // The title is the first `#` heading; fall back to the file name.
   const heading = /^# (.+)$/m.exec(frontmatter.body);
@@ -115,9 +121,31 @@ function toExternalItem(relPath: string, content: string): ExternalItem {
     externalId: relPath,
     url: `obsidian://${relPath}`,
     title: heading ? heading[1]!.trim() : name.replace(/\.md$/, ""),
-    updatedAt: "", // mtime is not exposed by fs.list — see #112
+    updatedAt: typeof entry.mtime === "string" ? entry.mtime : "",
     body: content,
   };
+}
+
+/**
+ * Every `.md` file under the container, at any depth, as paths relative to
+ * the vault root, sorted. Subfolders are walked with `fs.list`; `symlink`
+ * entries are never followed, listed or read.
+ */
+async function listMarkdownFiles(p: ProviderHandle, containerId: string): Promise<ListingEntry[]> {
+  const files: ListingEntry[] = [];
+  const dirs = [containerId];
+  while (dirs.length > 0) {
+    const dir = dirs.shift()!;
+    const entries = await p.call<Array<ListingEntry>>("fs.list", { dir });
+    for (const e of entries) {
+      if (e.type === "dir") {
+        dirs.push(`${dir}/${e.name}`);
+      } else if (e.type === "file" && e.name.endsWith(".md")) {
+        files.push({ ...e, name: `${dir}/${e.name}` });
+      }
+    }
+  }
+  return files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 export function createObsidianConnector(): Connector {
@@ -134,43 +162,34 @@ export function createObsidianConnector(): Connector {
     },
 
     async backfill(p, container, cursor) {
-      const entries = await p.call<Array<{ name: string; type: string; mtime?: string }>>("fs.list", { dir: container.id });
-      const files = entries
-        .filter((e) => e.type === "file" && e.name.endsWith(".md"))
-        .map((e) => e.name)
-        .sort();
+      const files = await listMarkdownFiles(p, container.id);
       const start = Number.parseInt(cursor ?? "0", 10);
       const from = Number.isFinite(start) && start > 0 ? start : 0;
       const page = files.slice(from, from + BACKFILL_PAGE);
 
       const items: ExternalItem[] = [];
-      for (const name of page) {
-        const relPath = `${container.id}/${name}`;
-        const content = await p.call<string>("fs.read", { path: relPath });
+      for (const entry of page) {
+        const content = await p.call<string>("fs.read", { path: entry.name });
         if (isSkippedNote(content)) continue;
-        items.push(toExternalItem(relPath, content));
+        items.push(toExternalItem(entry, entry.name, content));
       }
       const next = from + page.length;
       return next < files.length ? { items, nextCursor: String(next) } : { items };
     },
 
     async poll(p, container, since) {
-      const entries = await p.call<Array<{ name: string; type: string; mtime?: string }>>("fs.list", { dir: container.id });
-      // mtime filtering needs fs.list to report it — proposed in #112. Until
-      // then an entry without an mtime is always included (conservative; the
-      // dedupe path drops unchanged content).
+      const files = await listMarkdownFiles(p, container.id);
+      // An entry without an mtime counts as changed (safe side, #112).
       const sinceMs = Date.parse(since);
       const items: ExternalItem[] = [];
-      for (const e of entries) {
-        if (e.type !== "file" || !e.name.endsWith(".md")) continue;
-        if (typeof e.mtime === "string") {
-          const mtimeMs = Date.parse(e.mtime);
+      for (const entry of files) {
+        if (typeof entry.mtime === "string") {
+          const mtimeMs = Date.parse(entry.mtime);
           if (Number.isFinite(mtimeMs) && Number.isFinite(sinceMs) && mtimeMs <= sinceMs) continue;
         }
-        const relPath = `${container.id}/${e.name}`;
-        const content = await p.call<string>("fs.read", { path: relPath });
+        const content = await p.call<string>("fs.read", { path: entry.name });
         if (isSkippedNote(content)) continue;
-        items.push(toExternalItem(relPath, content));
+        items.push(toExternalItem(entry, entry.name, content));
       }
       return items;
     },

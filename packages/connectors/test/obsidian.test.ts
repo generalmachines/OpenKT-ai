@@ -144,11 +144,11 @@ describe("frontmatter helpers", () => {
     expect(body).toBe("body");
   });
 
-  it("openkt-space is not parsed for routing (one container → one space, #112)", () => {
-    // the helper is gone; the attribute, if present, is ignored
-    const { attrs } = parseFrontmatter(WITH_FRONTMATTER);
-    expect(attrs["openkt-space"]).toBe("product-notes");
-    expect(Object.keys(attrs)).not.toContain("space");
+  it("openkt-space in frontmatter changes nothing in the draft", () => {
+    const withKey = toSession({ externalId: "x", url: "u", title: "t", updatedAt: "", body: "---\nopenkt-space: other\n---\n# H\nbody" });
+    const without = toSession({ externalId: "x", url: "u", title: "t", updatedAt: "", body: "---\n---\n# H\nbody" });
+    expect(Object.keys(withKey)).toEqual(["source", "client", "external_id", "external_url", "title", "content_hash", "turns"]);
+    expect(withKey.turns).toEqual(without.turns);
   });
 });
 
@@ -172,13 +172,18 @@ describe("noteToTurns", () => {
 
 // --- connector over a fake provider --------------------------------------
 
-function fakeProvider(files: Record<string, string>, listing: Array<{ name: string; type: string; mtime?: string }>): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
+type Listing = Array<{ name: string; type: string; mtime?: string }>;
+
+function fakeProvider(files: Record<string, string>, listings: Record<string, Listing>): ProviderHandle & { calls: Array<[string, Record<string, unknown>]> } {
   const calls: Array<[string, Record<string, unknown>]> = [];
   return {
     calls,
     async call<T>(action: string, params: Record<string, unknown>): Promise<T> {
       calls.push([action, params]);
       if (action === "fs.list") {
+        const dir = params["dir"] as string;
+        const listing = listings[dir];
+        if (listing === undefined) throw new Error(`no listing for dir: ${dir}`);
         return listing as T;
       }
       if (action === "fs.read") {
@@ -194,11 +199,13 @@ function fakeProvider(files: Record<string, string>, listing: Array<{ name: stri
 
 describe("createObsidianConnector", () => {
   it("listContainers lists the vault root with dir '.' and keeps folders only", async () => {
-    const p = fakeProvider({}, [
-      { name: "Notes", type: "dir" },
-      { name: "note.md", type: "file" },
-      { name: "Archive", type: "dir" },
-    ]);
+    const p = fakeProvider({}, {
+      ".": [
+        { name: "Notes", type: "dir" },
+        { name: "note.md", type: "file" },
+        { name: "Archive", type: "dir" },
+      ],
+    });
     const c = createObsidianConnector();
     expect(await c.listContainers(p)).toEqual([
       { id: "Notes", name: "Notes" },
@@ -215,32 +222,85 @@ describe("createObsidianConnector", () => {
         "Notes/secret.md": "---\nopenkt: false\n---\n# Secret",
         "Notes/c.md": "no headings here",
       },
-      [
-        { name: "a.md", type: "file" },
-        { name: "b.txt", type: "file" },
-        { name: "secret.md", type: "file" },
-        { name: "c.md", type: "file" },
-      ],
+      {
+        Notes: [
+          { name: "a.md", type: "file", mtime: "2026-09-19T12:00:00Z" },
+          { name: "b.txt", type: "file", mtime: "2026-09-19T12:00:00Z" },
+          { name: "secret.md", type: "file", mtime: "2026-09-19T12:00:00Z" },
+          { name: "c.md", type: "file", mtime: "2026-09-19T12:00:00Z" },
+        ],
+      },
     );
     const c = createObsidianConnector();
     const { items, nextCursor } = await c.backfill(p, { id: "Notes", name: "Notes" });
     expect(items.map((i) => i.externalId)).toEqual(["Notes/a.md", "Notes/c.md"]);
     expect(items[0]!.title).toBe("A");
     expect(items[1]!.title).toBe("c");
+    // updatedAt comes from the fs.list entry's mtime (#113, J70b)
+    expect(items[0]!.updatedAt).toBe("2026-09-19T12:00:00Z");
     expect(nextCursor).toBeUndefined();
     // every .md file is read (the skip needs the content); b.txt is never read
     expect(p.calls.map(([a]) => a)).toEqual(["fs.list", "fs.read", "fs.read", "fs.read"]);
+  });
+
+  it("an entry without mtime gets updatedAt: ''", async () => {
+    const p = fakeProvider({ "Notes/n.md": "# n" }, {
+      Notes: [{ name: "n.md", type: "file" }],
+    });
+    const c = createObsidianConnector();
+    const { items } = await c.backfill(p, { id: "Notes", name: "Notes" });
+    expect(items[0]!.updatedAt).toBe("");
+  });
+
+  it("backfill walks subfolders at any depth; symlink entries are never followed", async () => {
+    const p = fakeProvider(
+      {
+        "Proj/a.md": "# A",
+        "Proj/Sub/deep.md": "# Deep",
+      },
+      {
+        Proj: [
+          { name: "a.md", type: "file" },
+          { name: "Sub", type: "dir" },
+          { name: "elsewhere", type: "symlink" }, // must never be listed or read
+        ],
+        "Proj/Sub": [{ name: "deep.md", type: "file" }],
+      },
+    );
+    const c = createObsidianConnector();
+    const { items } = await c.backfill(p, { id: "Proj", name: "Proj" });
+    expect(items.map((i) => i.externalId)).toEqual(["Proj/Sub/deep.md", "Proj/a.md"]);
+    expect(items.map((i) => i.title)).toEqual(["Deep", "A"]);
+    // only "Proj" and "Proj/Sub" were listed; the symlink was never touched
+    expect(p.calls.filter(([a]) => a === "fs.list").map(([, q]) => (q as { dir: string }).dir)).toEqual(["Proj", "Proj/Sub"]);
+    expect(p.calls.some(([, q]) => JSON.stringify(q).includes("elsewhere"))).toBe(false);
+  });
+
+  it("poll walks subfolders the same way", async () => {
+    const p = fakeProvider(
+      { "Proj/Sub/deep.md": "# Deep", "Proj/old.md": "# Old" },
+      {
+        Proj: [
+          { name: "old.md", type: "file", mtime: "2026-09-19T10:00:00Z" },
+          { name: "Sub", type: "dir" },
+        ],
+        "Proj/Sub": [{ name: "deep.md", type: "file", mtime: "2026-09-19T12:00:00Z" }],
+      },
+    );
+    const c = createObsidianConnector();
+    const items = await c.poll(p, { id: "Proj", name: "Proj" }, "2026-09-19T11:00:00Z");
+    expect(items.map((i) => i.externalId)).toEqual(["Proj/Sub/deep.md"]);
   });
 
   it("backfill pages: a cursor starts later in the file list", async () => {
     const files = Object.fromEntries(
       Array.from({ length: 5 }, (_, i) => [`Notes/${String(i).padStart(2, "0")}.md`, `# n${i}`]),
     );
-    const listing = Array.from({ length: 5 }, (_, i) => ({
+    const listing: Listing = Array.from({ length: 5 }, (_, i) => ({
       name: `${String(i).padStart(2, "0")}.md`,
       type: "file",
     }));
-    const p = fakeProvider(files, listing);
+    const p = fakeProvider(files, { Notes: listing });
     const c = createObsidianConnector();
     const page1 = await c.backfill(p, { id: "Notes", name: "Notes" });
     expect(page1.items).toHaveLength(5); // 5 files < the 50-file page size
@@ -256,21 +316,39 @@ describe("createObsidianConnector", () => {
         "Notes/old.md": "# old",
         "Notes/nomtime.md": "# nomtime",
       },
-      [
-        { name: "new.md", type: "file", mtime: "2026-09-19T12:00:00Z" },
-        { name: "old.md", type: "file", mtime: "2026-09-19T10:00:00Z" },
-        { name: "nomtime.md", type: "file" },
-      ],
+      {
+        Notes: [
+          { name: "new.md", type: "file", mtime: "2026-09-19T12:00:00Z" },
+          { name: "old.md", type: "file", mtime: "2026-09-19T10:00:00Z" },
+          { name: "nomtime.md", type: "file" },
+        ],
+      },
     );
     const c = createObsidianConnector();
     const items = await c.poll(p, { id: "Notes", name: "Notes" }, "2026-09-19T11:00:00Z");
     expect(items.map((i) => i.externalId)).toEqual(["Notes/new.md", "Notes/nomtime.md"]);
   });
 
+  it("poll compares instants: an offset since and offset mtimes sort correctly (#43)", async () => {
+    // since = 2026-06-01T12:00:00+07:00 = 05:00Z
+    const p = fakeProvider(
+      { "Notes/older.md": "# older", "Notes/newer.md": "# newer" },
+      {
+        Notes: [
+          { name: "older.md", type: "file", mtime: "2026-06-01T04:00:00Z" },
+          { name: "newer.md", type: "file", mtime: "2026-06-01T06:00:00Z" },
+        ],
+      },
+    );
+    const c = createObsidianConnector();
+    const items = await c.poll(p, { id: "Notes", name: "Notes" }, "2026-06-01T12:00:00+07:00");
+    expect(items.map((i) => i.externalId)).toEqual(["Notes/newer.md"]);
+  });
+
   it("poll skips openkt: false files", async () => {
     const p = fakeProvider(
       { "Notes/s.md": "---\nopenkt: false\n---\n# s" },
-      [{ name: "s.md", type: "file", mtime: "2026-09-19T12:00:00Z" }],
+      { Notes: [{ name: "s.md", type: "file", mtime: "2026-09-19T12:00:00Z" }] },
     );
     const c = createObsidianConnector();
     expect(await c.poll(p, { id: "Notes", name: "Notes" }, "2026-09-19T11:00:00Z")).toEqual([]);
