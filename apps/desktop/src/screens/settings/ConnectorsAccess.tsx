@@ -15,8 +15,11 @@ const COPY = {
   },
 } as const;
 
-/** Connectors.dc.html. "Access defaults" is the same table read from the access side. */
-export function Connectors({ mode }: { mode: 'connectors' | 'access' }) {
+/**
+ * Connectors.dc.html read from the access side: who new sessions from each tool are shared with. The defaults are
+ * still sample data (no server endpoint yet, see PreviewBadge); connecting tools is ConnectorsTools.
+ */
+export function ConnectorsAccess({ mode }: { mode: 'connectors' | 'access' }) {
   const client = useClient();
   const connectors = useQuery((c) => c.listConnectors(), []);
   const defaults = useQuery((c) => c.listAccessDefaults(), []);

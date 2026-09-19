@@ -91,6 +91,21 @@ const bridge: OpenKTBridge = {
       cancel: () => ipcRenderer.invoke(ch('auth:google:cancel')),
     },
   },
+  // ── connect tools (begin) ──
+  connect: {
+    list: () => ipcRenderer.invoke(ch('connect:list')),
+    plan: (id, options) => ipcRenderer.invoke(ch('connect:plan'), String(id), { nativeMemory: options?.nativeMemory !== false }),
+    apply: (id, options, signIn) =>
+      ipcRenderer.invoke(ch('connect:apply'), String(id), { nativeMemory: options?.nativeMemory !== false }, signIn ? { server: String(signIn.server), token: String(signIn.token) } : undefined),
+    undo: (id) => ipcRenderer.invoke(ch('connect:undo'), String(id)),
+    guide: (id) => ipcRenderer.invoke(ch('connect:guide'), String(id)),
+    detectWeb: (id, sinceIso) => ipcRenderer.invoke(ch('connect:detect-web'), String(id), String(sinceIso)),
+    test: (id) => ipcRenderer.invoke(ch('connect:test'), String(id)),
+    folders: () => ipcRenderer.invoke(ch('connect:folders')),
+    mapFolder: (path, spaceId, spaceName) => ipcRenderer.invoke(ch('connect:map-folder'), String(path), spaceId === null ? null : String(spaceId), spaceName === undefined ? undefined : String(spaceName)),
+    shareSignIn: (signIn) => ipcRenderer.invoke(ch('connect:share-sign-in'), { server: String(signIn?.server ?? ''), token: String(signIn?.token ?? '') }),
+  },
+  // ── connect tools (end) ──
   secureStore: {
     get: (key: string) => ipcRenderer.invoke(ch('secure:get'), key) as Promise<string | null>,
     set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,

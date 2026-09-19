@@ -160,10 +160,10 @@ describe('access', () => {
   });
 });
 
-describe('connectors', () => {
+describe('access defaults', () => {
   it('changes a connector default in the store', async () => {
     const user = userEvent.setup();
-    const client = renderApp('/settings/connectors');
+    const client = renderApp('/settings/access');
     await user.click(await screen.findByRole('button', { name: /New ChatGPT sessions are shared with: Only me/ }));
     await user.click(screen.getByRole('option', { name: 'Everyone in Deepwork · read' }));
     await waitFor(async () => {
@@ -213,14 +213,11 @@ describe('⌘K palette', () => {
 describe('onboarding', () => {
   afterEach(() => localStorage.clear()); // the first run keeps its step on this Mac
 
-  it('counts the tools that are ticked', async () => {
-    const user = userEvent.setup();
+  it('without the app (a browser), the tools step says where connecting happens and moves on', async () => {
     renderApp('/onboarding/3'); // step 3 since the first run grew a permissions step
-    expect(screen.getByRole('button', { name: 'Connect 4 tools' })).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'Claude' }));
-    expect(screen.getByRole('button', { name: 'Connect 5 tools' })).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'Cursor' }));
-    expect(screen.getByRole('checkbox', { name: 'Cursor' })).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('button', { name: 'Connect 4 tools' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Connect your tools' })).toBeInTheDocument();
+    expect(screen.getByText(/happens in the OpenKT app on your Mac/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
   });
 });
+

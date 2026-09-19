@@ -1,0 +1,128 @@
+/* ── connect tools (onboarding step 3, Settings → Connectors) ───────────── */
+.ctools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+.ctool {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctool__main {
+  width: 100%;
+}
+.ctool__main .person__text {
+  flex-grow: 1;
+}
+.ctool__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 16px 6px 48px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.ctool__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ctool__chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  background: var(--bg);
+}
+.ctool__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ctool__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.ctool__pill--connected .ctool__dot {
+  background: var(--ok-dot);
+}
+.ctool__pill--partial .ctool__dot {
+  background: var(--ink-3);
+}
+.ctool__pill--needs-attention .ctool__dot {
+  background: var(--accent);
+}
+.ctool__native {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.45;
+}
+.ctool__native input {
+  margin-top: 2px;
+  accent-color: var(--ink);
+}
+.ctool__reason {
+  color: var(--accent-hover);
+  line-height: 1.45;
+}
+.ctool__changes summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.ctool__changes ul {
+  margin: 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ctool__changes .mono {
+  font-size: 11.5px;
+  word-break: break-all;
+}
+.ctool__guide ol {
+  margin: 4px 0 8px 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.ctool__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ctool__result {
+  line-height: 1.45;
+}
+.ctool__result--ok {
+  color: var(--ok);
+}
+.cfolders {
+  margin-top: 28px;
+  max-width: 640px;
+}
+.cfolder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.cfolder__text {
+  flex-grow: 1;
+  line-height: 1.45;
+}
