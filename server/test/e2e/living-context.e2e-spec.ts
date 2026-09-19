@@ -319,12 +319,15 @@ describeIfDb("Living context: jobs, pages, briefs (e2e)", () => {
     // Another space, and a fact in it, that Ravi's worker tries to cite from this space.
     const other = await as(stranger).post("/v1/projects", { slug: `other-${run}`, name: "Other", visibility: "personal" }).expect(201);
     const foreign = await as(stranger).post("/v1/memories", { project_id: other.body.data.id, content: "A fact from a space Ana's team cannot read.", kind: "fact" }).expect(201);
+    const loose = await as(ana).post("/v1/memories", { project_id: spaceId, content: "The team's demo laptop is Ravi's MacBook Air.", kind: "fact" }).expect(201);
     const third = await closedSession(ana, "Venue", [
       { role: "user", content: "The venue opens at 8am on Saturday and the team table is number 14, next to the power strip by the window." },
       { role: "assistant", content: "Got it: doors open at 8am on Saturday, and our table is number 14 near the window power strip." },
     ]);
     const claimed = await claim(ravi, ["process_session"]);
     expect(claimed.job!.session_id).toBe(third);
+    // Earlier facts no page cites yet are offered to the router again (Spec 02 §5); cited ones and other spaces' are not.
+    expect(claimed.input!.unrouted_facts.map((f: { id: string }) => f.id)).toEqual([loose.body.data.id]);
     const factD = randomUUID();
     const done = await as(ravi)
       .post(`/v1/jobs/${claimed.job!.id}/complete`, {
