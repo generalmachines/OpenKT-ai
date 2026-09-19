@@ -33,7 +33,6 @@ import { ProjectsModule } from "./modules/projects/projects.module";
 import { MemberKnowledgeModule } from "./modules/member-knowledge/member-knowledge.module";
 import { SecretsModule } from "./modules/secrets/secrets.module";
 import { SettingsModule } from "./modules/settings/settings.module";
-import { WaitlistModule } from "./modules/waitlist/waitlist.module";
 import { PersonalTokensModule } from "./modules/personal-tokens/personal-tokens.module";
 import { ConnectorsModule } from "./modules/connectors/connectors.module";
 import { OauthModule } from "./modules/oauth/oauth.module";
@@ -72,7 +71,6 @@ import { AccessModule } from "./modules/access/access.module";
     MemberKnowledgeModule,
     RateLimitModule,
     AnalyticsModule,
-    WaitlistModule,
     PersonalTokensModule,
     ConnectorsModule,
     OauthModule,

@@ -1,8 +1,7 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 
 import { SupabaseDataModule } from "@openkt/data-supabase";
 
-import { WaitlistModule } from "../waitlist/waitlist.module";
 import { InternalAuthController } from "./controllers/internal-auth.controller";
 import { PublicAuthController } from "./controllers/public-auth.controller";
 import { ServicePrincipalGuard } from "./guards/service-principal.guard";
@@ -15,7 +14,7 @@ import { ServiceTokenService } from "./services/service-token.service";
 import { SupabaseJwtVerifier } from "./services/supabase-jwt-verifier.service";
 
 @Module({
-  imports: [SupabaseDataModule, forwardRef(() => WaitlistModule)],
+  imports: [SupabaseDataModule],
   controllers: [InternalAuthController, PublicAuthController],
   providers: [
     ActorContextFactory,

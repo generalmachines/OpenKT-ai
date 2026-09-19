@@ -42,18 +42,6 @@ const configService = {
 describe("AuthApplicationService", () => {
   let service: AuthApplicationService;
 
-  // WaitlistService stub: `allowed: true` short-circuits the gate so
-  // existing tests don't have to wire a DB. The dedicated waitlist
-  // signup-gate test wires its own stub for the blocked case.
-  const waitlistStub = {
-    checkSignupEligibility: jest.fn().mockResolvedValue({
-      allowed: true,
-      reason: "approved",
-      detail: null,
-    }),
-    markSignedUp: jest.fn().mockResolvedValue(undefined),
-  } as unknown as import("../../apps/server/src/modules/waitlist/services/waitlist.service").WaitlistService;
-
   // AuditService stub: every method is a no-op promise. The service
   // itself wraps audit writes in try/catch so a failure here would
   // never block auth, but giving it real spies lets future tests
@@ -65,7 +53,7 @@ describe("AuthApplicationService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthApplicationService(configService, waitlistStub, auditStub);
+    service = new AuthApplicationService(configService, auditStub);
   });
 
   it("passwordLogin returns the session shape on success", async () => {

@@ -23,7 +23,6 @@ export * from "./analytics-events";
 export * from "./daily-user-stats";
 export * from "./daily-org-stats";
 export * from "./rate-limit-buckets";
-export * from "./waitlist";
 export * from "./personal-access-tokens";
 export * from "./oauth";
 export * from "./sessions";

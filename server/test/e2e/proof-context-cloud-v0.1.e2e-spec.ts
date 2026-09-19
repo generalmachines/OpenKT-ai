@@ -77,12 +77,6 @@ const projectsAppStub = {
   create: jest.fn(),
 } as never;
 const briefingStub = { getBriefing: jest.fn().mockResolvedValue(null) } as never;
-const personalTokensStub = {
-  create: jest.fn(),
-  list: jest.fn(),
-  revoke: jest.fn(),
-  verify: jest.fn(),
-} as never;
 
 function actorContextFor(userId: string): ActorContext {
   return {
@@ -200,7 +194,6 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
       briefingStub,
       new McpUiRendererService(),
       sessionsApp,
-      personalTokensStub,
     );
 
     // Fixture profiles — memories.owner_user_id FKs to profiles.
