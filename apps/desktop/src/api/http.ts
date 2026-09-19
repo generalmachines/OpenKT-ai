@@ -186,6 +186,10 @@ export class HttpClient implements OpenKTClient {
     return () => this.listeners.delete(listener);
   }
 
+  refresh(): void {
+    this.changed();
+  }
+
   private changed(): void {
     for (const l of [...this.listeners]) l();
   }
@@ -410,18 +414,12 @@ export class HttpClient implements OpenKTClient {
       }),
     );
     const id = str(j['id']);
-    const text = input.text?.trim();
     const turns: Json[] = [];
-    // SPEC-04: one turn per call, 50 000 characters each.
-    for (let i = 0; text && i < text.length; i += 50_000) {
-      turns.push(
-        obj(
-          await this.data('POST', `/sessions/${encodeURIComponent(id)}/turns`, {
-            role: 'user',
-            content: text.slice(i, i + 50_000),
-          }),
-        ),
-      );
+    // SPEC-04: one turn per call, 50 000 characters each, and no `note` role — captures go in as `user`.
+    for (const text of (input.turns?.length ? input.turns : [input.text ?? '']).map((t) => t.trim()).filter(Boolean)) {
+      for (let i = 0; i < text.length; i += 50_000) {
+        turns.push(obj(await this.data('POST', `/sessions/${encodeURIComponent(id)}/turns`, { role: 'user', content: text.slice(i, i + 50_000) })));
+      }
     }
     this.changed();
     return toSession(j, turns);

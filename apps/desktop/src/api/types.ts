@@ -246,5 +246,8 @@ export interface NewSessionInput {
   source: SessionSource;
   title: string;
   spaceId: Id;
+  /** The whole session as one turn (a note, a voice transcript). */
   text?: string;
+  /** Or several turns, in order (a screenshot: caption, description, text in image). Wins over `text`. */
+  turns?: string[];
 }

@@ -1,6 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
+import { screenshot as screenshotIpc, voice as voiceIpc } from '../../api/bridge';
 import { MeetingPrompt, RecordingPill, ScreenshotSheet, VoiceSheet } from './parts';
+import { ScreenshotCapture } from './ScreenshotCapture';
+import { VoiceCapture } from './VoiceCapture';
 
 /** The grey desktop with a placeholder window, from design/gen.py `desk`. */
 function Desk({ children }: { children: ReactNode }) {
@@ -92,6 +95,26 @@ export function CaptureOverlay() {
       else if (e.type === 'meeting.recording') setRec({ title: e.title, elapsedSec: e.elapsedSec });
     });
   }, [bridge]);
+
+  // With the native capture IPC present the overlays are real; without it (browser, older main) the simulated stub below stays.
+  if (kind === 'voice' && voiceIpc.available() && bridge) {
+    return (
+      <div className="overlay">
+        <VoiceCapture
+          onClose={() => void bridge.overlay.close('voice')}
+          // Main's second hotkey press stops its (stub) engine, which announces `voice.final`: that is the toggle.
+          onToggle={(listener) => bridge.capture.onEvent((e) => e.type === 'voice.final' && listener())}
+        />
+      </div>
+    );
+  }
+  if (kind === 'screenshot' && screenshotIpc.available() && bridge) {
+    return (
+      <div className="overlay">
+        <ScreenshotCapture request={{ mode: 'interactive' }} onClose={() => void bridge.overlay.close('screenshot')} />
+      </div>
+    );
+  }
 
   let body: ReactNode = null;
   if (kind === 'voice') body = <VoiceSheet {...voice} live hint="press the shortcut again to save" spaceId={space} onSpace={setSpace} />;

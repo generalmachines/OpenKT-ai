@@ -1102,3 +1102,54 @@ html.is-overlay body {
   accent-color: var(--ink);
   flex-shrink: 0;
 }
+
+/* ── capture sheets: states beyond the artboards ──────────────────────── */
+.bars.is-idle span {
+  background: var(--line-strong);
+}
+.bars span {
+  transition: height 90ms linear;
+}
+.sheet__notice {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin-top: -6px;
+}
+.sheet--voice .sheet__text {
+  max-height: 96px;
+  overflow-y: auto;
+}
+.thumb--img {
+  padding: 0;
+  object-fit: cover;
+  display: block;
+}
+.sheet__title-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14.5px;
+  text-overflow: ellipsis;
+}
+.dropzone {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 32px;
+  background: rgba(26, 26, 24, 0.12);
+}
+.dropzone--armed {
+  border: 2px dashed var(--accent);
+  background: var(--accent-wash);
+  align-items: center;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  pointer-events: none;
+}

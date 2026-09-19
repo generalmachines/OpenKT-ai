@@ -49,6 +49,10 @@ export class MockClient implements OpenKTClient {
     return () => this.listeners.delete(listener);
   }
 
+  refresh(): void {
+    this.changed();
+  }
+
   private changed(): void {
     for (const l of [...this.listeners]) l();
   }
@@ -110,7 +114,9 @@ export class MockClient implements OpenKTClient {
   async createSession(input: NewSessionInput) {
     const me = this.db.workspace.me;
     const id = this.nextId('s');
-    const text = input.text?.trim() ?? '';
+    const parts = (input.turns?.length ? input.turns : [input.text ?? '']).map((t) => t.trim()).filter(Boolean);
+    const text = parts.join('\n');
+    const speaker = me.name.split(' ')[0] ?? me.name;
     const session: Session = {
       id,
       source: input.source,
@@ -121,7 +127,7 @@ export class MockClient implements OpenKTClient {
       authorId: me.id,
       createdAt: new Date().toISOString(),
       extractedOn: 'device',
-      turns: text ? [{ id: 't1', speaker: me.name.split(' ')[0] ?? me.name, at: 0, text }] : [],
+      turns: parts.map((t, i) => ({ id: `t${i + 1}`, speaker, at: 0, text: t })),
     };
     this.db.sessions.unshift(session);
     this.db.grants.push({

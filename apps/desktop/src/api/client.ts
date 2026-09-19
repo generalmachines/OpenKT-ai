@@ -37,6 +37,8 @@ export interface OpenKTClient {
 
   /** Called after any mutation. Returns an unsubscribe function. */
   subscribe(listener: () => void): () => void;
+  /** Tell subscribers to re-read: something changed outside this client (a capture filed from an overlay window). */
+  refresh(): void;
 
   /** Areas this adapter fills with sample data because the server has no endpoint yet. */
   readonly preview: ReadonlySet<PreviewArea>;

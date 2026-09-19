@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import { HttpClient } from '../../src/api/http';
+import { fileCapture } from '../../src/capture/save';
 
 function liveEnv(): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = { ...process.env };
@@ -127,6 +128,36 @@ describe.skipIf(!URL_ || !TOKEN)('http adapter against a live server', () => {
   it('grants: owner sees a list; an unknown session is a typed not-found', async () => {
     expect(Array.isArray(await a.listGrants({ type: 'session', id: sessionId }))).toBe(true);
     await expect(a.getSession('00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('captures: a voice note and a screenshot file as closed sessions with their turns and facts', async () => {
+    const personal = (await a.listSpaces()).find((s) => s.personal)!;
+    const voice = await fileCapture(a, {
+      source: 'voice',
+      title: `Live voice ${stamp}`,
+      spaceId: personal.id,
+      turns: [`Live voice ${stamp}: give every new store a printed shelf map.`],
+      summary: 'An onboarding kit idea.',
+      facts: [{ kind: 'idea', statement: `Live voice ${stamp}: every new store gets a printed shelf map` }],
+    });
+    const shot = await fileCapture(a, {
+      source: 'screenshot',
+      title: `Live screenshot ${stamp}`,
+      spaceId: personal.id,
+      turns: ['my caption', 'Competitor pricing page, three tiers.', 'Text in image: Starter $49 · Growth $149'],
+      facts: [],
+    });
+    expect(voice).toMatchObject({ source: 'voice', status: 'closed', spaceId: personal.id, summary: 'An onboarding kit idea.' });
+    expect(shot).toMatchObject({ source: 'screenshot', status: 'closed' });
+    expect((await a.getSession(shot.id)).turns.map((t) => t.text)).toEqual(['my caption', 'Competitor pricing page, three tiers.', 'Text in image: Starter $49 · Growth $149']);
+    const ctx = await a.listContext(voice.id);
+    made.facts.push(...ctx.map((c) => c.id));
+    expect(ctx.map((c) => c.kind)).toEqual(['idea']);
+
+    // The "models were still downloading" path files facts AFTER the session is closed.
+    const late = await a.saveFact({ sessionId: shot.id, spaceId: personal.id, statement: `Live screenshot ${stamp}: the competitor's Growth tier is $149`, kind: 'fact' });
+    made.facts.push(late.id);
+    expect((await a.listContext(shot.id)).map((c) => c.id)).toEqual([late.id]);
   });
 
   describe.skipIf(!TOKEN_B || !TOKEN_C)('the product promise', () => {

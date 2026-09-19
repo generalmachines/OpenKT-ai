@@ -49,6 +49,70 @@ function fakeLocalAi() {
   };
 }
 
+/**
+ * A stand-in for the native capture IPC (voice / screenshot / models). The microphone is an oscillator, so the
+ * REAL recorder runs in Chromium: getUserMedia → AudioWorklet → 16 kHz PCM16 → voice.chunk. `window.__chunks`
+ * collects the byte length of every chunk so the shot can assert audio actually flowed.
+ */
+function fakeCaptureIpc() {
+  localStorage.setItem('openkt.api', JSON.stringify({ adapter: 'mock' }));
+  const mode = new URLSearchParams(location.hash.split('?')[1] ?? '').get('fake') ?? '';
+  window.__chunks = [];
+  navigator.mediaDevices.getUserMedia = async () => {
+    if (mode === 'denied') throw new DOMException('Permission denied', 'NotAllowedError');
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const lfo = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const depth = ctx.createGain();
+    osc.frequency.value = 220;
+    lfo.frequency.value = 3;
+    gain.gain.value = 0.25;
+    depth.gain.value = 0.2;
+    lfo.connect(depth).connect(gain.gain);
+    const dest = ctx.createMediaStreamDestination();
+    osc.connect(gain).connect(dest);
+    osc.start();
+    lfo.start();
+    return dest.stream;
+  };
+  const px = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="192" height="128"><rect width="192" height="128" fill="#f1efe9"/><rect x="14" y="16" width="90" height="10" rx="3" fill="#b9b6ad"/><rect x="14" y="40" width="48" height="70" rx="5" fill="#fff" stroke="#d0cec8"/><rect x="72" y="40" width="48" height="70" rx="5" fill="#fff" stroke="#d0cec8"/><rect x="130" y="40" width="48" height="70" rx="5" fill="#fff" stroke="#b4532a"/></svg>');
+  window.openkt = {
+    platform: 'browser',
+    app: { onNavigate: () => () => undefined, hotkeys: async () => [], openMain: async () => undefined },
+    capture: { onEvent: (l) => ((window.__captureEvent = l), () => undefined) },
+    overlay: { close: async () => void (window.__closed = true) },
+    voice: {
+      begin: async () => 'v1',
+      chunk: (_id, buf) => void window.__chunks.push(buf.byteLength),
+      end: async () =>
+        mode === 'empty'
+          ? { empty: true }
+          : { text: 'What if every new store got an onboarding kit — a printed shelf map, the first week’s planogram, and a QR code to the floor plan.', segments: [], language: 'en', duration_ms: 14000 },
+      toSession: async () => ({ status: 'ok', title: 'Per-store onboarding kit', summary: 'An onboarding kit for every new store.', facts: [{ kind: 'idea', statement: 'Give every new store a printed shelf map', quote: 'printed shelf map' }] }),
+      cancel: () => undefined,
+    },
+    screenshot: {
+      capture: async () =>
+        mode === 'nothing'
+          ? { image_path: px, title: '', description: '', visible_text: '', entities: [], facts: [] }
+          : { image_path: px, title: 'Competitor pricing page — three tiers, per-store billing on the top tier', description: 'Competitor pricing page — three tiers, per-store billing on the top tier.', visible_text: 'Starter $49 · Growth $149 · Enterprise per store', entities: [], facts: [] },
+    },
+    models: { status: async () => ({ models: [{ role: 'llm', id: 'qwen3.5-4b', file: 'q.gguf', path: '', totalBytes: 3e9, receivedBytes: mode === 'models' ? 1e9 : 3e9, state: mode === 'models' ? 'downloading' : 'ready' }] }), ensure: async () => ({ ok: true }), onProgress: () => () => undefined },
+  };
+}
+
+const VOICE_WIN = { width: 536, height: 244 };
+const SHOT_WIN = { width: 536, height: 132 };
+
+/** Waits until the real recorder has streamed at least a second of 16 kHz PCM16 in ~250 ms chunks. */
+async function audioFlowed(p) {
+  await p.waitForFunction(() => window.__chunks.length >= 4, null, { timeout: 8000 });
+  const sizes = await p.evaluate(() => window.__chunks);
+  if (!sizes.every((b) => b >= 8000 && b <= 16000 && b % 2 === 0)) throw new Error(`unexpected PCM chunk sizes: ${sizes.join(', ')}`);
+}
+const stopVoice = (p) => p.evaluate(() => window.__captureEvent({ type: 'voice.final', captureId: 'x', text: '', durationSec: 0 }));
+
 /** The real server's 401 body, without touching the network (a refused fetch would log a console error). */
 function refusingServer() {
   window.fetch = async () =>
@@ -117,6 +181,47 @@ const SHOTS = [
   ['24-capture-voice', '/capture/voice', CAPTURE, null, 'Capture-Voice.dc.html'],
   ['25-capture-meeting', '/capture/meeting', CAPTURE, null, 'Capture-Meeting.dc.html'],
   ['26-capture-screenshot', '/capture/screenshot', CAPTURE, null, 'Capture-Screenshot.dc.html'],
+  ['28-overlay-voice-listening', '/overlay/voice', VOICE_WIN, audioFlowed, 'Capture-Voice.dc.html', fakeCaptureIpc],
+  [
+    '29-overlay-voice-review',
+    '/overlay/voice',
+    VOICE_WIN,
+    async (p) => {
+      await audioFlowed(p);
+      await stopVoice(p);
+      await p.getByRole('button', { name: 'Save', exact: true }).waitFor();
+    },
+    null,
+    fakeCaptureIpc,
+  ],
+  [
+    '30-overlay-voice-saved-models-pending',
+    '/overlay/voice?fake=models',
+    VOICE_WIN,
+    async (p) => {
+      await audioFlowed(p);
+      await stopVoice(p);
+      await p.getByRole('button', { name: 'Save', exact: true }).click();
+      await p.getByText(/Context will be extracted/).waitFor();
+    },
+    null,
+    fakeCaptureIpc,
+  ],
+  [
+    '31-overlay-voice-empty',
+    '/overlay/voice?fake=empty',
+    VOICE_WIN,
+    async (p) => {
+      await audioFlowed(p);
+      await stopVoice(p);
+      await p.getByText(/Nothing was said/).waitFor();
+    },
+    null,
+    fakeCaptureIpc,
+  ],
+  ['32-overlay-voice-mic-denied', '/overlay/voice?fake=denied', VOICE_WIN, async (p) => p.getByRole('alert').waitFor(), null, fakeCaptureIpc],
+  ['33-overlay-screenshot', '/overlay/screenshot', SHOT_WIN, async (p) => p.getByRole('textbox', { name: 'Title' }).waitFor(), 'Capture-Screenshot.dc.html', fakeCaptureIpc],
+  ['34-overlay-screenshot-nothing', '/overlay/screenshot?fake=nothing', SHOT_WIN, async (p) => p.getByRole('button', { name: 'Close' }).waitFor(), null, fakeCaptureIpc],
   ['27-session-summary-960x640', S, { width: 960, height: 640 }, null, null],
 ];
 
@@ -167,7 +272,7 @@ async function main() {
   let failed = false;
   try {
     await waitForServer(base);
-    const browser = await chromium.launch({ executablePath });
+    const browser = await chromium.launch({ executablePath, args: ['--autoplay-policy=no-user-gesture-required'] });
     const report = [];
     for (const [name, route, viewport, steps, artboard, init] of SHOTS) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' });

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { offset } from '../../api/format';
 import { Icon } from '../../components/Icon';
 import { Select, type SelectOption } from '../../components/Select';
@@ -21,48 +22,90 @@ const ACCESS_NOTE: Record<string, string> = {
   'sp-personal': 'private',
 };
 
-function SpacePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return <Select label="Save to" variant="pill" align="left" up value={value} options={SPACE_OPTIONS} onChange={onChange} leading={<Icon name="folder" size={13} />} />;
+function SpacePicker({ value, onChange, options = SPACE_OPTIONS }: { value: string; onChange: (v: string) => void; options?: SelectOption<string>[] }) {
+  return <Select label="Save to" variant="pill" align="left" up value={value} options={options} onChange={onChange} leading={<Icon name="folder" size={13} />} />;
 }
+
+export type VoiceState = 'listening' | 'transcribing' | 'review' | 'saving' | 'saved' | 'empty' | 'permission' | 'failed';
+
+const VOICE_STATUS: Record<VoiceState, (t: string) => string> = {
+  listening: (t) => `listening · ${t} · on this Mac`,
+  transcribing: (t) => `transcribing… · ${t} · on this Mac`,
+  review: (t) => `transcribed · ${t} · on this Mac`,
+  saving: (t) => `filing… · ${t}`,
+  saved: (t) => `saved · ${t} · transcribed on this Mac`,
+  empty: () => 'nothing heard',
+  permission: () => 'microphone blocked',
+  failed: () => 'could not transcribe',
+};
 
 export interface VoiceProps {
   text: string;
   tentative: string;
   elapsedSec: number;
-  state: 'listening' | 'saved';
+  state: VoiceState;
   spaceId: string;
   onSpace: (id: string) => void;
   live?: boolean;
   /** Right-hand hint. The artboard's copy assumes the engine's hold-to-talk. */
   hint?: string;
+  /** Recent microphone levels, 0..1, oldest first. When given they drive the bars instead of the artboard's heights. */
+  levels?: number[];
+  /** Real spaces; the artboard's list otherwise. */
+  spaces?: SelectOption<string>[];
+  accessNote?: string;
+  /** One calm line under the text: why there are no facts yet, or what went wrong. */
+  notice?: string;
+  onSave?: () => void;
 }
 
+const VOICE_HINT: Partial<Record<VoiceState, string>> = { transcribing: 'one moment', review: 'esc to discard', saving: '', saved: 'filed', empty: '', permission: 'esc to close', failed: 'esc to close' };
+
 /** Capture-Voice.dc.html */
-export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save' }: VoiceProps) {
+export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, accessNote, notice, onSave }: VoiceProps) {
+  const listening = state === 'listening';
   return (
     <div className="sheet sheet--voice" role="status" aria-label="Voice capture">
       <div className="sheet__top">
-        <span className={`bars${live && state === 'listening' ? ' is-live' : ''}`} aria-hidden="true">
+        <span className={`bars${live && listening && !levels ? ' is-live' : ''}${listening ? '' : ' is-idle'}`} aria-hidden="true">
           {BARS.map((h, i) => (
-            <span key={i} style={{ height: h, animationDelay: `${(i * 83) % 600}ms` }} />
+            <span key={i} style={levels ? { height: Math.round(4 + Math.max(0, Math.min(1, levels[levels.length - BARS.length + i] ?? 0)) * 24) } : { height: h, animationDelay: `${(i * 83) % 600}ms` }} />
           ))}
         </span>
         <span className="mono small-meta" style={{ flexGrow: 1 }}>
-          {state === 'listening' ? `listening · ${offset(elapsedSec)} · on this Mac` : `saved · ${offset(elapsedSec)} · transcribed on this Mac`}
+          {VOICE_STATUS[state](offset(elapsedSec))}
         </span>
-        <span className="mono small-meta">{state === 'listening' ? hint : 'filed'}</span>
+        <span className="mono small-meta" style={{ whiteSpace: 'nowrap' }}>
+          {listening ? hint : (VOICE_HINT[state] ?? '')}
+        </span>
       </div>
-      <p className="sheet__text">
-        {text}
-        {text && tentative ? ' ' : ''}
-        {tentative && <span className="sheet__tentative">{tentative}…</span>}
-        {!text && !tentative && <span className="sheet__tentative">Say it out loud…</span>}
-      </p>
-      <div className="sheet__row">
-        <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Save to</span>
-        <SpacePicker value={spaceId} onChange={onSpace} />
-        <span className="mono small-meta">{ACCESS_NOTE[spaceId] ?? ''}</span>
-      </div>
+      {(text || tentative || listening || state === 'transcribing') && (
+        <p className="sheet__text">
+          {text}
+          {text && tentative ? ' ' : ''}
+          {tentative && <span className="sheet__tentative">{tentative}…</span>}
+          {!text && !tentative && <span className="sheet__tentative">{listening ? 'Say it out loud…' : 'Transcribing on this Mac…'}</span>}
+        </p>
+      )}
+      {notice && (
+        <p className="sheet__notice mono" role={state === 'permission' || state === 'failed' ? 'alert' : undefined}>
+          {notice}
+        </p>
+      )}
+      {state !== 'empty' && state !== 'permission' && state !== 'failed' && (
+        <div className="sheet__row">
+          <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Save to</span>
+          <SpacePicker value={spaceId} onChange={onSpace} options={spaces} />
+          <span className="mono small-meta" style={onSave ? { flexGrow: 1 } : undefined}>
+            {accessNote ?? ACCESS_NOTE[spaceId] ?? ''}
+          </span>
+          {onSave && (state === 'review' || state === 'saving') && (
+            <button type="button" className="btn btn--dark btn--pill-sm" onClick={onSave} disabled={state === 'saving'}>
+              Save
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,24 +156,55 @@ export function RecordingPill({ title, elapsedSec, onStop }: { title: string; el
   );
 }
 
+export interface ScreenshotProps {
+  description: string;
+  spaceId: string;
+  onSpace: (id: string) => void;
+  onSave: () => void;
+  reading?: boolean;
+  /** When given, the description is an editable title line. */
+  onDescription?: (v: string) => void;
+  /** file:// or data: URL of the capture; the artboard's placeholder lines otherwise. */
+  image?: string;
+  spaces?: SelectOption<string>[];
+  /** Replaces the "text read on this Mac" line: progress, or why nothing was saved. */
+  note?: string;
+  saving?: boolean;
+  /** Nothing to save (Spec 03 §4): the sheet says so and offers only Close. */
+  nothing?: boolean;
+}
+
 /** Capture-Screenshot.dc.html */
-export function ScreenshotSheet({ description, spaceId, onSpace, onSave, reading }: { description: string; spaceId: string; onSpace: (id: string) => void; onSave: () => void; reading?: boolean }) {
+export function ScreenshotSheet({ description, spaceId, onSpace, onSave, reading, onDescription, image, spaces, note, saving, nothing }: ScreenshotProps) {
+  const [broken, setBroken] = useState(false);
   return (
     <div className="sheet sheet--shot" role="dialog" aria-label="Screenshot captured">
-      <div className="thumb" aria-hidden="true">
-        <span style={{ width: '60%', height: 6, borderRadius: 3, background: '#d0cec8' }} />
-        <span style={{ width: '90%', height: 4, borderRadius: 2, background: '#dedcd6' }} />
-        <span style={{ width: '80%', height: 4, borderRadius: 2, background: '#dedcd6' }} />
-      </div>
+      {image && !broken ? (
+        <img className="thumb thumb--img" src={image} alt="" onError={() => setBroken(true)} />
+      ) : (
+        <div className="thumb" aria-hidden="true">
+          <span style={{ width: '60%', height: 6, borderRadius: 3, background: '#d0cec8' }} />
+          <span style={{ width: '90%', height: 4, borderRadius: 2, background: '#dedcd6' }} />
+          <span style={{ width: '80%', height: 4, borderRadius: 2, background: '#dedcd6' }} />
+        </div>
+      )}
       <div className="sheet__col">
-        <span style={{ fontSize: 14.5 }}>{reading ? <span className="sheet__tentative">Reading what is on screen…</span> : description}</span>
-        <div className="sheet__row" style={{ paddingTop: 0 }}>
-          <SpacePicker value={spaceId} onChange={onSpace} />
-          <span className="mono small-meta" style={{ flexGrow: 1 }}>
-            text read on this Mac
+        {reading ? (
+          <span style={{ fontSize: 14.5 }}>
+            <span className="sheet__tentative">Reading what is on screen…</span>
           </span>
-          <button type="button" className="btn btn--dark btn--pill-sm" onClick={onSave} disabled={reading}>
-            Save
+        ) : onDescription && !nothing ? (
+          <input className="sheet__title-input" aria-label="Title" value={description} onChange={(e) => onDescription(e.target.value)} spellCheck={false} />
+        ) : (
+          <span style={{ fontSize: 14.5 }}>{description}</span>
+        )}
+        <div className="sheet__row" style={{ paddingTop: 0 }}>
+          {!nothing && <SpacePicker value={spaceId} onChange={onSpace} options={spaces} />}
+          <span className="mono small-meta" style={{ flexGrow: 1 }}>
+            {note ?? 'text read on this Mac'}
+          </span>
+          <button type="button" className="btn btn--dark btn--pill-sm" onClick={onSave} disabled={reading || saving || (!nothing && !description.trim())}>
+            {nothing ? 'Close' : 'Save'}
           </button>
         </div>
       </div>
