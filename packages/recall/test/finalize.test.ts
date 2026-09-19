@@ -84,6 +84,14 @@ describe("finalize", () => {
     expect(out.map((i) => i.type)).toEqual(["section", "fact", "fact"]);
   });
 
+  it("an item skipped for the budget does not count toward caps or citations", () => {
+    const big = "x".repeat(6001);
+    expect(finalize([section("pg", { text: big, cites: ["fact-1"] }), item({ id: "fact-1" })], 8).map((i) => i.id)).toEqual(["fact-1"]);
+    expect(finalize([section("pg", { text: big }), section("pg"), section("pg")], 8)).toHaveLength(2);
+    const s = "s1";
+    expect(finalize([item({ session_id: s, text: big }), item({ session_id: s }), item({ session_id: s }), item({ session_id: s })], 8)).toHaveLength(3);
+  });
+
   it("does not mutate the input", () => {
     const ranked = [item({}), section("pg")];
     const copy = [...ranked];

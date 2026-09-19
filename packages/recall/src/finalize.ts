@@ -17,28 +17,23 @@ export function finalize(ranked: Scored[], k: number): Scored[] {
 
   for (const item of ranked) {
     if (kept.length >= limit) break;
-
     if (item.type === "section") {
-      const perPage = item.page_id ? (sectionsPerPage.get(item.page_id) ?? 0) : 0;
-      // (a) at most 2 sections of the same page
-      if (item.page_id && perPage >= RECALL.maxSectionsPerPage) continue;
-      // (c) a fact a kept section already cites is redundant.
-      for (const id of item.cites) cited.add(id);
-      sectionsPerPage.set(item.page_id as string, perPage + 1);
+      if (item.page_id && (sectionsPerPage.get(item.page_id) ?? 0) >= RECALL.maxSectionsPerPage) continue; // (a)
     } else {
-      // (c) the section carries this fact's content already.
-      if (cited.has(item.id)) continue;
-      const perSession = item.session_id ? (factsPerSession.get(item.session_id) ?? 0) : 0;
-      // (b) at most 3 facts per session; facts without a session are unlimited.
-      if (item.session_id && perSession >= RECALL.maxFactsPerSession) continue;
-      if (item.session_id) factsPerSession.set(item.session_id, perSession + 1);
+      if (cited.has(item.id)) continue; // (c)
+      if (item.session_id && (factsPerSession.get(item.session_id) ?? 0) >= RECALL.maxFactsPerSession) continue; // (b)
     }
-
-    // (d) the budget never blocks a shorter later item.
+    // (d) a skipped item never counts toward the caps or the citations —
+    // only returned sections and facts are "already kept".
     if (chars + item.text.length > RECALL.charBudget) continue;
-
     chars += item.text.length;
     kept.push(item);
+    if (item.type === "section") {
+      if (item.page_id) sectionsPerPage.set(item.page_id, (sectionsPerPage.get(item.page_id) ?? 0) + 1);
+      for (const id of item.cites) cited.add(id);
+    } else if (item.session_id) {
+      factsPerSession.set(item.session_id, (factsPerSession.get(item.session_id) ?? 0) + 1);
+    }
   }
 
   const sections = kept.filter((item) => item.type === "section");
