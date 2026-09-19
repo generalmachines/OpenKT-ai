@@ -52,7 +52,7 @@ For the desktop app (the follow-up in `src/api/auth.ts`, which this change does 
 
 ## The hook script
 
-`assets/openkt-hook.sh` (installed to `~/.openkt/hooks/openkt-hook.sh`, embedded in `src/assets.generated.ts` by `npm run embed`). POSIX sh, curl, awk, sed, grep: nothing a Mac or a Linux box lacks. Tested with dash and bash `--posix`, and with gawk, mawk, busybox and BWK awk.
+`assets/openkt-hook.sh` (installed to `~/.openkt/hooks/openkt-hook.sh`; it and the skill are embedded into `src/assets.generated.ts`, which build, typecheck, test and the desktop bundle step generate). POSIX sh, curl, awk, sed, grep: nothing a Mac or a Linux box lacks. Tested with dash and bash `--posix`, and with gawk, mawk, busybox and BWK awk.
 
 ```
 openkt-hook.sh <tool> <event>     stdin: the tool's hook JSON        stdout: what that tool reads back

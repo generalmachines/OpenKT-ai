@@ -2,7 +2,8 @@
 /**
  * Embeds assets/openkt-hook.sh and the openkt skill (plugin/skills/openkt, the one skill this repository ships) into
  * src/assets.generated.ts, so the package works the same from dist/, from an esbuild bundle inside the desktop app,
- * and from tests. `--check` fails when the generated file is stale (run by typecheck).
+ * and from tests. The file is generated (not committed) by build, typecheck, pretest and the desktop bundle step, so
+ * an edit to the skill or the script can never ship stale. `--check` fails when the file is stale.
  */
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';

@@ -14,7 +14,8 @@
   "scripts": {
     "embed": "node scripts/embed-assets.mjs",
     "build": "node scripts/embed-assets.mjs && tsc -p tsconfig.build.json",
-    "typecheck": "node scripts/embed-assets.mjs --check && tsc -p tsconfig.json --noEmit",
+    "typecheck": "node scripts/embed-assets.mjs && tsc -p tsconfig.json --noEmit",
+    "pretest": "node scripts/embed-assets.mjs",
     "test": "vitest run"
   },
   "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.0", "vitest": "^3.0.0" }
