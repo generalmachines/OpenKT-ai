@@ -41,7 +41,7 @@ A team can commit the folder to a repository (`.claude/skills/openkt/` and `.age
 ## Level 3 — the Claude plugin
 
 ```bash
-claude plugin marketplace add masti-ai/openkt      # this repository is the marketplace
+claude plugin marketplace add masti-ai/OpenKT-ai      # this repository is the marketplace
 claude plugin install openkt@openkt
 # self-hosted:
 claude plugin install openkt@openkt --config server_url=https://kt.example.com/mcp
@@ -77,8 +77,8 @@ So `hooks/hooks.json` uses one dependency-free Node script, `hooks/openkt-hook.m
 
 `hooks/examples/session-end.mcp_tool.json` is the script-free `SessionEnd` hook, ready for the day `kt_session_start` / `kt_session_end` accept a `client_session_id`. It is not enabled. To run without any hooks, delete `hooks/hooks.json` or disable the plugin's hooks in `/hooks`; nothing else changes. Node is required only for the hooks.
 
-## Placeholders to settle before the first release
+## Names and addresses
 
-- `masti-ai/openkt` stands for the public repository name; it appears in this file, `SETUP_PROMPT.md` and `skills/openkt/references/claude-code.md`. Until the name is final, install from a local checkout: `claude plugin marketplace add ./plugin`.
+- `masti-ai/OpenKT-ai` is the repository and the plugin marketplace; it appears in this file, `SETUP_PROMPT.md` and `skills/openkt/references/claude-code.md`. To try an unmerged change, install from a local checkout: `claude plugin marketplace add ./plugin`.
 - `https://mcp.openkt.ai/mcp` is the hosted server. In the plugin it is one `userConfig` default; in the skill and the setup prompt it is named once as the default, and both tell the model to ask about self-hosting.
 - Validate with `claude plugin validate plugin --strict` and `claude plugin validate . --strict` (the root marketplace). Continuous integration runs both.
