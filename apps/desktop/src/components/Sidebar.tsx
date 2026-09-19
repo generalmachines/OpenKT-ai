@@ -4,6 +4,7 @@ import { useQuery } from '../api/hooks';
 import type { SessionListItem, Space } from '../api/types';
 import { Icon, SOURCE_ICON, type IconName } from './Icon';
 import { SetupProgress } from './SetupProgress';
+import { UpdatePill } from './UpdatePill';
 
 function groupLabel(n: number): string {
   if (n <= 0) return 'Today';
@@ -81,6 +82,8 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       <NavRow to="/settings" icon="gear" label="Settings" active={pathname.startsWith('/settings')} />
       {/* first run: the on-device AI download, until it is done */}
       <SetupProgress />
+      {/* in-app updates: "Update ready — Restart", "what's new" (src/main/update) */}
+      <UpdatePill />
     </nav>
   );
 }

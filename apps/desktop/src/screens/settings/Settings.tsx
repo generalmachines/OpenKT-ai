@@ -1,4 +1,5 @@
 import { NavLink, Navigate, useParams } from 'react-router-dom';
+import { About } from './About';
 import { Account, Workspace } from './Workspace';
 import { Connectors } from './Connectors';
 import { Hotkeys } from './Hotkeys';
@@ -13,6 +14,7 @@ const SECTIONS = [
   ['hotkeys', 'Hotkeys'],
   ['workspace', 'Workspace'],
   ['account', 'Account'],
+  ['about', 'About'],
 ] as const;
 
 type Section = (typeof SECTIONS)[number][0];
@@ -43,6 +45,7 @@ export function Settings() {
         {active === 'hotkeys' && <Hotkeys />}
         {active === 'workspace' && <Workspace />}
         {active === 'account' && <Account />}
+        {active === 'about' && <About />}
       </main>
     </>
   );

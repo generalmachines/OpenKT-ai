@@ -1104,3 +1104,107 @@ html.is-overlay body {
   color: var(--ink-2);
   pointer-events: none;
 }
+
+/* ── in-app updates: Settings → About + the sidebar pill (src/main/update) ── */
+.upd__card {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.upd__card.card--row {
+  flex-direction: row;
+}
+.upd__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.upd__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--active);
+  overflow: hidden;
+}
+.upd__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transition: width 0.25s ease;
+}
+.upd__notes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.upd__error {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--accent);
+}
+.switch {
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  border: 1px solid var(--line-strong);
+  background: var(--active);
+  padding: 0;
+  position: relative;
+  transition: background 0.15s ease;
+}
+.switch[aria-checked='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg);
+  transition: transform 0.15s ease;
+}
+.switch[aria-checked='true'] .switch__knob {
+  transform: translateX(16px);
+}
+.updpill {
+  /* The sidebar footer idiom of .sidesetup (first-run.css): a quiet line under a hairline, no box. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 10px 9px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-decoration: none;
+  text-align: left;
+  flex-shrink: 0;
+  width: 100%;
+}
+.updpill:hover {
+  background: #f0efeb;
+  border-radius: 8px;
+  color: var(--ink);
+}
+.updpill + .updpill,
+.sidesetup + .updpill {
+  margin-top: 0;
+}
+.updpill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+/* ── end in-app updates ── */
