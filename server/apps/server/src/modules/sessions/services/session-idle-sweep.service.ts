@@ -6,7 +6,9 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import { JobQueueRepository } from "../../jobs/repositories/job-queue.repository";
 import { SessionRepository } from "../repositories/session.repository";
+import { MIN_SESSION_CHARS } from "./sessions-application.service";
 
 // Idle-close sweep — M1 "Sessions" (architecture.md §4: "Idle sessions
 // close themselves"). Runs a plain `setInterval` (same pattern as
@@ -30,6 +32,7 @@ export class SessionIdleSweepService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly sessionRepository: SessionRepository,
     private readonly configService: ConfigService,
+    private readonly jobQueue: JobQueueRepository,
   ) {}
 
   onModuleInit(): void {
@@ -63,6 +66,8 @@ export class SessionIdleSweepService implements OnModuleInit, OnModuleDestroy {
       if (closed.length > 0) {
         this.logger.log(`idle-closed ${closed.length} session(s): ${closed.join(", ")}`);
       }
+      // A session closed for being idle is processed like one closed on purpose.
+      for (const id of closed) await this.jobQueue.enqueueSessionOnce(id, MIN_SESSION_CHARS);
     } catch (err) {
       this.logger.error(
         `session idle sweep tick failed: ${err instanceof Error ? err.message : String(err)}`,
