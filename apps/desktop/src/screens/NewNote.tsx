@@ -26,7 +26,8 @@ type Phase = { step: 'write' } | { step: 'extracting' } | { step: 'confirm'; dra
  * layout. Save runs in two beats when this Mac has local AI: the model
  * proposes a title, a summary and facts; the person confirms; then the
  * session, its turn and each fact are filed and the session is closed.
- * Without local AI the note is filed exactly as written.
+ * Without local AI the note is filed as written, and the note itself becomes
+ * its one context item so it can be recalled.
  */
 export function NewNote() {
   const client = useClient();

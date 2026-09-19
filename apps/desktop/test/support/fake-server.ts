@@ -62,7 +62,12 @@ export function createFakeServer(baseUrl: string) {
   const grants: Row[] = [];
   const skills: SkillRow[] = [];
   /** Knobs a test can turn. `google` is what /auth/providers answers; `rateLimited` makes every auth POST a 429. */
-  const state = { google: { enabled: true, client_id: 'test-client.apps.googleusercontent.com' } as { enabled: boolean; client_id?: string; client_secret?: string }, rateLimited: false };
+  const state = {
+    google: { enabled: true, client_id: 'test-client.apps.googleusercontent.com' } as { enabled: boolean; client_id?: string; client_secret?: string },
+    rateLimited: false,
+    /** Mimic the live server's ambiguity: /projects/personal answers with the newest private project, not the personal one. */
+    personalAmbiguous: false,
+  };
   const revoked = new Set<string>();
 
   const project = (owner: FakeUser, slug: string, name: string): Row => {
@@ -378,11 +383,25 @@ export function createFakeServer(baseUrl: string) {
 
     http.get(
       v1('/projects/personal'),
-      authed(({ user }) => ok({ ...personalOf(user), viewer_role: 'owner' })),
+      authed(({ user }) => {
+        const personal = personalOf(user);
+        const newest = projects.filter((p) => p['owner_user_id'] === user.user_id && p['visibility'] === 'personal' && !p['org_id']).at(-1);
+        return ok({ ...(state.personalAmbiguous && newest ? newest : personal), viewer_role: 'owner' });
+      }),
     ),
     http.get(
       v1('/projects'),
-      authed(({ user }) => ok(projects.filter((p) => p['owner_user_id'] === user.user_id))),
+      // Owned and granted, as the live server lists them (checked against api.openkt.ai 2026-09-19).
+      authed(({ user }) => ok(projects.filter((p) => canRead(user, p['id'])))),
+    ),
+    http.post(
+      v1('/projects'),
+      authed(({ user, body }) => {
+        const slug = String(body['slug'] ?? '');
+        if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(slug)) return fail(400, 'validation_failed', 'slug: Invalid');
+        if (projects.some((p) => p['owner_user_id'] === user.user_id && p['slug'] === slug)) return fail(409, 'conflict', 'project slug already exists');
+        return ok(project(user, slug, String(body['name'] ?? slug)), null, 201);
+      }),
     ),
     http.get(
       v1('/projects/:id'),
@@ -470,8 +489,13 @@ export function createFakeServer(baseUrl: string) {
         const projectId = body['project_id'] ?? personalOf(user)['id'];
         if (!canRead(user, projectId)) return fail(404, 'not_found', 'project');
         const words = String(body['query'] ?? '').toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+        // The live server widens a personal-visibility project to the caller's other private projects
+        // (ProjectScopeService.workspaceRing); a project shared with the caller is searched only when named.
+        const primary = projects.find((p) => p['id'] === projectId);
+        const ring = primary?.['visibility'] === 'personal' ? projects.filter((p) => p['owner_user_id'] === user.user_id && p['visibility'] === 'personal' && !p['org_id']).map((p) => p['id']) : [];
+        const scope = new Set([projectId, ...ring]);
         const hits = memories
-          .filter((m) => m['project_id'] === projectId && !m['archived'])
+          .filter((m) => scope.has(m['project_id']) && !m['archived'])
           .map((m) => ({ m, score: words.filter((w) => String(m['content']).toLowerCase().includes(w)).length }))
           .filter((x) => x.score > 0)
           .sort((a, b) => b.score - a.score)

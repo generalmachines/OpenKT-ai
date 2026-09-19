@@ -88,12 +88,13 @@ export function SessionView() {
   const spaces = useQuery((c) => c.listSpaces(), []);
   const connectedTools = useConnectedToolCount(); // tools connected on this Mac (packages/connect)
   const voice = voiceKeys(useHotkeys());
+  const me = useQuery((c) => c.getMe(), []);
 
   if (tab && !(TABS as readonly string[]).includes(tab)) return <Navigate to={`/sessions/${id}`} replace />;
   if (session.error) {
     return (
       <main className="main main--session">
-        <ErrorNote error={session.error} />
+        <ErrorNote error={session.error} onRetry={session.reload} />
       </main>
     );
   }
@@ -109,11 +110,13 @@ export function SessionView() {
   const items = context.data ?? [];
   const spaceName = spaces.data?.find((x) => x.id === s.spaceId)?.name ?? '';
   const tools = connectedTools ?? 0;
+  // Only an owner can list who has access; anyone else reading it was given it.
+  const sharedWithMe = Boolean(me.data && s.authorId && s.authorId !== me.data.id);
   const where = s.extractedOn === 'device' ? 'extracted on this Mac' : s.extractedOn === 'none' ? 'saved as written' : 'extracted on your server';
 
   return (
     <main className="main main--session">
-      <Header session={s} spaceName={spaceName} access={accessSummary(grants.data ?? [])} />
+      <Header session={s} spaceName={spaceName} access={sharedWithMe ? 'shared with you' : accessSummary(grants.data ?? [])} />
       <div className="tabs" role="tablist" aria-label="Session">
         {TABS.map((t) => (
           <NavLink
