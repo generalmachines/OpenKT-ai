@@ -281,6 +281,13 @@
       "when": 1780900000000,
       "tag": "0039_built_in_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0040_skills",
+      "breakpoints": true
     }
   ]
 }
