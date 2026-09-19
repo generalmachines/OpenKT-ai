@@ -1,0 +1,5 @@
+# Root .gitignore ignores dist/. The built bundle is the deliverable the server serves, so commit it.
+!dist/
+dist/*
+!dist/openkt-cards.html
+!dist/openkt-cards.meta.json
