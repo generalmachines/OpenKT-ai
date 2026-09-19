@@ -3,6 +3,7 @@ export * from "./types.js";
 export * from "./caps.js";
 export * from "./chunker.js";
 export * from "./confidence.js";
+export * from "./dedupe.js";
 export * from "./kind-map.js";
 export * from "./route-guards.js";
 export * from "./secrets.js";
