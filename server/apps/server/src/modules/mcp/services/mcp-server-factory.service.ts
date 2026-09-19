@@ -23,6 +23,7 @@ import {
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
 import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
 import { SkillsApplicationService } from "../../skills/services/skills-application.service";
+import { registerCardTools } from "./mcp-card-tools";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
 
 // The contract every connected tool should follow — kept here (not
@@ -86,7 +87,14 @@ export class McpServerFactoryService {
     return sdkExportsPromise;
   }
 
-  async build(context: ActorContext): Promise<InstanceType<SdkExports["McpServer"]>> {
+  // `ui`: the client advertised the MCP Apps extension (io.modelcontextprotocol/ui),
+  // so the card tools and the ui://openkt/cards.html resource are registered too.
+  // See mcp-apps.ts for how the controller works that out.
+  // `serverUrl`: this server's public /mcp URL, for kt_setup (default: the hosted one).
+  async build(
+    context: ActorContext,
+    options: { ui?: boolean; serverUrl?: string } = {},
+  ): Promise<InstanceType<SdkExports["McpServer"]>> {
     const { McpServer } = await sdkExportsPromise;
     const server = new McpServer(
       {
@@ -479,8 +487,9 @@ export class McpServerFactoryService {
       {
         title: "Setup guidance",
         description:
-          "Return paste-able steps for connecting an AI tool to this OpenKT server. " +
-          "Call this when the user asks how to set OpenKT up in another client.",
+          "Return paste-able steps for connecting an AI tool (claude.ai, Cowork, ChatGPT, Codex, Claude Code, " +
+          "Cursor, a browser agent) to this OpenKT server. Call this when the user asks how to set OpenKT up in " +
+          "another client or for a teammate.",
         inputSchema: z.object({
           client: z
             .string()
@@ -495,8 +504,19 @@ export class McpServerFactoryService {
           idempotentHint: true,
         },
       },
-      async (input) => textResult(setupGuidance(input.client)),
+      async (input) => textResult(setupGuidance(input.client, options.serverUrl)),
     );
+
+    if (options.ui) {
+      registerCardTools(server, context, {
+        memoryCommands: this.memoryCommands,
+        memoryQueries: this.memoryQueries,
+        memoryRecall: this.memoryRecall,
+        projectsApp: this.projectsApp,
+        projectScope: this.projectScope,
+        sessionsApp: this.sessionsApp,
+      });
+    }
 
     return server;
   }
@@ -632,18 +652,73 @@ function textAndStructured(text: string, structured: object) {
   };
 }
 
-function setupGuidance(client?: string): string {
-  const target = client?.trim() ? client.trim() : "your AI tool";
+// Paste-able setup steps. Says the same as plugin/SETUP-PROMPT.md: OAuth in
+// the browser for every client, no token to paste, then the session contract.
+export const HOSTED_MCP_URL = "https://mcp.openkt.ai/mcp";
+const SETUP_STEPS: Array<{ match: RegExp; label: string; steps: (url: string) => string }> = [
+  {
+    match: /claude\.ai|claude[ -]?(desktop|web|app)|cowork|^claude$/i,
+    label: "claude.ai, Claude Desktop, Cowork",
+    steps: (url) =>
+      `Customize (or Settings) → Connectors → Add custom connector → name "OpenKT", URL ${url} → Add → Connect, and sign in. ` +
+      "Team/Enterprise: an owner adds it first under Organization settings → Connectors. " +
+      "Cowork can also install the plugin: Customize → Plugins → Add marketplace → masti-ai/OpenKT-ai → install OpenKT.",
+  },
+  {
+    match: /chatgpt|openai(?! ?codex)/i,
+    label: "ChatGPT",
+    steps: (url) =>
+      "Settings → Security and login → turn on Developer mode. Open https://chatgpt.com/plugins → + → " +
+      `name "OpenKT", MCP server URL ${url}, authentication OAuth → create, and sign in. Then add OpenKT to the chat from the tools menu.`,
+  },
+  {
+    match: /codex/i,
+    label: "Codex (CLI, IDE, app)",
+    steps: (url) =>
+      `codex mcp add openkt --url ${url}  then  codex mcp login openkt. ` +
+      `Same as ~/.codex/config.toml: [mcp_servers.openkt] url = "${url}".`,
+  },
+  {
+    match: /claude[ -]?code|^cc$/i,
+    label: "Claude Code",
+    steps: (url) =>
+      `claude mcp add --transport http --scope user openkt ${url}  then /mcp → openkt → sign in. ` +
+      "Or the plugin (server + skill + commands): /plugin marketplace add masti-ai/OpenKT-ai, then /plugin install openkt@openkt.",
+  },
+  {
+    match: /cursor/i,
+    label: "Cursor",
+    steps: (url) =>
+      `In ~/.cursor/mcp.json add "openkt": { "url": "${url}" } inside mcpServers (merge, do not overwrite), ` +
+      "then enable openkt in Cursor's MCP settings and sign in.",
+  },
+  {
+    match: /.*/,
+    label: "A browser agent or any other MCP client",
+    steps: (url) =>
+      `Add a remote MCP server (Streamable HTTP) named openkt, URL ${url}, authentication OAuth. ` +
+      "Leave client ID and secret empty; the server registers the client itself.",
+  },
+];
+
+export function setupGuidance(client?: string, serverUrl: string = HOSTED_MCP_URL): string {
+  const wanted = client?.trim();
+  const first = wanted ? SETUP_STEPS.find((s) => s.match.test(wanted)) : undefined;
+  const ordered = first ? [first, ...SETUP_STEPS.filter((s) => s !== first)] : SETUP_STEPS;
   return [
-    `Connecting ${target} to OpenKT:`,
-    "1. Add a remote MCP server (Streamable HTTP) pointing at <your OpenKT server URL>/mcp.",
-    "2. Authenticate. Clients that support OAuth sign in through the browser when they first connect. " +
-      "Otherwise create a personal access token (POST /v1/me/tokens) and send it as " +
-      "`Authorization: Bearer okt_pat_…`.",
-    "3. Check the connection by calling kt_list_projects — it lists the spaces you can read and write.",
-    "4. Then work as the server instructions describe: kt_session_start at the start of work, " +
-      "kt_recall before non-trivial work, kt_save_memory when something durable is settled, " +
-      "kt_session_end when the work ends.",
+    `Connect ${wanted || "your AI tool"} to OpenKT — server ${serverUrl}. Sign-in is OAuth in the browser ` +
+      "(email and password, or Create an account). Nobody pastes a password, token or API key into a chat or a config file.",
+    "",
+    ...ordered.map((s) => `• ${s.label}: ${s.steps(serverUrl)}`),
+    "",
+    "Some clients show new tools only in a new chat or after a restart.",
+    "",
+    "Then, in every session: kt_session_start at the start of real work (keep the session_id) · kt_recall before non-trivial " +
+      "work and whenever the user mentions a decision, person, customer or system · kt_save_memory right when something " +
+      "durable is settled, one short self-contained statement, never secrets · kt_list_skills / kt_get_skill for " +
+      '"the way we do it" · kt_session_end with a 2–3 sentence summary.',
+    "Check the connection: call kt_session_start and kt_list_projects.",
+    "The same steps as a prompt anyone can paste into their AI tool: https://github.com/masti-ai/OpenKT-ai/blob/main/plugin/SETUP-PROMPT.md",
   ].join("\n");
 }
 
