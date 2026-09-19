@@ -184,6 +184,10 @@ export function describeAuthError(e: unknown, mode: AuthMode, customServer = fal
   }
   if (e.kind === 'rate-limited') return 'Too many tries. Wait a few minutes and try again.';
   if (mode === 'token' && (e.kind === 'unauthorized' || e.kind === 'forbidden')) return 'That access token didn’t work. Check it and try again.';
+  // Only a sign-in can have a wrong password. A sign-up the server refuses with 401 means
+  // the server itself cannot create accounts (an old or misconfigured one).
+  if (e.kind === 'unauthorized' && mode === 'signup')
+    return customServer ? 'That server can’t create accounts. Choose “Use OpenKT instead”, or ask whoever runs it.' : 'We couldn’t create your account right now. Please try again.';
   if (e.kind === 'unauthorized') return mode === 'google' ? 'Google sign-in didn’t work for that account. Try again.' : 'That email and password don’t match.';
   if (e.kind === 'conflict') return 'There’s already an account with that email — sign in instead.';
   if (e.kind === 'not-found') return customServer ? 'That address doesn’t look like OpenKT. Check it and try again.' : 'Can’t reach OpenKT right now. Try again in a moment.';
