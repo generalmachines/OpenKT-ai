@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -67,5 +67,37 @@ describe('LlamaLocalAi', () => {
     const status = await a.status();
     expect(status.cpuFallback).toBe(true);
     expect(status.servers.embed.state).toBe('ready');
+  });
+
+  it('vision: the chat server gets --mmproj once the projector is on disk, and is restarted if it was already up', async () => {
+    const a = make();
+    expect(a.visionAvailable()).toBe(false);
+    expect(await a.visionBaseUrl()).toBeNull();
+    const before = await a.chatBaseUrl();
+    expect(a.chatServer.lastArgs).not.toContain('--mmproj');
+    const firstPid = a.chatServer.pid;
+
+    // A sparse file of the manifest's size stands in for the 0.67 GB projector.
+    const mmproj = a.store.pathOf('mmproj');
+    mkdirSync(join(mmproj, '..'), { recursive: true });
+    writeFileSync(mmproj, '');
+    truncateSync(mmproj, chooseModels(loadManifest(), 16 * GIB).mmproj.bytes);
+    expect(a.visionAvailable()).toBe(true);
+
+    const url = await a.visionBaseUrl();
+    expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);
+    expect(a.chatServer.pid).not.toBe(firstPid);
+    expect(a.chatServer.lastArgs.slice(a.chatServer.lastArgs.indexOf('--mmproj'))).toEqual(['--mmproj', mmproj]);
+    expect(before).toMatch(/\/v1$/);
+    // already serving with the projector: no second restart
+    const pid = a.chatServer.pid;
+    await a.visionBaseUrl();
+    expect(a.chatServer.pid).toBe(pid);
+
+    // after the GPU → CPU fallback the projector stays off the GPU too
+    a.cpuFallback = true;
+    await a.chatServer.stop();
+    await a.chatBaseUrl();
+    expect(a.chatServer.lastArgs).toContain('--no-mmproj-offload');
   });
 });

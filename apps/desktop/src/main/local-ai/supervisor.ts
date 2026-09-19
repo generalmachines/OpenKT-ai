@@ -14,6 +14,8 @@ export interface SupervisorOptions {
   binary: string;
   /** Arguments; `--host 127.0.0.1 --port <n>` are appended. */
   args: string[];
+  /** Extra arguments decided at every spawn (the vision projector, once it is on disk). */
+  dynamicArgs?: () => string[];
   /** Max automatic restarts after a crash. Default 3. */
   maxRestarts?: number;
   /** Stop the process after this long without `touch()`. 0 = never. */
@@ -50,6 +52,8 @@ export class LlamaServer {
   private idleTimer: NodeJS.Timeout | null = null;
   private wanted = false;
   private readonly tail: string[] = [];
+  /** Arguments of the most recent spawn (without host/port). */
+  lastArgs: string[] = [];
 
   constructor(private readonly opts: SupervisorOptions) {}
 
@@ -149,7 +153,8 @@ export class LlamaServer {
     this.state = 'starting';
     this.port = await freePort();
     const dir = dirname(this.opts.binary);
-    const child = spawn(this.opts.binary, [...this.opts.args, '--host', '127.0.0.1', '--port', String(this.port)], {
+    this.lastArgs = [...this.opts.args, ...(this.opts.dynamicArgs?.() ?? [])];
+    const child = spawn(this.opts.binary, [...this.lastArgs, '--host', '127.0.0.1', '--port', String(this.port)], {
       cwd: dir,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...this.opts.env },

@@ -45,7 +45,13 @@ export type IpcChannel =
   | 'models:ensure'
   | 'models:progress'
   | 'local-ai:extract-note'
-  | 'local-ai:embed';
+  | 'local-ai:embed'
+  | 'voice:begin'
+  | 'voice:chunk'
+  | 'voice:end'
+  | 'voice:to-session'
+  | 'voice:cancel'
+  | 'screenshot:capture';
 
 /** A server request made by main for the renderer (file:// origins fail the server's CORS allowlist). */
 export interface NetRequest {
@@ -62,7 +68,7 @@ export interface NetResponse {
 
 // ── Local models (main: src/main/models + src/main/local-ai; see src/main/models/README.md) ──
 
-export type ModelRoleDto = 'embed' | 'llm' | 'mmproj';
+export type ModelRoleDto = 'embed' | 'llm' | 'whisper' | 'mmproj';
 export type ModelStateDto = 'missing' | 'partial' | 'downloading' | 'verifying' | 'ready' | 'error';
 
 export interface ModelStatusDto {
@@ -121,6 +127,61 @@ export interface ExtractedNoteDto {
   notes: string[];
 }
 
+// ── Voice notes and screenshots (main: src/main/capture; see src/main/models/README.md) ──
+
+/** `permission_denied`: macOS refused the microphone or screen recording. `not_ready`: the speech model is still downloading. */
+export interface CaptureFailureDto {
+  error: 'permission_denied' | 'not_ready' | 'unknown_id' | 'failed';
+  message: string;
+}
+
+export interface VoiceTranscriptDto {
+  empty?: false;
+  /** After the code-only cleanup (English fillers, repeated words). This is the text to save. */
+  text: string;
+  raw_text: string;
+  segments: { t0_ms: number; t1_ms: number; text: string }[];
+  /** ISO 639-1 code whisper detected, e.g. "en", "th", "hi". */
+  language: string;
+  duration_ms: number;
+  transcribe_ms: number;
+  used_gpu: boolean;
+  audio_path?: string;
+}
+
+/** Under 1.5 s, silence, or no words: nothing is created. */
+export interface VoiceEmptyDto {
+  empty: true;
+  duration_ms: number;
+  reason: 'too_short' | 'silence' | 'no_speech';
+}
+
+export interface VoiceSessionDto {
+  title: string;
+  summary: string;
+  facts: { kind: string; statement: string; quote: string }[];
+  status: 'ok' | 'partial' | 'noop';
+}
+
+export interface ScreenshotResultDto {
+  cancelled?: true;
+  /** Generic description and under 20 characters of text: nothing saved (`nothing` is the same flag). */
+  nothing_to_save?: true;
+  nothing?: true;
+  image_path: string;
+  visible_text: string;
+  description: string;
+  entities: string[];
+  facts: { kind: string; statement: string; quote: string }[];
+  title: string;
+  /** "unavailable": the vision projector is not downloaded yet, so only OCR + extract ran. */
+  vision: 'ok' | 'unavailable' | 'failed';
+  ocr_chars: number;
+  dropped_facts: { statement: string; reason: string }[];
+  latency_ms: { ocr: number; resize: number; describe: number; extract: number };
+  notes: string[];
+}
+
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
 export interface OpenKTBridge {
   platform: string;
@@ -153,6 +214,24 @@ export interface OpenKTBridge {
     extractNote(input: { text: string; title?: string; date?: string; source?: string; author?: string }): Promise<ExtractedNoteDto>;
     /** Unit-norm 1024-dim vectors. kind "query" adds the retrieval instruction prefix. */
     embed(texts: string[], kind: 'query' | 'document'): Promise<number[][]>;
+  };
+  /** The renderer records (getUserMedia); main transcribes with whisper.cpp. Not streaming: text arrives from `end`. */
+  voice: {
+    /** Asks macOS for the microphone first. Resolves with the recording id, or `{error:'permission_denied'}`. */
+    begin(): Promise<string | CaptureFailureDto>;
+    /** 16 kHz mono PCM16, any chunk size. Audio past ten minutes is dropped. */
+    chunk(id: string, pcm16: ArrayBuffer): Promise<{ ok: boolean; duration_ms: number }>;
+    end(id: string, opts?: { language?: string; keepAudio?: boolean }): Promise<VoiceTranscriptDto | VoiceEmptyDto | CaptureFailureDto>;
+    /** summarise + extract over the transcript of `id`; call once, after `end`. */
+    toSession(id: string): Promise<VoiceSessionDto | CaptureFailureDto>;
+    /** Drops the recording and its transcript. */
+    cancel(id: string): Promise<void>;
+  };
+  screenshot: {
+    /** `interactive`: the macOS region picker (Esc → `{cancelled:true}`). `file`: an existing image. */
+    capture(opts: { mode: 'interactive' | 'file'; path?: string; caption?: string }): Promise<ScreenshotResultDto | { cancelled: true } | CaptureFailureDto>;
+    /** The path of a dropped `File` (Electron removed `File.path`). */
+    pathForFile(file: File): string;
   };
   net: {
     request(req: NetRequest): Promise<NetResponse>;

@@ -17,6 +17,10 @@ describe('RAM-based model choice', () => {
     expect(chooseModels(manifest, 8 * GIB).llm.file).toBe('Qwen3.5-2B-Q4_K_M.gguf');
     expect(chooseModels(manifest, 24 * GIB).llm.file).toBe('Qwen3.5-4B-Q4_K_M.gguf');
     expect(chooseModels(manifest, 64 * GIB, '2b').llm.id).toBe('llm-2b');
+    expect(chooseModels(manifest, 16 * GIB).whisper.file).toBe('ggml-large-v3-turbo-q5_0.bin');
+    expect(chooseModels(manifest, 8 * GIB).whisper.file).toBe('ggml-small.bin');
+    expect(chooseModels(manifest, 16 * GIB, undefined, 'base').whisper.file).toBe('ggml-base.bin');
+    expect(manifest.whisper.tag).toMatch(/^v\d+\.\d+\.\d+$/);
   });
 
   it('the manifest pins repo, revision, size and sha256 for every file', () => {
@@ -61,7 +65,7 @@ describe('ModelStore', () => {
   it('status: missing → partial → error, with the message kept for the UI', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'okt-store-'));
     const store = new ModelStore({ dir, plan, download: async () => { throw new Error('gave up after 6 attempts: HTTP 503'); } });
-    expect((await store.status()).map((s) => s.state)).toEqual(['missing', 'missing', 'missing']);
+    expect((await store.status()).map((s) => s.state)).toEqual(['missing', 'missing', 'missing', 'missing']);
     writeFileSync(`${store.pathOf('llm')}.part`, 'abc');
     expect((await store.status(['llm']))[0]).toMatchObject({ state: 'partial', receivedBytes: 3 });
     const events: ModelsProgress[] = [];

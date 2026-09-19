@@ -3,7 +3,7 @@
  * context isolation, so it may require nothing but `electron`, and exposes a
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { CaptureEvent, HotkeyInfo, IpcChannel, ModelsProgressDto, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
@@ -41,6 +41,23 @@ const bridge: OpenKTBridge = {
   localAi: {
     extractNote: (input) => ipcRenderer.invoke(ch('local-ai:extract-note'), { ...input, text: String(input?.text ?? '') }),
     embed: (texts, kind) => ipcRenderer.invoke(ch('local-ai:embed'), texts, kind === 'query' ? 'query' : 'document'),
+  },
+  voice: {
+    begin: () => ipcRenderer.invoke(ch('voice:begin')),
+    chunk: (id, pcm16) => ipcRenderer.invoke(ch('voice:chunk'), String(id), pcm16),
+    end: (id, opts) => ipcRenderer.invoke(ch('voice:end'), String(id), { language: opts?.language, keepAudio: opts?.keepAudio === true }),
+    toSession: (id) => ipcRenderer.invoke(ch('voice:to-session'), String(id)),
+    cancel: (id) => ipcRenderer.invoke(ch('voice:cancel'), String(id)),
+  },
+  screenshot: {
+    capture: (opts) => ipcRenderer.invoke(ch('screenshot:capture'), { mode: opts?.mode === 'file' ? 'file' : 'interactive', path: typeof opts?.path === 'string' ? opts.path : undefined, caption: typeof opts?.caption === 'string' ? opts.caption : undefined }),
+    pathForFile: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return '';
+      }
+    },
   },
   net: {
     request: (req: NetRequest) => ipcRenderer.invoke(ch('net:request'), req) as Promise<NetResponse>,

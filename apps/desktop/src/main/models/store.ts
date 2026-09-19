@@ -1,4 +1,4 @@
-/** Which models are on disk, and fetching the ones that are not. Embeddings first (small), then the LLM. */
+/** Which models are on disk, and fetching the ones that are not. Embeddings first (small), then the LLM, then speech, then the vision projector. */
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { downloadFile, type DownloadOptions, type DownloadResult } from './downloader';
@@ -30,7 +30,7 @@ export interface ModelsProgress {
   error?: string;
 }
 
-export const DOWNLOAD_ORDER: readonly ModelRole[] = ['embed', 'llm', 'mmproj'];
+export const DOWNLOAD_ORDER: readonly ModelRole[] = ['embed', 'llm', 'whisper', 'mmproj'];
 
 export interface ModelStoreOptions {
   dir: string;

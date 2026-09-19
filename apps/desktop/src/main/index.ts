@@ -1,6 +1,7 @@
 import { app, ipcMain, session } from 'electron';
 import type { CaptureEvent, IpcChannel, OverlayKind } from '../shared/ipc';
 import { createCaptureService, type MeetingDetected } from './capture';
+import { getVoice, installPermissionPolicy, registerCaptureIpc } from './capture/ipc';
 import { StubEngine } from './engine/stub';
 import { autoEnsureModels, disposeLocalAi, registerLocalAiIpc } from './local-ai/ipc';
 import { isSmoke, runSmoke } from './local-ai/smoke';
@@ -9,7 +10,7 @@ import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortc
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
 
-// The seam: swap StubEngine for the Swift engine client here, nothing else changes.
+// Voice notes and screenshots are real (./capture/ipc.ts). The stub engine remains for MEETINGS only.
 const engine = new StubEngine();
 const capture = createCaptureService(engine);
 let pendingMeeting: MeetingDetected | null = null;
@@ -21,19 +22,28 @@ function broadcast(event: CaptureEvent): void {
   for (const win of allWindows()) win.webContents.send('capture:event' satisfies IpcChannel, event);
 }
 
+/**
+ * Voice: the overlay window records and drives voice.begin/chunk/end itself. The hotkey only
+ * opens it, and on the next press tells it to stop (then save) with a `voice.final` event —
+ * the signal the overlay already listens for.
+ */
+let voiceOverlay: Electron.BrowserWindow | null = null;
+/** See 'overlay:close' below. */
+let ignoreVoiceCloseBetween: [number, number] = [0, 0];
+
 async function startVoiceNote(): Promise<void> {
-  await showOverlay('voice');
-  await capture.startVoice();
+  voiceOverlay = await showOverlay('voice');
 }
 
 async function toggleVoice(): Promise<void> {
-  if (capture.isListening) await capture.stopVoice();
-  else await startVoiceNote();
+  if (!voiceOverlay || voiceOverlay.isDestroyed()) return startVoiceNote();
+  if (getVoice().activeCount > 0) ignoreVoiceCloseBetween = [Date.now() + 1100, Date.now() + 1800];
+  voiceOverlay.webContents.send('capture:event' satisfies IpcChannel, { type: 'voice.final', captureId: 'hotkey', text: '', durationSec: 0 } satisfies CaptureEvent);
 }
 
+/** The overlay calls screenshot.capture({mode:'interactive'}) when it mounts; main hides it while the picker is up. */
 async function captureScreenshot(): Promise<void> {
   await showOverlay('screenshot');
-  await capture.captureScreenshot();
 }
 
 function isOverlayKind(v: unknown): v is OverlayKind {
@@ -58,7 +68,11 @@ function registerIpc(): void {
   });
   handle('overlay:close', async (kind) => {
     if (!isOverlayKind(kind)) return;
-    if (kind === 'voice' && capture.isListening) await capture.stopVoice();
+    // The overlay's pre-IPC listener closes the window 1.4 s after any `voice.final`, which would
+    // cut off a transcription the hotkey just started. Ignore exactly that close while a recording
+    // is still held (save, discard and "nothing heard" all release it first). Remove with that listener.
+    const now = Date.now();
+    if (kind === 'voice' && now >= ignoreVoiceCloseBetween[0] && now <= ignoreVoiceCloseBetween[1] && getVoice().activeCount > 0) return;
     closeOverlay(kind);
   });
   handle('app:open-main', (route) => void openMainWindow(typeof route === 'string' && route.startsWith('/') ? route : undefined));
@@ -73,11 +87,12 @@ if (!app.requestSingleInstanceLock()) {
   app.on('web-contents-created', (_e, contents) => hardenWebContents(contents));
 
   void app.whenReady().then(async () => {
-    // The renderer never needs a browser permission: the engine owns the mic and screen.
-    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    // The voice overlay records with getUserMedia: microphone for the app's own pages, nothing else.
+    installPermissionPolicy(session.defaultSession);
 
     registerIpc();
     registerLocalAiIpc(allWindows);
+    registerCaptureIpc();
     if (isSmoke()) return void runSmoke(() => openMainWindow());
     registerNetIpc();
     capture.onEvent(broadcast);

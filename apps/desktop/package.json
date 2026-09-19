@@ -19,10 +19,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "test": "vitest run",
     "shots": "node scripts/shots.mjs",
-    "dist:mac": "npm run build && node scripts/fetch-llama.mjs && node scripts/dist-mac.mjs",
+    "dist:mac": "npm run build && node scripts/fetch-llama.mjs && bash scripts/build-whisper.sh && bash scripts/build-ocr.sh && node scripts/dist-mac.mjs",
     "test:main": "vitest run --config test/main/vitest.config.mts",
     "fetch:llama": "node scripts/fetch-llama.mjs",
-    "smoke:local-ai": "node scripts/smoke-local-ai.mjs"
+    "smoke:local-ai": "node scripts/smoke-local-ai.mjs",
+    "smoke:capture": "node scripts/smoke-capture.mjs",
+    "build:whisper": "bash scripts/build-whisper.sh",
+    "build:ocr": "bash scripts/build-ocr.sh"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

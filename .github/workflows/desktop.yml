@@ -36,7 +36,7 @@ jobs:
       - name: Typecheck main process
         working-directory: apps/desktop
         run: npx tsc -p tsconfig.main.json --noEmit
-      - name: Unit tests — main process (downloader, model choice, supervisor)
+      - name: Unit tests — main process (downloader, model choice, supervisor, voice, screenshot, permissions)
         working-directory: apps/desktop
         run: npm run test:main
       - name: Typecheck + unit tests — renderer (owned by the UI work; reported, not gating the DMG)
@@ -53,6 +53,19 @@ jobs:
           node scripts/fetch-llama.mjs
           ls -la resources/llama
           ./resources/llama/llama-server --version
+      - name: whisper.cpp build cache (keyed on the pinned tag)
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/resources/whisper
+          key: whisper-cli-macos14-arm64-${{ hashFiles('apps/desktop/scripts/build-whisper.sh') }}-${{ hashFiles('apps/desktop/src/main/models/models.manifest.json') }}
+      - name: Build whisper-cli (pinned tag, static, Metal, embedded shader library)
+        working-directory: apps/desktop
+        run: |
+          bash scripts/build-whisper.sh
+          ./resources/whisper/whisper-cli --help 2>&1 | grep -E -- "--output-json |--output-file|--no-prints|--no-gpu|--language" 
+      - name: Compile openkt-ocr (Swift, Apple Vision)
+        working-directory: apps/desktop
+        run: bash scripts/build-ocr.sh
       - name: Package (signed when secrets exist, otherwise ad-hoc)
         working-directory: apps/desktop
         env:
@@ -77,6 +90,9 @@ jobs:
         run: |
           APP="release/mac-arm64/OpenKT.app"
           ls -la "$APP/Contents/Resources/llama" | head -50
+          ls -la "$APP/Contents/Resources/whisper" "$APP/Contents/Resources/ocr"
+          test -x "$APP/Contents/Resources/whisper/whisper-cli" && test -x "$APP/Contents/Resources/ocr/openkt-ocr"
+          plutil -p "$APP/Contents/Info.plist" | grep -E "NSMicrophoneUsageDescription|NSScreenCaptureUsageDescription|LSMinimumSystemVersion"
           codesign -dv --verbose=2 "$APP" 2>&1 | head -20 || true
           codesign --verify --deep --strict "$APP" && echo "codesign verify: ok"
           spctl -a -vv "$APP" 2>&1 || true
@@ -165,8 +181,88 @@ jobs:
           path: ${{ runner.temp }}/smoke-local-ai-report.json
           retention-days: 14
 
+  capture-smoke:
+    name: capture-smoke (say → whisper → facts · Vision OCR → describe_image → facts)
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @openkt/agents
+      - name: Build main process
+        working-directory: apps/desktop
+        run: npm run build:main
+      - name: Fetch pinned llama.cpp release
+        working-directory: apps/desktop
+        run: |
+          node scripts/fetch-llama.mjs
+          ./resources/llama/llama-server --help 2>&1 | grep -E -A1 -- "--mmproj|--no-mmproj-offload" | head -20
+      - name: whisper.cpp build cache (keyed on the pinned tag)
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/resources/whisper
+          key: whisper-cli-macos14-arm64-${{ hashFiles('apps/desktop/scripts/build-whisper.sh') }}-${{ hashFiles('apps/desktop/src/main/models/models.manifest.json') }}
+      - name: Build whisper-cli (pinned tag, static, Metal, embedded shader library)
+        working-directory: apps/desktop
+        run: |
+          bash scripts/build-whisper.sh
+          ./resources/whisper/whisper-cli --help 2>&1 | grep -E -- "--output-json |--output-file|--no-prints|--no-gpu|--language" 
+      - name: Compile openkt-ocr (Swift, Apple Vision)
+        working-directory: apps/desktop
+        run: bash scripts/build-ocr.sh
+      - name: Model cache (LLM 2B + mmproj + whisper base)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MODELS_DIR }}
+          key: capture-models-${{ hashFiles('apps/desktop/src/main/models/models.manifest.json') }}
+      - name: Speak the voice note (say → afconvert → 16 kHz mono PCM16 WAV)
+        run: |
+          say -v Samantha -o "$RUNNER_TEMP/v.aiff" "We decided to quote Northgate per store, not per seat. Ana sends the revised quote before Friday."
+          afconvert -f WAVE -d LEI16@16000 -c 1 "$RUNNER_TEMP/v.aiff" "$RUNNER_TEMP/v.wav"
+          afinfo "$RUNNER_TEMP/v.wav" | grep -E "Data format|estimated duration"
+      - name: openkt-ocr on the fixture, and on a file that is not an image
+        working-directory: apps/desktop
+        run: |
+          ./resources/ocr/openkt-ocr test/fixtures/pricing-page.png | tee "$RUNNER_TEMP/ocr.json" | jq -r '.text'
+          jq -e '.text | contains("Per-store billing") and contains("$49")' "$RUNNER_TEMP/ocr.json"
+          set +e; ./resources/ocr/openkt-ocr package.json > "$RUNNER_TEMP/ocr-bad.json"; CODE=$?; set -e
+          cat "$RUNNER_TEMP/ocr-bad.json"; echo "exit code: $CODE"
+          test "$CODE" != "0" && jq -e '.error | length > 0' "$RUNNER_TEMP/ocr-bad.json"
+      - name: Smoke
+        working-directory: apps/desktop
+        env:
+          OPENKT_MODELS_DIR: ${{ env.MODELS_DIR }}
+          OPENKT_MODEL_TIER: 2b
+          OPENKT_WHISPER_MODEL: base
+          OPENKT_VOICE_WAV: ${{ runner.temp }}/v.wav
+          OPENKT_SMOKE_VISION: try
+          OPENKT_SMOKE_REPORT: ${{ runner.temp }}/smoke-capture-report.json
+        run: |
+          sysctl -n machdep.cpu.brand_string hw.memsize
+          node scripts/smoke-capture.mjs
+      - name: Report → summary
+        if: always()
+        run: |
+          R="${{ runner.temp }}/smoke-capture-report.json"
+          echo "vision executed on macOS: $(jq -r '.visionExecuted' "$R" 2>/dev/null)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          jq 'del(.screenshot.visible_text, .ocr.text)' "$R" >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$MODELS_DIR"/*.part || true
+          ls -la "$MODELS_DIR" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capture-smoke-report
+          path: ${{ runner.temp }}/smoke-capture-report.json
+          retention-days: 14
+
   app-launch-smoke:
-    name: app-launch-smoke (packaged app runs its bundled llama)
+    name: app-launch-smoke (packaged app runs its bundled llama, whisper-cli and openkt-ocr)
     needs: [build, local-ai-smoke]
     runs-on: macos-14
     timeout-minutes: 20
@@ -201,7 +297,8 @@ jobs:
           cp -R "/Volumes/openkt-smoke/OpenKT.app" "$HOME/Applications/"
           hdiutil detach /Volumes/openkt-smoke
           APP="$HOME/Applications/OpenKT.app"
-          ls -la "$APP/Contents/Resources/llama/llama-server"
+          ls -la "$APP/Contents/Resources/llama/llama-server" "$APP/Contents/Resources/whisper/whisper-cli" "$APP/Contents/Resources/ocr/openkt-ocr"
+          codesign -dv "$APP/Contents/Resources/whisper/whisper-cli" "$APP/Contents/Resources/ocr/openkt-ocr" 2>&1 | grep -E "Identifier|Signature|flags" || true
           codesign --verify --deep --strict "$APP" && echo "codesign verify: ok"
           otool -L "$APP/Contents/Resources/llama/llama-server"
       - name: Launch the way a user does (LaunchServices, `open -a`) with OPENKT_SMOKE=1
@@ -215,6 +312,7 @@ jobs:
             --env OPENKT_SMOKE=1 \
             --env "OPENKT_SMOKE_OUT=$OPENKT_SMOKE_OUT" \
             --env "OPENKT_MODELS_DIR=$MODELS_DIR" \
+            --env "OPENKT_SMOKE_OCR_IMAGE=$GITHUB_WORKSPACE/apps/desktop/test/fixtures/pricing-page.png" \
             --stdout "$RUNNER_TEMP/app.log" --stderr "$RUNNER_TEMP/app.log" &
           OPEN_PID=$!
           for i in $(seq 1 330); do kill -0 $OPEN_PID 2>/dev/null || break; sleep 1; done
@@ -223,6 +321,11 @@ jobs:
           cat "$OPENKT_SMOKE_OUT"
           test "$(jq -r '.ok' "$OPENKT_SMOKE_OUT")" = "true"
           test "$(jq -r '.packaged' "$OPENKT_SMOKE_OUT")" = "true"
+          # The bundled helpers survived packaging, the DMG and ad-hoc signing:
+          test "$(jq -r '.whisper.exitCode' "$OPENKT_SMOKE_OUT")" = "0"
+          test "$(jq -r '.ocr.exitCode' "$OPENKT_SMOKE_OUT")" = "0"
+          jq -e '.ocr.text | contains("Per-store billing") and contains("$49")' "$OPENKT_SMOKE_OUT"
+          jq -e '.steps | index("whisper-cli --help") and index("openkt-ocr")' "$OPENKT_SMOKE_OUT"
           if pgrep -f "Resources/llama/llama-server"; then echo "orphan llama-server"; exit 1; fi
       - name: Result → summary
         if: always()

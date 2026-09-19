@@ -22,9 +22,12 @@ export interface ModelFile {
 export interface Manifest {
   models: Record<string, Omit<ModelFile, 'id'>>;
   llama: { tag: string; asset: string; url: string; bytes: number; sha256: string };
+  /** whisper.cpp is built from source in CI at this pinned tag (scripts/build-whisper.sh). */
+  whisper: { repo: string; tag: string; commit: string };
 }
 
-export type ModelRole = 'embed' | 'llm' | 'mmproj';
+export type ModelRole = 'embed' | 'llm' | 'whisper' | 'mmproj';
+export type WhisperSize = 'turbo' | 'small' | 'base';
 export type ModelPlan = Record<ModelRole, ModelFile>;
 
 export function loadManifest(path = join(__dirname, 'models.manifest.json')): Manifest {
@@ -47,9 +50,19 @@ function pick(manifest: Manifest, id: string): ModelFile {
   return { id, ...m };
 }
 
-export function chooseModels(manifest: Manifest, totalMemBytes: number, forceTier?: '2b' | '4b'): ModelPlan {
+/** Speech model: large-v3-turbo (multilingual, q5_0); `small` on ≤ 8 GB Macs. `base` exists for CI only. */
+export function chooseWhisper(totalMemBytes: number): WhisperSize {
+  return chooseTier(totalMemBytes) === '2b' ? 'small' : 'turbo';
+}
+
+export function chooseModels(manifest: Manifest, totalMemBytes: number, forceTier?: '2b' | '4b', forceWhisper?: WhisperSize): ModelPlan {
   const tier = forceTier ?? chooseTier(totalMemBytes);
-  return { embed: pick(manifest, 'embed'), llm: pick(manifest, `llm-${tier}`), mmproj: pick(manifest, `mmproj-${tier}`) };
+  const whisper = forceWhisper ?? chooseWhisper(totalMemBytes);
+  return { embed: pick(manifest, 'embed'), llm: pick(manifest, `llm-${tier}`), whisper: pick(manifest, `whisper-${whisper}`), mmproj: pick(manifest, `mmproj-${tier}`) };
+}
+
+export function whisperFromEnv(value: string | undefined): WhisperSize | undefined {
+  return value === 'turbo' || value === 'small' || value === 'base' ? value : undefined;
 }
 
 export function localName(m: ModelFile): string {

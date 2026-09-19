@@ -3,7 +3,7 @@ import { app, ipcMain, type BrowserWindow } from 'electron';
 import { totalmem } from 'node:os';
 import { join } from 'node:path';
 import type { IpcChannel, LocalAiStatusDto, ModelsProgressDto } from '../../shared/ipc';
-import { chooseModels, loadManifest } from '../models/manifest';
+import { chooseModels, loadManifest, whisperFromEnv } from '../models/manifest';
 import { extractNote } from './agents';
 import { LlamaLocalAi } from './local-ai';
 
@@ -22,7 +22,7 @@ export function modelsDir(): string {
 export function getLocalAi(): LlamaLocalAi {
   if (!instance) {
     const tier = process.env['OPENKT_MODEL_TIER'];
-    const plan = chooseModels(loadManifest(), totalmem(), tier === '2b' || tier === '4b' ? tier : undefined);
+    const plan = chooseModels(loadManifest(), totalmem(), tier === '2b' || tier === '4b' ? tier : undefined, whisperFromEnv(process.env['OPENKT_WHISPER_MODEL']));
     instance = new LlamaLocalAi({ llamaDir: llamaDir(), modelsDir: modelsDir(), plan, log: (l) => console.log(l) });
   }
   return instance;
@@ -38,9 +38,9 @@ export function registerLocalAiIpc(windows: () => BrowserWindow[]): void {
   handle('models:status', (): Promise<LocalAiStatusDto> => ai.status());
   handle('models:ensure', async () => {
     try {
-      // Embeddings + LLM are required; the vision projector is fetched last and is optional today.
+      // Embeddings + LLM are required; speech and the vision projector follow in the background.
       await ai.ensureModels(progress, ['embed', 'llm']);
-      void ai.ensureModels(progress, ['mmproj']).catch(() => undefined);
+      void ai.ensureModels(progress, ['whisper', 'mmproj']).catch(() => undefined);
       return { ok: true as const, status: await ai.status() };
     } catch (e) {
       return { ok: false as const, error: (e as Error).message, status: await ai.status() };
@@ -62,7 +62,7 @@ export function autoEnsureModels(windows: () => BrowserWindow[]): void {
   };
   void ai
     .ensureModels(progress, ['embed', 'llm'])
-    .then(() => ai.ensureModels(progress, ['mmproj']))
+    .then(() => ai.ensureModels(progress, ['whisper', 'mmproj']))
     .catch((e) => console.error('[models] download failed:', (e as Error).message));
 }
 

@@ -3,10 +3,10 @@
  *
  * The product's keys are: hold `fn` to talk, double-tap `fn` to latch, and a
  * screenshot key. Electron's globalShortcut cannot observe `fn` and has no
- * key-up event, so until the Swift engine owns the hotkeys (see
- * ./engine/README.md) these fallbacks are registered instead:
- *   - voice:      toggles listening (press to start, press again to save)
- *   - screenshot: one press
+ * key-up event: `fn` needs a native event tap, which is out of scope for the
+ * interim runtime (Spec 03 §1a). These are registered instead:
+ *   - voice:      Control+Option+Space toggles a voice note (start · stop · save)
+ *   - screenshot: Control+Option+S opens the region picker
  */
 import { globalShortcut } from 'electron';
 import type { HotkeyInfo } from '../shared/ipc';

@@ -20,6 +20,15 @@ extraResources:
     filter:
       - "**/*"
       - "!.llama-release.json"
+  # whisper.cpp `whisper-cli`, built in CI (scripts/build-whisper.sh) → Contents/Resources/whisper
+  - from: resources/whisper
+    to: whisper
+    filter:
+      - "**/*"
+      - "!.whisper-build.json"
+  # Apple Vision OCR helper, compiled in CI (scripts/build-ocr.sh) → Contents/Resources/ocr
+  - from: resources/ocr
+    to: ocr
 afterPack: scripts/after-pack.cjs
 mac:
   category: public.app-category.productivity
@@ -42,6 +51,9 @@ mac:
     NSMicrophoneUsageDescription: OpenKT transcribes what you say on this Mac. Audio never leaves it.
     NSAudioCaptureUsageDescription: OpenKT transcribes meetings you choose to record, on this Mac.
     NSScreenCaptureUsageDescription: OpenKT reads screenshots you take, on this Mac.
+    NSDesktopFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
+    NSDocumentsFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
+    NSDownloadsFolderUsageDescription: OpenKT reads an image you drop on it, on this Mac.
   # The Swift engine will be added here once it exists:
   # extraFiles:
   #   - from: ../../engine/.build/release/openkt-engine

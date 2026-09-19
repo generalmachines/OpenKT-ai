@@ -20,6 +20,12 @@ export interface AgentsModule {
   OpenAiCompatibleClient: new (config: { baseUrl: string; model?: string; timeoutMs?: number }) => LlmClient;
   summarise: { run(input: AgentInput, client: LlmClient): Promise<AgentRun<{ title: string; summary: string; open_questions: string[] }>> };
   extract: { run(input: AgentInput, client: LlmClient): Promise<AgentRun<{ facts: { kind?: string; statement: string; quote: string }[] }>> };
+  describeImage: {
+    run(
+      input: { image: { url: string } | { base64: string; mime_type: string }; caption?: string; ocr_text?: string },
+      client: LlmClient,
+    ): Promise<AgentRun<{ description: string; visible_text: string; entities: string[] }>>;
+  };
   quoteGate<F extends { quote: string }>(facts: F[], sessionText: string): { kept: F[]; dropped: F[] };
 }
 
@@ -68,9 +74,13 @@ export async function extractNote(ai: LlamaLocalAi, input: NoteInput, timeoutMs 
     source: input.source ?? 'note',
     author: input.author ?? '',
   };
-  let { s, x } = await run();
-  // Agents swallow transport errors into a no-op; if the cause was a GPU crash, retry once on the CPU.
-  if ((s.status === 'noop' || x.status === 'noop') && (await new Promise((r) => setTimeout(r, 400)), await ai.fallBackToCpuIfCrashed())) ({ s, x } = await run());
+  // A GPU crash shows up as a transport error (thrown) or as a no-op; either way retry once on the CPU.
+  const crashed = async () => (await new Promise((r) => setTimeout(r, 400)), ai.fallBackToCpuIfCrashed());
+  let { s, x } = await run().catch(async (e: unknown) => {
+    if (await crashed()) return run();
+    throw e;
+  });
+  if ((s.status === 'noop' || x.status === 'noop') && (await crashed())) ({ s, x } = await run());
   const ok = [s.status, x.status].filter((v) => v === 'ok').length;
   return {
     title: s.output.title,

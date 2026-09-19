@@ -3,7 +3,7 @@
  * `llama-server` bundled in the app; the Swift/MLX engine replaces the
  * implementation, not the interface. Nothing here imports `electron`.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ModelStore, type ModelsProgress, type ModelStatus } from '../models/store';
 import type { ModelPlan, ModelRole } from '../models/manifest';
@@ -77,7 +77,11 @@ export class LlamaLocalAi implements LocalAi {
       name: 'chat',
       binary: this.binary,
       args: ['-m', this.store.pathOf('llm'), '--jinja', '-c', String(opts.chatContext ?? 8192), '-np', '1', '--reasoning', 'off', '--reasoning-budget', '0', ...common],
+      // Vision: with the projector on disk, /v1/chat/completions accepts `image_url` data URIs.
+      dynamicArgs: () => (this.visionAvailable() ? ['--mmproj', this.store.pathOf('mmproj'), ...(this.cpuFallback ? ['--no-mmproj-offload'] : [])] : []),
       idleMs: opts.chatIdleMs ?? CHAT_IDLE_MS,
+      // The projector adds a second model load, and on the CPU path a warm-up pass.
+      startTimeoutMs: 240_000,
       log: opts.log,
     });
     this.embedServer = new LlamaServer({
@@ -129,6 +133,25 @@ export class LlamaLocalAi implements LocalAi {
       if (await this.fallBackToCpuIfCrashed()) return fn();
       throw e;
     }
+  }
+
+  /** True when the vision projector (mmproj) is fully downloaded. */
+  visionAvailable(): boolean {
+    try {
+      return statSync(this.store.pathOf('mmproj')).size === this.opts.plan.mmproj.bytes;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Base URL of a chat server that accepts images, or null when the projector is not on disk.
+   * A server that was started before the projector arrived is restarted with it.
+   */
+  async visionBaseUrl(): Promise<string | null> {
+    if (!this.visionAvailable()) return null;
+    if (this.chatServer.state === 'ready' && !this.chatServer.lastArgs.includes('--mmproj')) await this.chatServer.stop('reload with mmproj');
+    return this.chatBaseUrl();
   }
 
   /** Base URL for an OpenAI-compatible client, e.g. "http://127.0.0.1:51234/v1". Starts the chat server. */
