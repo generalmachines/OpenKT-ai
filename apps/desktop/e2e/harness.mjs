@@ -91,10 +91,18 @@ export class Recorder {
 }
 
 /** One running copy of the app with its own user-data-dir. */
+/** Every user-data-dir a run made; `removeUserDataDirs()` deletes them (models downloaded by mistake included). */
+const made = new Set();
+export function removeUserDataDirs() {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+  made.clear();
+}
+
 export class AppInstance {
   constructor(label, userDataDir) {
     this.label = label;
     this.userDataDir = userDataDir ?? mkdtempSync(join(tmpdir(), `openkt-e2e-${label}-`));
+    made.add(this.userDataDir);
     this.console = [];
     this.shotN = 0;
     this.mainLog = join(ARTIFACTS, `main-${label}.log`);

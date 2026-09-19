@@ -16,7 +16,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AppInstance, ARTIFACTS, MOCK_MARKERS, PACKAGED, Recorder, SERVER, api, rand, resetArtifacts, sleep } from './harness.mjs';
+import { AppInstance, ARTIFACTS, MOCK_MARKERS, PACKAGED, Recorder, SERVER, api, rand, removeUserDataDirs, resetArtifacts, sleep } from './harness.mjs';
 
 const PASSWORD = 'correct horse battery 42';
 const run = rand();
@@ -181,8 +181,18 @@ try {
           continue;
         }
       }
-      if (n === 4) rec.finding({ screen: 'Onboarding · Set up on-device AI', item: `not exercised: the step downloads ~4 GB on entry${paused ? ' (paused by the harness)' : ' — and the harness could NOT pause it'}`, cls: 'EMPTY-HONEST', severity: paused ? 'ok' : 'major', owner: 'onboarding', evidence: shot });
-      const primary = p.locator('.onb .btn--accent').last();
+      if (n === 4) {
+        // Never download ~4.6 GB from a test: choose "Later" (or "Do this later"), whatever the step offers first.
+        const offered = /Download models/.test(text);
+        rec.finding({ screen: 'Onboarding · Set up on-device AI', item: offered ? 'asks before downloading ("Download models" or "Later"); the journey chose Later' : `the download is not offered as a choice${paused ? ' (paused by the harness)' : ''}`, cls: offered ? 'REAL' : 'EMPTY-HONEST', owner: 'onboarding', evidence: shot });
+        const skip = p.getByRole('button', { name: /^(Later|Do this later)/ }).first();
+        if (await skip.count()) {
+          await skip.click();
+          walked.push(`${n} ${title} → "Later"`);
+          continue;
+        }
+      }
+      const primary = p.locator('.onb .btn--accent').filter({ hasNotText: /Download/ }).last();
       const later = p.getByRole('button', { name: /Do this later/ });
       let pressed = '';
       if ((await primary.count()) && (await primary.isEnabled())) {
@@ -676,6 +686,7 @@ try {
 } finally {
   await a.close().catch(() => undefined);
   if (b) await b.close().catch(() => undefined);
+  removeUserDataDirs();
 }
 
 // ── clean up what the server lets us clean up ─────────────────────────────────────────────────────
