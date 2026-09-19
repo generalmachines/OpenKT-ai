@@ -24,6 +24,7 @@ import type {
 import type { MemoryEngine, MemorySearchScopeOptions } from "./memory-engine";
 import { decayFieldsFromRecord } from "./memory-decay";
 import { embed, toPgVector } from "../repositories/embedding-bge";
+import { grantedSessionIdsSql, readableProjectIdsSql } from "../../access/readable-sql";
 
 // The memory engine: plain Postgres. Hybrid search is pgvector cosine
 // similarity fused with tsvector keyword rank (reciprocal-rank fusion),
@@ -53,7 +54,8 @@ export class LocalMemoryEngine implements MemoryEngine {
     const startedAt = Date.now();
 
     const projectIds = request.filters.project_ids ?? [];
-    if (projectIds.length === 0) {
+    const everyReadable = options.everyReadableSpace === true;
+    if (projectIds.length === 0 && !everyReadable) {
       throw new ValidationDomainError("memory search requires filters.project_ids");
     }
 
@@ -97,13 +99,21 @@ export class LocalMemoryEngine implements MemoryEngine {
 
     // Each id is bound as its own parameter and explicitly cast — `ANY($arr::uuid[])`
     // with a JS array gets serialized as JSON by pg, which Postgres won't cast.
-    const projectIdList = sql.join(scopeIds.map((id) => sql`${id}::uuid`), sql`, `);
+    // With no space given (everyReadable), the scope is "every space the asker
+    // can read, and every session granted to them" — subqueries, not a list.
+    const projectScope = everyReadable
+      ? userId
+        ? sql`(m.project_id IN ${readableProjectIdsSql(userId)} OR m.session_id IN ${grantedSessionIdsSql(userId)})`
+        : sql`false`
+      : sql`m.project_id IN (${sql.join(scopeIds.map((id) => sql`${id}::uuid`), sql`, `)})`;
     const kindList = kindFilter
       ? sql.join(kindFilter.map((k) => sql`${k}`), sql`, `)
       : null;
-    const sessionIdList = grantedSessionIds.length
-      ? sql.join(grantedSessionIds.map((id) => sql`${id}::uuid`), sql`, `)
-      : null;
+    const sessionIdList = everyReadable && userId
+      ? grantedSessionIdsSql(userId)
+      : grantedSessionIds.length
+        ? sql`(${sql.join(grantedSessionIds.map((id) => sql`${id}::uuid`), sql`, `)})`
+        : null;
     // Session-only access (MemorySearchScopeOptions): an empty list means
     // "no session", so it matches nothing rather than everything.
     const onlySessionIds = options.onlySessionIds;
@@ -122,10 +132,10 @@ export class LocalMemoryEngine implements MemoryEngine {
     const visibilityGuard = sql`(
       m.visibility <> 'personal'
       ${userId ? sql`OR m.owner_user_id = ${userId}::uuid` : sql``}
-      ${sessionIdList ? sql`OR m.session_id IN (${sessionIdList})` : sql``}
+      ${sessionIdList ? sql`OR m.session_id IN ${sessionIdList}` : sql``}
     )`;
     const scopeFilter = sql`
-      m.project_id IN (${projectIdList})
+      ${projectScope}
       ${includeArchived ? sql`` : sql`AND m.archived = false`}
       ${includeSuperseded ? sql`` : sql`AND m.superseded_by IS NULL`}
       ${kindList ? sql`AND m.kind IN (${kindList})` : sql``}
@@ -239,7 +249,7 @@ export class LocalMemoryEngine implements MemoryEngine {
       return {
         ...record,
         similarity,
-        source_scope: primaryProjectIds.has(record.project_id) ? "primary" : "workspace",
+        source_scope: everyReadable || primaryProjectIds.has(record.project_id) ? "primary" : "workspace",
         effective_importance: this.effectiveImportance(record.importance, similarity),
       } satisfies MemoryWithSimilarityRecord;
     });

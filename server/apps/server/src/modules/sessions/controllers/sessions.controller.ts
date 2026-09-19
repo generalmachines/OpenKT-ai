@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 
 import type { ActorContext } from "@openkt/core-context";
@@ -13,9 +14,12 @@ import { RateLimitGuard } from "../../rate-limit/guards/rate-limit.guard";
 
 import {
   AddSessionTurnSchema,
+  AddSessionTurnsSchema,
   CloseSessionSchema,
   CreateSessionSchema,
   ListSessionsQuerySchema,
+  SESSION_SOURCES,
+  SESSION_TURNS_MAX,
   SessionIdParamsSchema,
 } from "../contracts/session.contract";
 import { SessionsApplicationService } from "../services/sessions-application.service";
@@ -32,41 +36,79 @@ export class SessionsController {
   constructor(private readonly sessionsApplicationService: SessionsApplicationService) {}
 
   @Post()
-  @ApiOperation({ summary: "Open a session" })
+  @ApiOperation({
+    summary:
+      "Open a session. The same (source, external_id) again → 200 with the existing session.",
+  })
   @ApiBody({
     schema: {
       type: "object",
       properties: {
         project_id: { type: "string", maxLength: 256 },
-        source: {
-          type: "string",
-          enum: ["claude-code", "chatgpt", "claude", "mcp", "voice", "meeting", "screenshot", "note", "connector"],
-          default: "mcp",
-        },
+        source: { type: "string", enum: [...SESSION_SOURCES], default: "mcp" },
         client: { type: "string", maxLength: 120, nullable: true },
         title: { type: "string", maxLength: 200, nullable: true },
+        external_id: { type: "string", maxLength: 256 },
+        external_url: { type: "string", format: "uri", maxLength: 2048 },
         metadata: { type: "object" },
       },
     },
   })
   @RateLimit({ key: "user", name: "session_start", capacity: 60, refillPerSec: 1 })
-  async start(@ActorContextParam() context: ActorContext, @Body() body: unknown) {
+  async start(
+    @ActorContextParam() context: ActorContext,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const input = parseWithSchema(CreateSessionSchema, body);
-    return okResponse(await this.sessionsApplicationService.start(context, input));
+    const { session, created } = await this.sessionsApplicationService.startOrGet(context, input);
+    if (!created) res.status(HttpStatus.OK);
+    return okResponse(session);
   }
 
   @Post(":id/turns")
-  @ApiOperation({ summary: "Append a turn to an open session" })
+  @ApiOperation({
+    summary:
+      "Append turns to an open session: `{turns:[…]}` (≤ 200 turns, ≤ 1 MB) → {appended, next_seq}, " +
+      "or one `{role, content}` → the turn. A closed session is 409 session_closed.",
+  })
   @ApiParam({ name: "id", schema: { type: "string", format: "uuid" } })
   @ApiBody({
     schema: {
-      type: "object",
-      properties: {
-        role: { type: "string", enum: ["user", "assistant", "system", "tool"] },
-        content: { type: "string", minLength: 1, maxLength: 50000 },
-        metadata: { type: "object" },
-      },
-      required: ["role", "content"],
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            turns: {
+              type: "array",
+              minItems: 1,
+              maxItems: SESSION_TURNS_MAX,
+              items: {
+                type: "object",
+                properties: {
+                  role: { type: "string", enum: ["user", "assistant", "system", "tool"] },
+                  speaker: { type: "string", maxLength: 200 },
+                  content: { type: "string", minLength: 1, maxLength: 50000 },
+                  t0_ms: { type: "integer", minimum: 0 },
+                  t1_ms: { type: "integer", minimum: 0 },
+                  metadata: { type: "object" },
+                },
+                required: ["role", "content"],
+              },
+            },
+          },
+          required: ["turns"],
+        },
+        {
+          type: "object",
+          properties: {
+            role: { type: "string", enum: ["user", "assistant", "system", "tool"] },
+            content: { type: "string", minLength: 1, maxLength: 50000 },
+            metadata: { type: "object" },
+          },
+          required: ["role", "content"],
+        },
+      ],
     },
   })
   @RateLimit({ key: "user", name: "session_turn", capacity: 600, refillPerSec: 10 })
@@ -76,6 +118,10 @@ export class SessionsController {
     @Body() body: unknown,
   ) {
     const { id } = parseWithSchema(SessionIdParamsSchema, params);
+    if (body && typeof body === "object" && "turns" in body) {
+      const batch = parseWithSchema(AddSessionTurnsSchema, body);
+      return okResponse(await this.sessionsApplicationService.addTurns(context, id, batch));
+    }
     const input = parseWithSchema(AddSessionTurnSchema, body);
     return okResponse(await this.sessionsApplicationService.addTurn(context, id, input));
   }

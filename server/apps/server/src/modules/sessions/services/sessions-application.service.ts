@@ -1,16 +1,18 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import type { ActorContext } from "@openkt/core-context";
-import { NotFoundDomainError } from "@openkt/core-errors";
+import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
 
-import type {
-  AddSessionTurnInput,
-  CloseSessionInput,
-  CreateSessionInput,
-  ListSessionsQuery,
-  SessionListMeta,
-  SessionRecord,
-  SessionTurnRecord,
+import {
+  SESSION_TURNS_MAX_BYTES,
+  type AddSessionTurnInput,
+  type AddSessionTurnsInput,
+  type CloseSessionInput,
+  type CreateSessionInput,
+  type ListSessionsQuery,
+  type SessionListMeta,
+  type SessionRecord,
+  type SessionTurnRecord,
 } from "../contracts/session.contract";
 import { SessionRepository } from "../repositories/session.repository";
 import { ProjectScopeService } from "../../projects/services/project-scope.service";
@@ -43,7 +45,23 @@ export class SessionsApplicationService {
   ) {}
 
   async start(context: ActorContext, input: CreateSessionInput): Promise<SessionRecord> {
+    return (await this.startOrGet(context, input)).session;
+  }
+
+  // Spec 04: the same `(source, external_id)` for the same owner is the same
+  // session — `created: false` returns the existing one (200), whatever
+  // space or title the retry names.
+  async startOrGet(
+    context: ActorContext,
+    input: CreateSessionInput,
+  ): Promise<{ session: SessionRecord; created: boolean }> {
     refuseSecrets("session title", input.title);
+    const userId = context.principal.userId;
+    if (!userId) throw new NotFoundDomainError("session");
+    if (input.external_id) {
+      const existing = await this.sessionRepository.findByExternalId(userId, input.source, input.external_id);
+      if (existing) return { session: existing, created: false };
+    }
     const projectId = await this.projectScopeService.resolveProjectIdOrSlug(
       context,
       input.project_id,
@@ -53,7 +71,12 @@ export class SessionsApplicationService {
       projectId,
       "write",
     );
-    return this.sessionRepository.create(context, projectId, access.orgId, input);
+    const created = await this.sessionRepository.create(context, projectId, access.orgId, input);
+    if (created) return { session: created, created: true };
+    // A concurrent create with the same external id won.
+    const winner = await this.sessionRepository.findByExternalId(userId, input.source, input.external_id!);
+    if (!winner) throw new ValidationDomainError("session create failed");
+    return { session: winner, created: false };
   }
 
   async addTurn(
@@ -63,7 +86,46 @@ export class SessionsApplicationService {
   ): Promise<SessionTurnRecord> {
     refuseSecrets("turn", input.content);
     await this.requireWritable(context, sessionId);
-    return this.sessionRepository.addTurn(sessionId, input);
+    const [turn] = await this.sessionRepository.appendTurns(sessionId, [
+      { role: input.role, content: input.content, metadata: input.metadata ?? {} },
+    ]);
+    if (!turn) throw new ValidationDomainError("session turn create failed");
+    return turn;
+  }
+
+  // Spec 04 `{turns:[…]}` → `{appended, next_seq}`: all or nothing, in order.
+  async addTurns(
+    context: ActorContext,
+    sessionId: string,
+    input: AddSessionTurnsInput,
+  ): Promise<{ appended: number; next_seq: number }> {
+    const bytes = input.turns.reduce(
+      (n, turn) => n + Buffer.byteLength(turn.content) + Buffer.byteLength(turn.speaker ?? ""),
+      0,
+    );
+    if (bytes > SESSION_TURNS_MAX_BYTES) {
+      throw new HttpException(
+        { code: "payload_too_large", message: "At most 1 MB of turns per call; send the rest in another call." },
+        HttpStatus.PAYLOAD_TOO_LARGE,
+      );
+    }
+    for (const turn of input.turns) refuseSecrets("turn", turn.content);
+    await this.requireWritable(context, sessionId);
+    const appended = await this.sessionRepository.appendTurns(
+      sessionId,
+      input.turns.map((turn) => ({
+        role: turn.role,
+        content: turn.content,
+        metadata: {
+          ...turn.metadata,
+          ...(turn.speaker !== undefined ? { speaker: turn.speaker } : {}),
+          ...(turn.t0_ms !== undefined ? { t0_ms: turn.t0_ms } : {}),
+          ...(turn.t1_ms !== undefined ? { t1_ms: turn.t1_ms } : {}),
+        },
+      })),
+    );
+    const last = appended[appended.length - 1]?.seq ?? 0;
+    return { appended: appended.length, next_seq: last + 1 };
   }
 
   async close(

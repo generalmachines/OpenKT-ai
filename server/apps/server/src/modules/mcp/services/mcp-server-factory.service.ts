@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
+
 import { Injectable, Optional } from "@nestjs/common";
 import { createUIResource } from "@mcp-ui/server";
 import { z } from "zod";
+
+import { NotFoundDomainError } from "@openkt/core-errors";
 
 import type { ActorContext } from "@openkt/core-context";
 
@@ -19,6 +23,7 @@ import { ProjectsApplicationService } from "../../projects/services/projects-app
 import {
   CloseSessionSchema,
   CreateSessionSchema,
+  SessionSourceSchema,
 } from "../../sessions/contracts/session.contract";
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
 import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
@@ -29,6 +34,15 @@ import { TeamsService } from "../../teams/services/teams.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
 import { PagesApplicationService } from "../../pages/services/pages-application.service";
 import { registerPageTools } from "./mcp-page-tools";
+import {
+  briefMarkdown,
+  recallText,
+  savedText,
+  spacesText,
+  toRecallItem,
+  type SpaceListItem,
+  type SpaceRole,
+} from "./mcp-text";
 
 // The contract every connected tool should follow — kept here (not
 // inline in `new McpServer(...)`) so its size is easy to eyeball.
@@ -50,7 +64,7 @@ SKILLS — when the user asks to do something "the way we do it", or mentions a 
 
 Passing session_id to kt_recall/kt_save_memory keeps provenance (who learned what, when, from which tool) accurate and keeps the session from being closed as idle mid-work. It is optional — omitting it still saves/recalls, just without that link.
 
-No project bound yet? Call kt_list_projects and ask the user, or omit project_id entirely to use their personal space — nothing is ever dropped for lack of somewhere to put it.`;
+Spaces: kt_recall with no project searches every space the user can read. A save with no project goes to their personal space — for a shared one, call kt_list_projects and ask the user. Nothing is ever dropped for lack of somewhere to put it.`;
 
 // `@modelcontextprotocol/sdk` ships ESM-only (`"type": "module"`). The
 // bff is CommonJS; static `require()` of an ESM module only works under
@@ -121,22 +135,19 @@ export class McpServerFactoryService {
       {
         title: "Recall project memories",
         description:
-          "Search the user's saved project memories for context relevant to a question or task. " +
+          "Search what the user and their teammates already saved for context relevant to a question or task. " +
           "ALWAYS CALL THIS FIRST on any new topic, decision, or task before answering — it " +
-          "surfaces prior decisions, incidents, conventions, and gotchas the user already saved. " +
+          "surfaces prior decisions, incidents, conventions, and gotchas the team already saved. " +
           "\n\n" +
-          "PROJECT RESOLUTION (read this if you don't already have a project_id):\n" +
-          "• Coding harness with a working directory (Claude Code, Cursor, Codex, OpenCode): the " +
-          "host's session-start primer normally injects project_id from a .openkt/manifest.json " +
-          "parent-walk. If it didn't, the user isn't bound to a project yet — point them at `kt init`.\n" +
-          "• Non-coding harness (Claude.ai web, ChatGPT, Slack, etc.) on first connection: call " +
-          "kt_list_projects, ask the user which one to use, THEN call this tool with the chosen " +
-          "project_id. Cache the choice for the rest of the conversation.\n" +
+          "Omit project to search EVERY space the user can read (their personal space, spaces shared " +
+          "with them, sessions shared with them) — the usual call. Pass project (id or slug) only to " +
+          "narrow to one space.\n" +
           "\n" +
           "Cheap and idempotent: bumps a per-memory recall counter but does not modify content. " +
-          "Returns hybrid (vector + keyword) ranked memories with kind, content, tags, importance. " +
-          "Pass session_id from kt_session_start to keep the session's activity fresh.",
-        inputSchema: RecallRequestSchema.shape,
+          "Returns a numbered list — kind, statement, author, space, source, date — and recall_id; " +
+          "structuredContent has the same items. Pass session_id from kt_session_start to keep the " +
+          "session's activity fresh.",
+        inputSchema: RecallToolSchema.shape,
         annotations: {
           title: "Recall project memories",
           readOnlyHint: true,
@@ -150,11 +161,25 @@ export class McpServerFactoryService {
         // Claude Code, Cursor) show a live "Thinking…" line. Falls back
         // silently if the host hasn't passed a progressToken.
         await notifyProgress(extra, 0.1, "Embedding query…");
-        const result = await this.memoryRecall.recall(context, input);
+        const { project, ...rest } = input;
+        const recallId = input.invocation_id ?? randomUUID();
+        const projectRef = input.project_id ?? project;
+        const result = await this.memoryRecall.recall(context, {
+          ...rest,
+          project_id: projectRef,
+          invocation_id: recallId,
+        });
         await notifyProgress(extra, 0.7, "Ranking memories…");
+        const items = result.data.map(toRecallItem);
         const ui = this.ui.renderRecall(result as never, input.query ?? "");
         await notifyProgress(extra, 1, "Done");
-        return jsonAndUi(result, ui, "openkt/recall");
+        const spaceName = projectRef ? (items[0]?.space.name ?? "that space") : null;
+        return textUiAndStructured(
+          recallText(items, { spaceName, recallId }),
+          { recall_id: recallId, count: items.length, items, knowledge: result.meta.knowledge },
+          ui,
+          "openkt/recall",
+        );
       },
     );
 
@@ -171,12 +196,12 @@ export class McpServerFactoryService {
           "pattern (the right way to do P is Q), anti-pattern (don't do X without Y), " +
           "context (background fact), skill (how to do X). " +
           "\n\n" +
-          "Same project-resolution rule as kt_recall: in coding harnesses the host injects " +
-          "project_id; in non-coding harnesses, call kt_list_projects first, confirm with the " +
-          "user, then pass the chosen project_id here. Triggers the async embedding + " +
-          "deduplication pipeline through the outbox. Pass session_id from kt_session_start " +
-          "so the memory is attributed to this session and to its connector.",
-        inputSchema: CreateMemorySchema.shape,
+          "Where it goes: pass project (id or slug) for a shared space — kt_list_projects lists the " +
+          "writable ones; ask the user when unsure. With no project and no session it goes to the " +
+          "user's personal space (only them). visibility 'personal' keeps it to the user even in a " +
+          "shared space. Pass session_id from kt_session_start so the memory is attributed to this " +
+          "session and to its connector. Returns where it was saved and who can see it.",
+        inputSchema: SaveMemoryToolSchema.shape,
         annotations: {
           title: "Save a project memory",
           readOnlyHint: false,
@@ -185,9 +210,22 @@ export class McpServerFactoryService {
         },
       },
       async (input) => {
-        const result = await this.memoryCommands.create(context, input);
+        const { project, ...rest } = input;
+        const result = await this.memoryCommands.create(context, {
+          ...rest,
+          project_id: input.project_id ?? project,
+        });
         const ui = this.ui.renderSaved(result as never);
-        return jsonAndUi(result, ui, "openkt/saved");
+        const structured =
+          "id" in result
+            ? {
+                id: result.id,
+                space: { id: result.project.id, name: result.project.name },
+                visibility: result.visibility,
+                memory: result,
+              }
+            : { saved: false, suggestion: result };
+        return textUiAndStructured(savedText(result), structured, ui, "openkt/saved");
       },
     );
 
@@ -197,10 +235,10 @@ export class McpServerFactoryService {
       {
         title: "Search memories (no recall side-effects)",
         description:
-          "Browse or filter memories across one or more projects by query, kind, or tag without " +
-          "bumping recall counters. Use this for listing/browsing UX — when the user asks " +
-          "\"what memories do I have about X\" or you need to enumerate before deciding. " +
-          "Prefer kt_recall when you need context to answer a question.",
+          "Browse or filter memories by query, kind, or tag without bumping recall counters — every " +
+          "space the user can read, or only filters.project_ids. Use this for listing/browsing UX — " +
+          "when the user asks \"what memories do I have about X\" or you need to enumerate before " +
+          "deciding. Prefer kt_recall when you need context to answer a question.",
         inputSchema: MemorySearchRequestSchema.shape,
         annotations: {
           title: "Search memories",
@@ -212,7 +250,15 @@ export class McpServerFactoryService {
       async (input) => {
         const result = await this.memoryQueries.search(context, input);
         const ui = this.ui.renderRecall(result as never, input.query ?? "search");
-        return jsonAndUi(result, ui, "openkt/search");
+        const items = result.data.map(toRecallItem);
+        const ids = input.filters.project_ids ?? [];
+        const spaceName = ids.length === 1 ? (items[0]?.space.name ?? "that space") : null;
+        return textUiAndStructured(
+          recallText(items, { spaceName }),
+          { count: items.length, items },
+          ui,
+          "openkt/search",
+        );
       },
     );
 
@@ -235,7 +281,12 @@ export class McpServerFactoryService {
       },
       async (input) => {
         const result = await this.memoryCommands.forget(context, input);
-        return jsonResult(result);
+        return textAndStructured(
+          result.hard
+            ? `Deleted ${result.id} permanently.`
+            : `Archived ${result.id}; it no longer comes up in recall.`,
+          result,
+        );
       },
     );
 
@@ -254,8 +305,9 @@ export class McpServerFactoryService {
           "• Coding harness without a bound project — fall back to this when the host's primer " +
           "didn't supply a project_id (i.e. cwd has no .openkt/manifest.json).\n" +
           "\n" +
-          "Returns project_id, slug, name, org, role, and visibility. Use the result to populate " +
-          "the project_id argument on kt_recall / kt_save_memory / kt_project_brief.",
+          "Returns the spaces the user can write to first, then read-only ones, each with id, slug, " +
+          "name and my_role (owner / editor / reader). Use an id as project on kt_save_memory / " +
+          "kt_session_start / kt_project_brief. kt_recall needs none: it searches them all.",
         inputSchema: ListProjectsSchema.shape,
         annotations: {
           title: "List accessible projects",
@@ -272,9 +324,26 @@ export class McpServerFactoryService {
           context,
           filters as Parameters<typeof this.projectsApp.listVisible>[1],
         );
-        const payload = { count: rows.length, projects: rows };
+        const rank: Record<SpaceRole, number> = { owner: 0, editor: 1, reader: 2 };
+        const projects = (
+          await Promise.all(rows.map(async (row) => ({ ...row, my_role: await this.roleOn(context, row) })))
+        ).sort((a, b) => rank[a.my_role] - rank[b.my_role] || Number(b.isPersonal) - Number(a.isPersonal));
+        const payload = { count: projects.length, projects };
         const ui = this.ui.renderProjectList(payload as never);
-        return jsonAndUi(payload, ui, "openkt/projects");
+        const listed: SpaceListItem[] = projects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          my_role: p.my_role,
+          is_personal: p.isPersonal,
+          visibility: p.visibility,
+        }));
+        return textUiAndStructured(
+          spacesText(listed),
+          { count: listed.length, projects: projects.map((p, i) => ({ ...p, ...listed[i] })) },
+          ui,
+          "openkt/projects",
+        );
       },
     );
 
@@ -305,7 +374,17 @@ export class McpServerFactoryService {
         const projectId = await this.resolveProjectId(context, input);
         const result = await this.briefing.getBriefing(context, projectId);
         const ui = this.ui.renderProjectBrief(result as never);
-        return jsonAndUi(result, ui, "openkt/brief");
+        const [space, spaceBrief] = await Promise.all([
+          this.spaceOf(context, projectId),
+          this.pagesApp ? this.pagesApp.briefFor(projectId) : Promise.resolve(null),
+        ]);
+        const briefMd = spaceBrief ?? briefMarkdown(result, space.name);
+        return textUiAndStructured(
+          briefMd ?? `No brief yet for ${space.name}; it is written as sessions here are processed.`,
+          { space, brief_md: briefMd, brief: result },
+          ui,
+          "openkt/brief",
+        );
       },
     );
 
@@ -343,21 +422,20 @@ export class McpServerFactoryService {
           title: input.title ?? null,
           metadata: {},
         });
-        const [brief, briefMd] = await Promise.all([
+        const [brief, spaceBrief, space] = await Promise.all([
           this.briefing.getBriefing(context, session.project_id).catch(() => null),
           // The space brief (T3), kept current from the space's pages by members' Macs.
           this.pagesApp ? this.pagesApp.briefFor(session.project_id) : Promise.resolve(null),
+          this.spaceOf(context, session.project_id),
         ]);
-        const lead = briefMd
-          ? `${briefMd}\n\n---\n`
-          : "No brief for this space yet: it appears once sessions here have been processed into pages.\n\n";
-        // content[0] stays the JSON clients already parse; content[1] is the brief to read.
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify({ session, brief_md: briefMd, brief }, null, 2) },
-            { type: "text" as const, text: `${lead}Your session id is ${session.id}. Pass it to kt_recall / kt_save_memory / kt_session_end.` },
-          ],
-        };
+        const briefMd = spaceBrief ?? briefMarkdown(brief, space.name);
+        const lead =
+          briefMd ?? "No brief for this space yet: it appears once sessions here have been processed into pages.";
+        return textAndStructured(
+          `${lead}\n\nSession open in ${space.name}. Your session id is ${session.id}. ` +
+            "Pass it to kt_recall / kt_save_memory / kt_session_end.",
+          { session_id: session.id, space, brief_md: briefMd, session, brief },
+        );
       },
     );
 
@@ -383,7 +461,14 @@ export class McpServerFactoryService {
         const session = await this.sessionsApp.close(context, input.session_id, {
           summary: input.summary ?? null,
         });
-        return jsonResult({ session });
+        const factCount = await this.sessionsApp
+          .get(context, session.id)
+          .then((detail) => detail.memories.length)
+          .catch(() => 0);
+        return textAndStructured(
+          `Session closed with ${factCount} ${factCount === 1 ? "fact" : "facts"} saved in it.`,
+          { session, fact_count: factCount },
+        );
       },
     );
 
@@ -549,6 +634,29 @@ export class McpServerFactoryService {
     return server;
   }
 
+  // The space's id and name, for tool text. Falls back to "your space" when
+  // the lookup fails (a stubbed ProjectsApplicationService in tests).
+  private async spaceOf(context: ActorContext, projectId: string): Promise<{ id: string; name: string }> {
+    const project = await Promise.resolve(this.projectsApp.getById(context, projectId)).catch(() => null);
+    const name = project ? (project.isPersonal ? "Personal" : project.name) : "your space";
+    return { id: projectId, name };
+  }
+
+  // owner / editor (may write) / reader — the same checks as a save.
+  private async roleOn(
+    context: ActorContext,
+    project: { id: string; ownerUserId: string },
+  ): Promise<SpaceRole> {
+    if (project.ownerUserId === context.principal.userId) return "owner";
+    try {
+      await this.projectScope.requireProjectAccess(context, project.id, "write");
+      return "editor";
+    } catch (err) {
+      if (err instanceof NotFoundDomainError) return "reader";
+      throw err;
+    }
+  }
+
   private async resolveProjectId(
     context: ActorContext,
     input: { project_id?: string | null; project_slug?: string | null },
@@ -563,6 +671,26 @@ export class McpServerFactoryService {
     return this.projectScope.resolvePersonalProjectId(context);
   }
 }
+
+// Spec 04 names the space parameter `project` (id or slug); `project_id`
+// stays accepted for older clients.
+const RecallToolSchema = RecallRequestSchema.extend({
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space id or slug to search only that space. Omit to search every space the user can read."),
+});
+
+const SaveMemoryToolSchema = CreateMemorySchema.extend({
+  project: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Space id or slug to save into. Omit (and no session) for the user's personal space."),
+});
 
 const ListProjectsSchema = z.object({
   org_id: z
@@ -606,20 +734,9 @@ const StartSessionSchema = z.object({
       "Project UUID or slug to file this session under. Omit to use the user's personal space.",
     ),
   title: z.string().max(200).optional().describe("Optional short title for this session."),
-  source: z
-    .enum([
-      "claude-code",
-      "chatgpt",
-      "claude",
-      "mcp",
-      "voice",
-      "meeting",
-      "screenshot",
-      "note",
-      "connector",
-    ])
+  source: SessionSourceSchema
     .optional()
-    .describe("The connector opening this session. Defaults to 'mcp'."),
+    .describe("The tool opening this session, e.g. 'claude-code', 'codex', 'cursor', 'claude-ai'. Defaults to 'mcp'."),
   client: z.string().max(120).optional().describe("Free-text client identifier, e.g. 'claude-code/1.2.0'."),
 });
 
@@ -752,32 +869,17 @@ export function setupGuidance(client?: string, serverUrl: string = HOSTED_MCP_UR
   ].join("\n");
 }
 
-function jsonResult(value: unknown) {
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(value, null, 2),
-      },
-    ],
-  };
-}
-
-// Combine the JSON payload (so the agent can reason about the result)
-// with an inline HTML UI resource (so MCP-UI-capable hosts render a
-// rich card). MimeType is `text/html` per the MCP Apps spec; the host
-// sandboxes the iframe and discards the resource if it can't render.
-function jsonAndUi(value: unknown, htmlString: string, uriNamespace: string) {
+// A readable text block plus structuredContent (Spec 04), with the inline
+// MCP-UI resource for hosts that render it.
+function textUiAndStructured(text: string, structured: object, htmlString: string, uriNamespace: string) {
   const ui = createUIResource({
     uri: `ui://${uriNamespace}/${randomShortId()}`,
     content: { type: "rawHtml", htmlString },
     encoding: "text",
   });
   return {
-    content: [
-      { type: "text" as const, text: JSON.stringify(value, null, 2) },
-      ui,
-    ],
+    content: [{ type: "text" as const, text }, ui],
+    structuredContent: structured as Record<string, unknown>,
   };
 }
 

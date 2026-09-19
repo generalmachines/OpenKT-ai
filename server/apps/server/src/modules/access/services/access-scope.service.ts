@@ -5,6 +5,7 @@ import type { ActorContext } from "@openkt/core-context";
 
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
 import { grants, orgMembers, projects } from "../../../db/schema";
+import { readableProjectIdsSql } from "../readable-sql";
 
 export interface VisibleScope {
   // Every project the asker may read: owned, org-member, or holding a
@@ -33,6 +34,14 @@ const EMPTY_SCOPE: VisibleScope = { projectIds: [], sessionIds: [] };
 @Injectable()
 export class AccessScopeService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDb) {}
+
+  // Every space the caller can read as a whole — exactly requireProjectAccess(read).
+  async readableProjectIds(context: ActorContext): Promise<string[]> {
+    const userId = context.principal.userId;
+    if (!userId) return [];
+    const result = await this.db.execute(sql`SELECT r.id::text AS id FROM ${readableProjectIdsSql(userId)} AS r`);
+    return (result.rows as Array<{ id: string }>).map((row) => row.id);
+  }
 
   async visibleScope(context: ActorContext): Promise<VisibleScope> {
     const userId = context.principal.userId;

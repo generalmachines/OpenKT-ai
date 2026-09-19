@@ -213,12 +213,10 @@ export function registerCardTools(server: McpServer, context: ActorContext, deps
         rows = result.data;
         spaceLabel = rows[0]?.project.name ?? (await spaceName(context, deps, projectId));
       } else {
-        const personalId = await deps.projectScope.resolvePersonalProjectId(context);
-        const visible = await deps.projectsApp.listVisible(context, {});
-        const ids = [personalId, ...visible.map((p) => p.id).filter((id) => id !== personalId)].slice(0, 50);
+        // No project: every space the caller can read and every session granted to them.
         const result = await deps.memoryQueries.search(
           context,
-          MemorySearchRequestSchema.parse({ query: input.query, filters: { project_ids: ids }, limit: 10 }),
+          MemorySearchRequestSchema.parse({ query: input.query, limit: 10 }),
         );
         rows = result.data;
       }

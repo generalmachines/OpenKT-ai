@@ -241,7 +241,7 @@ describeIfDb("MCP Apps cards (e2e)", () => {
   it("kt_session_card summarises a session and what it kept", async () => {
     const sid = await initialize(ownerToken, UI_CAPS);
     const started = await callTool(ownerToken, sid, "kt_session_start", { project: spaceId, title: "Cards session" });
-    const sessionId = JSON.parse(started.result!.content[0]!.text).session.id as string;
+    const sessionId = started.result!.structuredContent.session_id as string;
     await callTool(ownerToken, sid, "kt_save_memory", {
       content: `Cards e2e ${run}: sessions show what they kept.`,
       kind: "fact",
@@ -281,15 +281,15 @@ describeIfDb("MCP Apps cards (e2e)", () => {
       project_id: spaceId,
     });
     expect(direct.result!.isError).toBeFalsy();
-    const saved = JSON.parse(direct.result!.content[0]!.text) as { project: { id: string }; owner: { display_name: string } };
+    const saved = direct.result!.structuredContent.memory as { project: { id: string }; owner: { display_name: string } };
     expect(saved.project.id).toBe(spaceId);
     expect(saved.owner.display_name).toBe("editor person");
 
     // The owner recalls the editor's fact, with the editor as author.
     const ownerSid = await initialize(ownerToken, {});
     const recalled = await callTool(ownerToken, ownerSid, "kt_recall", { query: "an editor saves directly", project_id: spaceId });
-    const rows = (JSON.parse(recalled.result!.content[0]!.text) as { data: Array<{ content: string; owner: { display_name: string } }> }).data;
-    expect(rows.find((r) => r.content.includes("an editor saves directly"))?.owner.display_name).toBe("editor person");
+    const items = recalled.result!.structuredContent.items as Array<{ text: string; author: { name: string } }>;
+    expect(items.find((r) => r.text.includes("an editor saves directly"))?.author.name).toBe("editor person");
   });
 
   it("without the extension the app-only tools do not exist", async () => {
