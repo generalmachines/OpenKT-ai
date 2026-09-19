@@ -16,6 +16,11 @@ export interface MemorySearchScopeOptions {
   // visible_sessions): they see those sessions' facts and nothing else
   // from the space.
   onlySessionIds?: string[];
+  // Search every space the asker can read, plus every session granted to
+  // them one by one, instead of `filters.project_ids` (recall/search with no
+  // space given). The access rule is a subquery inside the ranking SQL
+  // (access/readable-sql.ts), so nothing is ranked before it is authorised.
+  everyReadableSpace?: boolean;
 }
 
 export interface MemoryEngine {

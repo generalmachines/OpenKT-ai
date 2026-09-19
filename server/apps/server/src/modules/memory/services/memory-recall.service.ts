@@ -72,6 +72,13 @@ export class MemoryRecallService {
     context: ActorContext,
     input: RecallRequest,
   ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: RecallMeta }> {
+    // No space given → every space the caller can read, and every session
+    // granted to them (the core promise: what one person saved reaches a
+    // teammate's session). Access is a subquery in the ranking SQL.
+    if (!input.project_id || !input.project_id.trim()) {
+      return this.recallEverywhere(context, input);
+    }
+
     const projectId = await this.projectScopeService.resolveProjectIdOrSlug(
       context,
       input.project_id,
@@ -121,6 +128,94 @@ export class MemoryRecallService {
       onlySessionIds ? { onlySessionIds } : undefined,
     );
 
+    const recalled = await this.finishRecall(context, input, result);
+
+    // Page sections from the same spaces, grant-filtered the same way: someone who can read only
+    // some sessions of a space (onlySessionIds) cannot read its pages, so gets none.
+    const sections = onlySessionIds
+      ? []
+      : await this.sectionsOrNone([projectId, ...workspaceIds], input.query ?? "");
+    recalled.meta = { ...recalled.meta, sections };
+
+    if (!input.include_knowledge) {
+      return recalled;
+    }
+    if (onlySessionIds) {
+      return { data: recalled.data, meta: { ...recalled.meta, knowledge: [] } };
+    }
+
+    // Opt-in: enrich `meta.knowledge` with the unarchived knowledge
+    // nodes that overlap any tag on the recalled raw memories. The
+    // raw `data` array (Memory[]) stays exactly the same so existing
+    // CLI / SDK consumers keep parsing the payload unchanged.
+    const knowledge = await this.collectKnowledge(projectId, recalled.data);
+    return {
+      data: recalled.data,
+      meta: { ...recalled.meta, knowledge },
+    };
+  }
+
+  private async recallEverywhere(
+    context: ActorContext,
+    input: RecallRequest,
+  ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: RecallMeta }> {
+    const result = await this.memoryEngine.search(
+      context,
+      {
+        query: input.query,
+        mode: "hybrid",
+        vector_weight: input.vector_weight,
+        workspace_weight: input.workspace_weight,
+        filters: {
+          kinds: input.kind ? [input.kind] : undefined,
+          min_confidence: input.min_confidence,
+          include_archived: false,
+          include_superseded: false,
+        },
+        limit: input.limit,
+      },
+      [],
+      [],
+      { everyReadableSpace: true },
+    );
+    const recalled = await this.finishRecall(context, input, result);
+
+    // Page sections from every space the caller can read as a whole (a single granted session
+    // does not open its space's pages).
+    const readable = await this.accessScopeService.readableProjectIds(context);
+    recalled.meta = { ...recalled.meta, sections: await this.sectionsOrNone(readable, input.query ?? "") };
+    if (!input.include_knowledge) return recalled;
+
+    // Knowledge only from spaces the caller can read as a whole — a fact
+    // reached through a single granted session says nothing about its space.
+    const byProject = new Map<string, MemoryWithSimilarityRecord[]>();
+    for (const row of recalled.data) {
+      byProject.set(row.project_id, [...(byProject.get(row.project_id) ?? []), row]);
+    }
+    const knowledge: KnowledgeNode[] = [];
+    for (const [projectId, rows] of byProject) {
+      const readable = await requireProjectAccess(context, projectId, "read").then(
+        () => true,
+        (err: unknown) => {
+          if (err instanceof NotFoundDomainError) return false;
+          throw err;
+        },
+      );
+      if (readable) knowledge.push(...(await this.collectKnowledge(projectId, rows)));
+      if (knowledge.length >= KNOWLEDGE_LIMIT) break;
+    }
+    return {
+      data: recalled.data,
+      meta: { ...recalled.meta, knowledge: knowledge.slice(0, KNOWLEDGE_LIMIT) },
+    };
+  }
+
+  // Record the recall, keep the session alive, refresh neighbours.
+  private async finishRecall(
+    context: ActorContext,
+    input: RecallRequest,
+    result: Awaited<ReturnType<MemoryEngine["search"]>>,
+  ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: RecallMeta }> {
     const recalled = await this.memoryEngine.recall(
       context,
       result,
@@ -155,33 +250,15 @@ export class MemoryRecallService {
           );
         });
     }
+    return recalled;
+  }
 
-    // Page sections from the same spaces, grant-filtered the same way: someone who can read only
-    // some sessions of a space (onlySessionIds) cannot read its pages, so gets none.
-    const sections = onlySessionIds
-      ? []
-      : await this.recallSections([projectId, ...workspaceIds], input.query ?? "").catch((err) => {
-          this.logger.warn(`[memory.recall] section search failed: ${err instanceof Error ? err.message : String(err)}`);
-          return [] as RecallSection[];
-        });
-    recalled.meta = { ...recalled.meta, sections };
-
-    if (!input.include_knowledge) {
-      return recalled;
-    }
-    if (onlySessionIds) {
-      return { data: recalled.data, meta: { ...recalled.meta, knowledge: [] } };
-    }
-
-    // Opt-in: enrich `meta.knowledge` with the unarchived knowledge
-    // nodes that overlap any tag on the recalled raw memories. The
-    // raw `data` array (Memory[]) stays exactly the same so existing
-    // CLI / SDK consumers keep parsing the payload unchanged.
-    const knowledge = await this.collectKnowledge(projectId, recalled.data);
-    return {
-      data: recalled.data,
-      meta: { ...recalled.meta, knowledge },
-    };
+  private async sectionsOrNone(projectIds: string[], query: string): Promise<RecallSection[]> {
+    if (projectIds.length === 0) return [];
+    return this.recallSections(projectIds, query).catch((err) => {
+      this.logger.warn(`[memory.recall] section search failed: ${err instanceof Error ? err.message : String(err)}`);
+      return [] as RecallSection[];
+    });
   }
 
   private async recallSections(projectIds: string[], query: string): Promise<RecallSection[]> {
