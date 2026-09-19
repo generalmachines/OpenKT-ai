@@ -33,3 +33,6 @@ Thumbs.db
 # review artefacts written by `npm run shots`; the few images the docs use live in docs/images/
 apps/desktop/shots/
 packages/mcp-cards/screenshots/
+
+# Impeccable review captures are build artifacts, not source
+apps/site/.impeccable/review/

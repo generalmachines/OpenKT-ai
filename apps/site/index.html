@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenKT · Your agent already knows what the meeting decided</title>
+<meta name="description" content="OpenKT syncs your team's meetings and AI sessions into one shared place. Nobody pastes the call into their assistant, and nobody relays what their assistant worked out to everybody else.">
+<meta name="theme-color" content="#fdfcfa">
+<meta name="color-scheme" content="light">
+<link rel="canonical" href="https://openkt.ai/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpenKT · Your agent already knows what the meeting decided">
+<meta property="og:description" content="OpenKT syncs your team's meetings and AI sessions into one shared place, so nobody briefs an assistant and nobody relays what one found.">
+<meta property="og:image" content="assets/hero-wall.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5l4.5 4.5 4.5-4.5M5 20h14"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85 0 1.34-.01 2.42-.01 2.75 0 .27.18.58.69.48A10 10 0 0 0 22 12c0-5.52-4.48-10-10-10z"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 8.5a14 14 0 0 1 18 0M6 12a9.5 9.5 0 0 1 12 0M9 15.5a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r="1.1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-batt" viewBox="0 0 24 24"><rect x="2" y="8.5" width="17" height="8" rx="2.5"/><path d="M21.2 11.5v2.5"/><rect x="4" y="10.5" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></symbol>
+
+  <!-- compatibility marks, drawn monochrome at one weight -->
+  <symbol id="m-claude" viewBox="0 0 24 24"><g fill="currentColor" stroke="none"><path d="M11.2 2h1.6l.5 7.2-2.6.1zM4.6 4.3l1.2-1.1 4.4 5.8-1.9 1.8zM2 11.2v1.6l7.2.5.1-2.6zM4.3 19.4l-1.1-1.2 5.8-4.4 1.8 1.9zM11.2 22h1.6l.5-7.2-2.6-.1zM19.4 19.7l-1.2 1.1-4.4-5.8 1.9-1.8zM22 11.2v1.6l-7.2.5-.1-2.6zM19.7 4.6l1.1 1.2-5.8 4.4-1.8-1.9z"/></g></symbol>
+  <symbol id="m-openai" viewBox="0 0 24 24"><path d="M12 3.4 18.4 7v7l-6.4 3.6L5.6 14V7z"/><path d="M12 3.4v7.1l6.4 3.5M12 10.5 5.6 14M12 10.5v7.1"/></symbol>
+  <symbol id="m-cursor" viewBox="0 0 24 24"><path d="M12 2.6 20.4 7v10L12 21.4 3.6 17V7z"/><path d="M3.6 7 12 11.6 20.4 7M12 11.6v9.8"/></symbol>
+  <symbol id="m-vscode" viewBox="0 0 24 24"><path d="M17.5 2.8 21 4.6v14.8l-3.5 1.8L8 13.4l-3.4 2.7L3 15.2V8.8l1.6-.9L8 10.6z"/><path d="m8 13.4 9.5-7.2v11.6L8 10.6z"/></symbol>
+  <symbol id="m-gemini" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 1.6c.5 5.4 4.4 9.3 9.8 9.8v1.2c-5.4.5-9.3 4.4-9.8 9.8h-1.2c-.5-5.4-4.4-9.3-9.8-9.8v-1.2c5.4-.5 9.3-4.4 9.8-9.8z"/></symbol>
+</defs></svg>
+
+<main>
+
+<!-- ═══════════════════ hero ═══════════════════ -->
+<section class="hero" id="top">
+  <img class="hero__wall" src="assets/hero-wall.jpg" width="2560" height="1439" alt="" fetchpriority="high" decoding="async">
+  <div class="hero__veil"></div>
+
+  <div class="menubar">
+    <div class="menubar__in">
+      <span class="menubar__mark" aria-hidden="true"></span>
+      <a class="menubar__app" href="#top">OpenKT</a>
+      <nav class="menubar__menus" aria-label="Sections">
+        <a href="#how">How it works</a>
+        <a href="#access">Access</a>
+        <a href="#run">Run it</a>
+        <a href="https://github.com/openkt/openkt">GitHub</a>
+      </nav>
+      <span class="menubar__status" aria-hidden="true">
+        <svg class="ico"><use href="#i-batt"/></svg>
+        <svg class="ico"><use href="#i-wifi"/></svg>
+        <span class="mono">Thu 9:41</span>
+      </span>
+    </div>
+  </div>
+
+  <figure class="mac">
+    <div class="mac__lid">
+      <div class="mac__screen">
+        <img src="assets/desktop-session.jpg" width="1280" height="800" alt="The OpenKT app. A sidebar lists today's sessions: a pricing call, a Claude Code session, a voice note, a ChatGPT chat and a screenshot. The open one, a pricing call with Northgate, shows a short summary and the six things saved from it." decoding="async">
+      </div>
+    </div>
+    <div class="mac__base" aria-hidden="true"><span class="mac__notchcut"></span></div>
+  </figure>
+
+  <div class="wrap hero__text">
+    <h1>Your agent already knows what the meeting decided.</h1>
+    <p class="hero__sub">OpenKT syncs your team's meetings and AI sessions into one shared place. Nobody pastes the call into their assistant, and nobody relays what their assistant worked out to everybody else.</p>
+    <a class="btn btn--light" href="https://github.com/openkt/openkt/releases">
+      <svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac
+    </a>
+    <p class="hero__note">Free to start. Open source, and yours to self-host.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════ what it does for you ═══════════════════ -->
+<section class="assure">
+  <div class="wrap assure__in">
+    <div class="assure__col">
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 76 38">
+          <g class="g-bars"><path d="M6 13v12M12 9v20M18 15v8M24 11v16"/></g>
+          <path class="g-arrow" d="M32 19h11M39.5 15.5 43 19l-3.5 3.5"/>
+          <rect class="g-line" x="50" y="8" width="22" height="16" rx="4"/>
+          <path class="g-line" d="M56 24v5l5-5"/>
+        </svg>
+      </div>
+      <h2>Meetings reach your agent.</h2>
+      <p>Whatever the call worked out is there the next time you open an assistant. You never paste a recap into a prompt again.</p>
+    </div>
+    <div class="assure__col">
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 76 38">
+          <rect class="g-line" x="4" y="8" width="22" height="16" rx="4"/>
+          <path class="g-line" d="M10 24v5l5-5"/>
+          <path class="g-arrow" d="M33 19h11M40.5 15.5 44 19l-3.5 3.5"/>
+          <circle class="g-line" cx="57" cy="13" r="5"/>
+          <path class="g-line" d="M48 30a9 9 0 0 1 18 0"/>
+          <circle class="g-soft" cx="69" cy="15" r="3.4"/>
+        </svg>
+      </div>
+      <h2>Your work reaches your team.</h2>
+      <p>What your session figures out shows up in your colleagues' tools too. No handover message, no summary dropped into a channel.</p>
+    </div>
+    <div class="assure__col">
+      <div class="glyph" aria-hidden="true">
+        <svg viewBox="0 0 76 38">
+          <path class="g-arrow" d="M52 8a15 15 0 1 1-14 4"/>
+          <path class="g-arrow" d="M38.5 5.5 37.5 12.5l7 1"/>
+          <path class="g-line" d="M26 19h24M30 25h16"/>
+        </svg>
+      </div>
+      <h2>You do neither by hand.</h2>
+      <p>No tagging, no doc, no folder to keep tidy. It is picked up and filed while you work, and you notice it only when something you needed is already there.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ the reel: one frame, three states ═══════════════════ -->
+<section class="reel" id="how">
+  <div class="wrap reel__head">
+    <h2>Nobody briefs anybody.</h2>
+    <p class="sub">Right now one person pastes the meeting into their assistant, and somebody else relays what that assistant found. OpenKT takes both jobs off the team.</p>
+  </div>
+
+  <div class="reel__track">
+
+    <article class="slide">
+      <div class="slide__plate" style="--plate: url('assets/plate-compose.jpg')">
+        <div class="slide__grid">
+          <div class="slide__copy">
+            <p class="mono slide__rail"><b>01</b><i></i><span>02</span><i></i><span>03</span></p>
+            <h3>It gets written down</h3>
+            <p>Hold a key and talk, or let the call run. Your Mac transcribes it, pulls out what matters, and files it as one sentence with your name on it.</p>
+          </div>
+          <div class="slide__card">
+            <div class="cap">
+              <div class="cap__bar">
+                <kbd class="cap__key">fn</kbd>
+                <span class="mono cap__state">listening</span>
+                <span class="cap__wave" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </span>
+                <span class="mono cap__time">0:06</span>
+              </div>
+              <p class="cap__said"><span>Ship the onboarding kit per store, not per account.</span></p>
+              <div class="cap__filed">
+                <span class="mono kind"><i class="dot dot--idea"></i>idea</span>
+                <span class="ctx__s">Ship the onboarding kit per store</span>
+                <span class="mono cap__dest">→ ideas</span>
+              </div>
+              <p class="mono cap__note">transcribed on this Mac · the audio never left it</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="slide">
+      <div class="slide__plate" style="--plate: url('assets/plate-press.jpg')">
+        <div class="slide__grid">
+          <div class="slide__copy">
+            <p class="mono slide__rail"><span>01</span><i></i><b>02</b><i></i><span>03</span></p>
+            <h3>Somebody else's agent asks</h3>
+            <p>Ravi was not on Tuesday's call and has read nobody's notes. He asks his own assistant on Thursday and it comes back with the three lines that matter.</p>
+          </div>
+          <div class="slide__card">
+            <div class="card">
+              <p class="card__ask">Draft the Northgate proposal. What do we already know?</p>
+              <div class="card__head">
+                <span class="card__brand">OpenKT</span>
+                <span class="mono">3 of 11 things your team knows</span>
+              </div>
+              <div class="ctx ctx--chip">
+                <span class="mono kind"><i class="dot dot--decision"></i>decision</span>
+                <span class="ctx__b"><span class="ctx__s">Quote Northgate per store, not per seat</span><span class="mono ctx__m">Pratham · pricing call · Tue</span></span>
+              </div>
+              <div class="ctx ctx--chip">
+                <span class="mono kind"><i class="dot dot--fact"></i>fact</span>
+                <span class="ctx__b"><span class="ctx__s">14 stores, 3 still on the old till system</span><span class="mono ctx__m">Pratham · pricing call · Tue</span></span>
+              </div>
+              <div class="ctx ctx--chip">
+                <span class="mono kind"><i class="dot dot--howto"></i>how-to</span>
+                <span class="ctx__b"><span class="ctx__s">Procurement wants a security one-pager first</span><span class="mono ctx__m">Ravi · intro call · 4 Sep</span></span>
+              </div>
+              <p class="mono card__foot">select an item to add it to this conversation</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="slide">
+      <div class="slide__plate" style="--plate: url('assets/plate-proof.jpg')">
+        <div class="slide__grid">
+          <div class="slide__copy">
+            <p class="mono slide__rail"><span>01</span><i></i><span>02</span><i></i><b>03</b></p>
+            <h3>And it stays true</h3>
+            <p>When the answer changes, the page changes with it. The old line stays struck through rather than vanishing, so anyone can see what moved and when.</p>
+          </div>
+          <div class="slide__card">
+            <div class="diff">
+              <p class="diff__t">Northgate pricing</p>
+              <p class="diff__old"><s>Per seat, with a volume discount above 40 seats</s><sup>2</sup></p>
+              <p class="diff__new">Per store. All fourteen included from the start<sup>1</sup></p>
+              <p class="diff__new diff__new--b">Procurement wants a security one-pager first<sup>3</sup></p>
+              <p class="mono diff__m">kept current from 4 sessions · last change today 10:48</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ═══════════════════ access ═══════════════════ -->
+<section class="study" id="access">
+  <img class="study__img" src="assets/plate-study.jpg" width="1500" height="936" alt="" loading="lazy" decoding="async">
+  <div class="study__veil"></div>
+  <div class="wrap study__in">
+    <h2>Syncing is automatic. Sharing is not.</h2>
+    <p>Everything lands first in a space only you can see. You decide what moves into a project, a customer or the whole team, and a colleague's assistant can only ever read what you moved.</p>
+  </div>
+</section>
+
+<section class="sec sec--tint">
+  <div class="wrap sec__head">
+    <h2>Access is checked before the answer is written.</h2>
+    <p class="sub">The filter runs inside the search rather than trimming the result afterwards, so a line nobody granted you is never in front of a model at all.</p>
+  </div>
+
+  <div class="wrap">
+    <div class="filter" role="img" aria-label="A search for what we agreed on Northgate pricing, asked by Ravi. Twelve items match the words. Four come back. The rest are listed as withheld, in spaces called finance forecast, people hiring and legal.">
+      <p class="filter__q"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span>what did we agree on Northgate pricing?</span><span class="mono filter__who">asked by Ravi</span></p>
+      <p class="mono filter__n"><b>12</b> match the words · <b>4</b> Ravi is allowed to read</p>
+      <div class="filter__rows">
+        <div class="ctx"><span class="mono kind"><i class="dot dot--decision"></i>decision</span><span class="ctx__b"><span class="ctx__s">Quote Northgate per store, not per seat</span><span class="mono ctx__m">sales / northgate</span></span></div>
+        <div class="ctx"><span class="mono kind"><i class="dot dot--fact"></i>fact</span><span class="ctx__b"><span class="ctx__s">14 stores, 3 still on the old till system</span><span class="mono ctx__m">sales / northgate</span></span></div>
+        <p class="held"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg><span class="mono">withheld</span><span class="mono held__sp">finance / forecast</span></p>
+        <div class="ctx"><span class="mono kind"><i class="dot dot--howto"></i>how-to</span><span class="ctx__b"><span class="ctx__s">Procurement wants a security one-pager first</span><span class="mono ctx__m">sales / northgate</span></span></div>
+        <p class="held"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg><span class="mono">withheld</span><span class="mono held__sp">people / hiring</span></p>
+        <p class="held"><svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg><span class="mono">withheld</span><span class="mono held__sp">legal / msa</span></p>
+        <div class="ctx"><span class="mono kind"><i class="dot dot--question"></i>question</span><span class="ctx__b"><span class="ctx__s">Can the old till system export daily sales?</span><span class="mono ctx__m">sales / northgate</span></span></div>
+      </div>
+      <p class="mono filter__f">5 more withheld · every search logged with who asked and what came back</p>
+    </div>
+    <p class="sec__foot sec__foot--c">Reader, editor or owner, on a workspace, on one project, or on a single conversation. Revoke it and the answers change on the next question, not on the next sync.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════ works with ═══════════════════ -->
+<section class="sec">
+  <div class="wrap sec__head">
+    <h2>It works inside the assistant you already use.</h2>
+    <p class="sub">Paste one setup line and it connects itself. There is no new app to live in and no tab anyone has to remember to open.</p>
+  </div>
+  <ul class="tools wrap">
+    <li><svg class="logo" aria-hidden="true"><use href="#m-claude"/></svg>Claude</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-openai"/></svg>ChatGPT</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-cursor"/></svg>Cursor</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-vscode"/></svg>VS Code</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-gemini"/></svg>Gemini</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-claude"/></svg>Claude Code</li>
+    <li><svg class="logo" aria-hidden="true"><use href="#m-openai"/></svg>Codex</li>
+  </ul>
+  <p class="wrap sec__foot sec__foot--c">And anything else that speaks the Model Context Protocol, which by now is most of them.</p>
+</section>
+
+<!-- ═══════════════════ two ways to run it ═══════════════════ -->
+<section class="sec sec--tint" id="run">
+  <div class="wrap sec__head">
+    <h2>One engine, two ways to run it.</h2>
+    <p class="sub">The same software either way. There are no features we keep for ourselves.</p>
+  </div>
+
+  <div class="wrap ways">
+    <div class="way">
+      <h3>We run it for you</h3>
+      <p>Sign in, connect your tools, get on with the day. Your team's store lives on our servers, encrypted, and nothing in it trains anything.</p>
+      <ul class="way__list">
+        <li>Working in about two minutes</li>
+        <li>Meetings, voice and screenshots included</li>
+        <li>Everything exportable on any day you like</li>
+      </ul>
+      <a class="btn btn--solid" href="https://github.com/openkt/openkt/releases"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac</a>
+    </div>
+    <div class="way">
+      <h3>You run it yourself</h3>
+      <p>One server and one Postgres, on a machine you own. Point the models at your own endpoints and none of it leaves the building.</p>
+      <ul class="way__list">
+        <li>Apache-2.0, all of it</li>
+        <li>Any OpenAI-compatible model endpoint</li>
+        <li>No graph database, no broker, no queue to babysit</li>
+      </ul>
+      <a class="btn btn--ghost" href="https://github.com/openkt/openkt#quick-start"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>Read the quickstart</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ faq ═══════════════════ -->
+<section class="sec faq">
+  <div class="wrap sec__head">
+    <h2>Questions people ask first.</h2>
+  </div>
+  <div class="wrap faq__list">
+    <details>
+      <summary>How is this different from the memory my assistant already has?</summary>
+      <p>That memory stops at you and at one company's product. Your colleague's tool cannot read it, it has no idea who is allowed to see what, and it never hears a meeting. OpenKT sits behind all of them and is the one thing every assistant on the team can read.</p>
+    </details>
+    <details>
+      <summary>Is this a wiki with extra steps?</summary>
+      <p>Somebody has to write a wiki, and after the second week nobody does. Here the writing is a side effect of work that was already happening. The pages keep themselves current, and when you disagree with one you edit it and your version wins.</p>
+    </details>
+    <details>
+      <summary>Does something join our meetings?</summary>
+      <p>No. It records from your own machine, the way you would record a voice memo. Nobody on the call sees an extra participant. You see a recording state the whole time, and your workspace can require everyone to agree first, or switch it off completely.</p>
+    </details>
+    <details>
+      <summary>Do you train on our data?</summary>
+      <p>No, and there is no plan or paid tier where we do. On your own server the question does not arise at all, because none of it ever reaches us.</p>
+    </details>
+    <details>
+      <summary>Somebody leaves. What happens to what they knew?</summary>
+      <p>It stays, with their name on it, which is most of the point. You revoke their access, and everything they put into shared spaces is still there for the rest of the team, still attributed, still cited on the pages it built.</p>
+    </details>
+    <details>
+      <summary>What if I say something I did not mean to share?</summary>
+      <p>Everything starts in a space that is only yours. Nothing moves anywhere shared unless you send it, or unless you set a tool up to file there on purpose, and you can move or delete anything afterwards.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ═══════════════════ close ═══════════════════ -->
+<section class="close">
+  <div class="wrap">
+    <h2>Try it on this week's meetings.</h2>
+    <p class="sub">Install it, let it sit through one call, then open your assistant and ask what was decided. That is the whole demonstration.</p>
+    <a class="btn btn--solid" href="https://github.com/openkt/openkt/releases">
+      <svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Try free on Mac
+    </a>
+    <p class="close__note">Free to start. Open source, and yours to self-host.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__grid">
+    <div class="foot__brand">
+      <span class="wordmark">OpenKT</span>
+      <p class="foot__tag">One shared context for a team and all of its agents. Open source, and yours to run.</p>
+      <a class="foot__gh" href="https://github.com/openkt/openkt"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg>github.com/openkt</a>
+    </div>
+    <nav class="foot__col" aria-label="Product">
+      <h2 class="mono foot__h">Product</h2>
+      <a href="#how">How it works</a>
+      <a href="#access">Access</a>
+      <a href="#run">Run it yourself</a>
+      <a href="https://github.com/openkt/openkt/releases">Download for Mac</a>
+    </nav>
+    <nav class="foot__col" aria-label="Project">
+      <h2 class="mono foot__h">Project</h2>
+      <a href="https://github.com/openkt/openkt">Source</a>
+      <a href="https://github.com/openkt/openkt/blob/main/docs/product.md">What it is</a>
+      <a href="https://github.com/openkt/openkt/blob/main/CONTRIBUTING.md">Contributing</a>
+      <a href="https://github.com/openkt/openkt/blob/main/SECURITY.md">Report a problem</a>
+    </nav>
+    <nav class="foot__col" aria-label="Legal">
+      <h2 class="mono foot__h">Legal</h2>
+      <a href="https://github.com/openkt/openkt/blob/main/LICENSE">Licence</a>
+      <a href="https://github.com/openkt/openkt/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/openkt/openkt/blob/main/docs/product.md#privacy-and-trust">Privacy</a>
+    </nav>
+  </div>
+  <div class="wrap foot__legal">
+    <p class="mono">Apache-2.0 · Screens show example content</p>
+    <p class="mono">Made for teams who would rather not repeat themselves</p>
+  </div>
+</footer>
+
+</body>
+</html>
