@@ -4,11 +4,11 @@ dist/
 dist-electron/
 release/
 coverage/
+*.dmg
 *.tsbuildinfo
 
 # environment and secrets
-.env
-.env.*
+.env*
 !.env.example
 
 # logs
@@ -33,3 +33,6 @@ Thumbs.db
 # review artefacts written by `npm run shots`; the few images the docs use live in docs/images/
 apps/desktop/shots/
 packages/mcp-cards/screenshots/
+
+# end-to-end test output (screenshots, traces, reports)
+e2e/artifacts/

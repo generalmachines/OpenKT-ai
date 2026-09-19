@@ -5,7 +5,7 @@
   "private": true,
   "description": "OpenKT desktop app — Electron shell built from the design canvas.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "apps/desktop" },
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/OpenKT-ai.git", "directory": "apps/desktop" },
   "author": "OpenKT",
   "main": "dist-electron/main/index.js",
   "scripts": {

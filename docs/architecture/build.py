@@ -70,7 +70,7 @@ for i, x, y, dx, dy, c, dashed, lab in A:
         els.append(text(i + "t", lab, x + dx / 2 - len(lab) * 4.4, y + dy / 2 - 10, 16, c, container=i, align="center"))
 for n, (s, x, y, size) in enumerate([TITLE, SUB, FOOT]):
     els.append(text(f"t{n}", s, x, y, size, "#1e1e1e" if n == 0 else "#757575"))
-scene = {"type": "excalidraw", "version": 2, "source": "https://github.com/masti-ai/openkt", "elements": els,
+scene = {"type": "excalidraw", "version": 2, "source": "https://github.com/masti-ai/OpenKT-ai", "elements": els,
          "appState": {"viewBackgroundColor": "#ffffff", "gridSize": None}, "files": {}}
 json.dump(scene, open(f"{OUT}/system.excalidraw", "w"), indent=1)
 

@@ -5,7 +5,7 @@ Status: **verified** against https://code.claude.com/docs/en/mcp, /skills and /p
 ## Easiest: the plugin (server + skill + commands + optional hooks)
 
 ```bash
-claude plugin marketplace add masti-ai/openkt     # the OpenKT repository; use your fork or mirror if different
+claude plugin marketplace add masti-ai/OpenKT-ai     # the OpenKT repository; use your fork or mirror if different
 claude plugin install openkt@openkt
 ```
 
