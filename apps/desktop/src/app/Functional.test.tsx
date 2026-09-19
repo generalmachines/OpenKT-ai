@@ -98,13 +98,13 @@ describe('the server does not answer', () => {
 
     await user.keyboard('{Control>}k{/Control}');
     const dialog = await screen.findByRole('dialog', { name: 'Search all context' });
-    await user.type(within(dialog).getByRole('combobox'), 'northgate');
+    await user.type(within(dialog).getByRole('combobox'), 'acmeflow');
     expect(await within(dialog).findByText(/Can’t reach the OpenKT server/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/Nothing relevant/)).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
 
     client.down = false;
     await user.click(within(nav).getByRole('button', { name: 'Retry' }));
-    expect(await within(nav).findByText('Pricing call with Northgate')).toBeInTheDocument();
+    expect(await within(nav).findByText('Acmeflow deal review')).toBeInTheDocument();
   });
 });
