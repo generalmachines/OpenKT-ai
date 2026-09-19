@@ -102,3 +102,20 @@ describe("findSecrets", () => {
     expect(hasSecret("we rotate the API key every quarter")).toBe(false);
   });
 });
+
+describe("findSecrets — the bare 'is' form (issue #54)", () => {
+  it("does not flag plain sentences", () => {
+    expect(hasSecret("the secret is patience and hard work")).toBe(false);
+    expect(hasSecret("the password is obviously memorable")).toBe(false);
+  });
+
+  it("still flags credential-like values after 'is'", () => {
+    expect(types("the password is hunter2222")).toEqual(["password_assignment"]);
+    expect(types("password is correct-horse-battery")).toEqual(["password_assignment"]);
+  });
+
+  it("keeps the = and : forms unchanged", () => {
+    expect(types("password: patience")).toEqual(["password_assignment"]);
+    expect(types("pwd=patience")).toEqual(["password_assignment"]);
+  });
+});

@@ -13,7 +13,7 @@ const JWT = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const CONNECTION_STRING =
   /\b(?:mongodb\+srv|postgres|postgresql|mysql|mongodb|redis|amqp):\/\/[^\s:@/]+:[^\s:@]+@[^\s<>"'`]+/g;
 const PASSWORD_ASSIGNMENT =
-  /\b(?:password|passwd|pwd|secret|api[_-]?key)[ \t]*(?:is[ \t]*[=:]?[ \t]*|[=:][ \t]*)[^\s]{6,}/gi;
+  /\b(?:password|passwd|pwd|secret|api[_-]?key)[ \t]*(is[ \t]*[=:]?[ \t]*|[=:][ \t]*)[^\s]{6,}/gi;
 const CARD_NUMBER = /(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/g;
 
 /** A value the password rule must never flag. */
@@ -71,7 +71,13 @@ export function findSecrets(text: string): { type: string; index: number }[] {
   for (const m of text.matchAll(PASSWORD_ASSIGNMENT)) {
     // The value is the last whitespace-free run of the match.
     const value = m[0].split(/\s+/).pop() as string;
-    if (!isPlaceholderValue(value)) matches.push({ type: "password_assignment", index: m.index });
+    if (isPlaceholderValue(value)) continue;
+    // Bare "is" form (no `=` or `:`): only flag values that look
+    // credential-like, so ordinary sentences never match (issue #54).
+    const separator = m[1] ?? "";
+    const bareIs = separator.startsWith("is") && !/[=:]/.test(separator);
+    if (bareIs && !/[0-9!@#$%^&*_+=~-]/.test(value)) continue;
+    matches.push({ type: "password_assignment", index: m.index });
   }
 
   for (const m of text.matchAll(CARD_NUMBER)) {
