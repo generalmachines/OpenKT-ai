@@ -52,26 +52,26 @@ describe('buildSwapScript', () => {
         'if [ -e "$OLD" ]; then echo "swap: $OLD already exists"; exit 1; fi',
         'if ! /bin/mv "$APP" "$OLD"; then',
         '  echo "swap: could not move the old bundle aside (App Management permission?)"',
-        '  "$OPEN" -n "$APP"',
+        '  "$OPEN" -n -a "$APP"',
         '  exit 1',
         'fi',
         'if ! /bin/mv "$NEW" "$APP"; then',
         '  echo "swap: could not move the new bundle into place; restoring"',
         '  /bin/mv "$OLD" "$APP"',
-        '  "$OPEN" -n "$APP"',
+        '  "$OPEN" -n -a "$APP"',
         '  exit 1',
         'fi',
         '/bin/rmdir "$STAGE" 2>/dev/null',
         'echo "swap: installed $APP (previous copy at $OLD)"',
-        'exec "$OPEN" -n "$APP"',
+        'exec "$OPEN" -n -a "$APP"',
         '',
       ].join('\n'),
     );
   });
 
-  it('quotes relaunch options and puts them before the bundle; a rollback deletes the replaced copy', () => {
+  it('quotes relaunch options; a rollback deletes the replaced copy', () => {
     const s = buildSwapScript({ ...plan, stageDir: undefined, deleteReplaced: true, openArgs: ['--env', 'OPENKT_SMOKE_OUT=/tmp/a b.json'], waitSeconds: 2 });
-    expect(s).toContain(`exec "$OPEN" -n '--env' 'OPENKT_SMOKE_OUT=/tmp/a b.json' "$APP"`);
+    expect(s).toContain(`exec "$OPEN" -n -a "$APP" '--env' 'OPENKT_SMOKE_OUT=/tmp/a b.json'`);
     expect(s).toContain('if [ "$i" -gt 10 ]');
     expect(s).toContain('/bin/rm -rf "$OLD"');
     expect(s).not.toContain('STAGE');
@@ -114,7 +114,7 @@ describe('the swap script, executed (fake `open`)', () => {
     expect(readFileSync(join(app, 'Contents', 'Info.plist'), 'utf8')).toContain('0.3.9');
     expect(readFileSync(join(old, 'Contents', 'Info.plist'), 'utf8')).toContain('0.3.8');
     expect(existsSync(stage)).toBe(false);
-    expect(opened.trim()).toBe(`open -n --env A=b c ${app}`);
+    expect(opened.trim()).toBe(`open -n -a ${app} --env A=b c`);
   });
 
   it('puts the old bundle back and reopens it when the new one cannot be moved in', async () => {
@@ -137,7 +137,7 @@ describe('the swap script, executed (fake `open`)', () => {
     expect(log).toContain('restoring');
     expect(existsSync(join(app, 'Contents', 'Info.plist'))).toBe(true);
     expect(existsSync(`${app}.old-3`)).toBe(false);
-    expect(opened.trim()).toBe(`open -n ${app}`);
+    expect(opened.trim()).toBe(`open -n -a ${app}`);
   });
 
   it('rolls back: the previous copy returns and the broken one is deleted', async () => {

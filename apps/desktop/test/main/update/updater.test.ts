@@ -124,7 +124,7 @@ describe('Updater — the custom (ad-hoc) path', () => {
     expect(old).toHaveLength(1);
     expect(plistVersion(join(apps, old[0]!))).toBe('0.3.8');
     expect(readdirSync(apps).filter((x) => x.startsWith('.openkt-update-'))).toHaveLength(0);
-    expect(readFileSync(tools.calls, 'utf8')).toContain(`open -n ${appPath}`);
+    expect(readFileSync(tools.calls, 'utf8')).toContain(`open -n -a ${appPath}`);
 
     // Relaunched as 0.3.9.
     holder = spawn('sleep', ['30']);
