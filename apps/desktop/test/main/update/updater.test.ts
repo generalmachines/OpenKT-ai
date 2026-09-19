@@ -171,6 +171,19 @@ describe('Updater — the custom (ad-hoc) path', () => {
     expect(srv.seen.map((x) => x.path)).toEqual(['/latest.json']);
   });
 
+    it('a signed build takes the verified custom path when the release has no sha512 (mac-release.sh feeds)', async () => {
+    publish('0.3.9');
+    const signed = { download: async () => { throw new Error('electron-updater must not be used'); }, install: () => { throw new Error('no'); } };
+    const n = make('0.3.8', { signed });
+    expect(n.mode).toBe('signed');
+    await n.check();
+    await n.idle();
+    expect(n.status().phase).toBe('ready');
+    await n.install();
+    await until(() => readFileSync(tools.calls, 'utf8').includes('open -n'), 'the relaunch');
+    expect(plistVersion(appPath)).toBe('0.3.9');
+  });
+
     it('never downgrades', async () => {
     publish('0.3.7');
     const n = make('0.3.8');

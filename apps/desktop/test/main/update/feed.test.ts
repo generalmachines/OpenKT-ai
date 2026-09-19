@@ -85,6 +85,32 @@ describe('parseFeed', () => {
   });
 });
 
+describe('the feed scripts/mac-release.sh writes', () => {
+  it('is accepted as is', () => {
+    // Shape of scripts/mac-release.sh (#83): no sha512, raw commit subjects as notes.
+    const v = '0.3.2609191130';
+    const f = parseFeed(
+      {
+        version: v,
+        channel: 'stable',
+        released_at: '2026-09-19T11:30:12.345Z',
+        commit: 'bd04f0962b5ac1eb522f451a32945a5dbd378008',
+        notes: ['scripts: mac-release.sh — build the DMG on a Mac and publish it (S3 + update feed) (#83)', 'desktop: on-device AI is an informed choice'],
+        min_os: '13.3',
+        files: {
+          zip: { url: `${HOST}/releases/${v}/OpenKT-${v}-arm64.zip`, sha256: SHA, size: 190_000_000 },
+          dmg: { url: `${HOST}/releases/${v}/OpenKT-${v}-arm64.dmg`, sha256: SHA, size: 200_000_000 },
+        },
+      },
+      PROD,
+    );
+    expect(f).toMatchObject({ version: v, channel: 'stable', min_os: '13.3', files: { zip: { size: 190_000_000 } } });
+    expect(f.files.zip.sha512).toBeUndefined();
+    expect(decide(f, { version: '0.3.2609181200', channel: 'stable', osVersion: '14.6.1' }).kind).toBe('update');
+    expect(decide(f, { version: '0.3.19', channel: 'stable' }).kind).toBe('update');
+  });
+});
+
 describe('decide', () => {
   const f = parseFeed(feed(), PROD);
   it('offers only a strictly newer version on the same channel', () => {

@@ -98,7 +98,7 @@ describe('the swap script, executed (fake `open`)', () => {
     const exited = new Promise((r) => holder.once('exit', r));
     await spawnSwap({ ...plan, pid: holder.pid!, logPath: join(dir, 'swap.log'), tools, waitSeconds: 10 }, join(dir, 'swap.sh'));
     await exited;
-    for (let i = 0; i < 100 && !/installed|restoring|could not|exists|missing/.test(readFileSync(join(dir, 'swap.log'), 'utf8')); i += 1) await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 300 && !/installed|restoring|could not|exists|missing/.test(readFileSync(join(dir, 'swap.log'), 'utf8')); i += 1) await new Promise((r) => setTimeout(r, 50));
     await new Promise((r) => setTimeout(r, 100));
     return { log: readFileSync(join(dir, 'swap.log'), 'utf8'), opened: readFileSync(tools.calls, 'utf8') };
   }

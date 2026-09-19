@@ -12,7 +12,8 @@ function ago(iso: string | null): string {
 }
 
 function built(s: UpdateStatus): string {
-  const parts = [s.commit ? `commit ${s.commit.slice(0, 7)}` : 'built from source', s.builtAt ? `built ${new Date(s.builtAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''];
+  const parts = [s.commit ? `commit ${s.commit.slice(0, 7)}` : '', s.builtAt ? `built ${new Date(s.builtAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''];
+  if (s.mode === 'disabled' && !parts.some(Boolean)) return 'development build';
   return parts.filter(Boolean).join(' · ');
 }
 

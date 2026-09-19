@@ -10,7 +10,7 @@ disk images (see [Updates](#updates)).
 ## 1. Install
 
 1. Download the latest build: <https://openkt-downloads-724772068721.s3.ap-south-1.amazonaws.com/desktop/OpenKT-latest-arm64.dmg>
-   (this link always points at the newest release).
+   (this link always points at the newest release, published with `scripts/mac-release.sh`).
 2. Open the disk image and drag **OpenKT** into **Applications**. Eject the disk image.
    Do not run OpenKT from the disk image: it cannot update itself from there. If you do open it
    from the disk image, it offers **Move to Applications** and does the move for you.

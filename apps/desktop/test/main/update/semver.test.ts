@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareOsVersion, compareSemver, parseSemver } from '../../../src/main/update/semver';
+import { builtAtFromVersion, compareOsVersion, compareSemver, parseSemver } from '../../../src/main/update/semver';
 
 describe('semver', () => {
   it('orders CI builds numerically, not as strings', () => {
@@ -17,7 +17,23 @@ describe('semver', () => {
     expect(compareSemver('0.3.0-1', '0.3.0-alpha')).toBe(-1);
   });
 
-  it('ignores build metadata', () => {
+  it('orders scripts/mac-release.sh versions (0.3.<YYMMDDHHMM>, UTC) after CI builds and the dev build', () => {
+    expect(parseSemver('0.3.2609191130')).toEqual({ major: 0, minor: 3, patch: 2609191130, pre: [] });
+    expect(compareSemver('0.3.2609191131', '0.3.2609191130')).toBe(1);
+    expect(compareSemver('0.3.2701010000', '0.3.2612312359')).toBe(1);
+    expect(compareSemver('0.3.2609191130', '0.3.19')).toBe(1);
+    expect(compareSemver('0.3.2609191130', '0.3.0-dev.0')).toBe(1);
+    expect(parseSemver('0.3.1234567890123456')).toBeNull();
+  });
+
+  it('reads the UTC build time out of a mac-release.sh version, and nothing out of others', () => {
+    expect(builtAtFromVersion('0.3.2609191130')).toBe('2026-09-19T11:30:00.000Z');
+    expect(builtAtFromVersion('0.3.19')).toBe('');
+    expect(builtAtFromVersion('0.3.0-dev.0')).toBe('');
+    expect(builtAtFromVersion('0.3.2613011130')).toBe('');
+  });
+
+    it('ignores build metadata', () => {
     expect(compareSemver('0.3.7+abc', '0.3.7')).toBe(0);
   });
 

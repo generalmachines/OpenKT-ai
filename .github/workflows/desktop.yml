@@ -24,7 +24,7 @@ jobs:
     name: build (dmg + zip, arm64)
     runs-on: macos-14
     timeout-minutes: 30
-    # in-app updates: the release job publishes this version
+    # in-app updates: update-smoke installs this version and updates it to `next`
     outputs:
       version: ${{ steps.version.outputs.version }}
       next: ${{ steps.version.outputs.next }}
@@ -467,45 +467,4 @@ jobs:
             ${{ runner.temp }}/feed.log
           retention-days: 14
 
-  release:
-    name: release (S3 feed — main only)
-    # Only after the build and EVERY smoke job is green; only from main (the environment is restricted to main too).
-    needs: [build, local-ai-smoke, capture-smoke, app-launch-smoke, update-smoke]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    environment: production
-    concurrency:
-      group: desktop-release
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Check out full history (release notes)
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          fetch-depth: 0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: OpenKT-mac-arm64-dmg
-          path: dist
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: OpenKT-mac-arm64-zip
-          path: dist
-      - name: Configure temporary AWS credentials
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c
-        with:
-          role-to-assume: ${{ vars.DOWNLOADS_ROLE_ARN }}
-          role-session-name: openkt-desktop-release-${{ github.run_id }}
-          aws-region: ${{ vars.AWS_REGION }}
-      - name: Publish ${{ needs.build.outputs.version }} (versioned files, stable DMG, then latest.json LAST)
-        env:
-          VERSION: ${{ needs.build.outputs.version }}
-          BUCKET: ${{ vars.DOWNLOADS_BUCKET }}
-          BASE_URL: ${{ vars.DOWNLOADS_BASE_URL }}
-          COMMIT: ${{ github.sha }}
-        run: |
-          ls -la dist
-          ZIP="$(ls dist/*.zip | head -1)" DMG="$(ls dist/*.dmg | head -1)" bash apps/desktop/scripts/release-publish.sh
   # ── end in-app updates ──

@@ -1,4 +1,8 @@
-/** Strict semver (major.minor.patch with an optional pre-release), enough to order `0.3.<run number>` builds. */
+/**
+ * Strict semver (major.minor.patch with an optional pre-release). Releases are `0.3.<YYMMDDHHMM>` (UTC) from
+ * scripts/mac-release.sh — a ten-digit patch — and `0.3.<run number>` from CI builds; numbers up to 15 digits
+ * stay exact in a JS number.
+ */
 export interface SemVer {
   major: number;
   minor: number;
@@ -6,7 +10,7 @@ export interface SemVer {
   pre: string[];
 }
 
-const RE = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$/;
+const RE = /^(0|[1-9]\d{0,14})\.(0|[1-9]\d{0,14})\.(0|[1-9]\d{0,14})(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 export function parseSemver(v: unknown): SemVer | null {
   if (typeof v !== 'string') return null;
@@ -54,4 +58,12 @@ export function compareOsVersion(a: string, b: string): number {
     if (d !== 0) return d < 0 ? -1 : 1;
   }
   return 0;
+}
+
+/** scripts/mac-release.sh versions are `0.3.<YYMMDDHHMM>` in UTC: the build time is in the version. */
+export function builtAtFromVersion(version: string): string {
+  const m = /^\d+\.\d+\.(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(version);
+  if (!m) return '';
+  const d = new Date(Date.UTC(2000 + Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5])));
+  return Number.isNaN(d.getTime()) || d.getUTCMonth() !== Number(m[2]) - 1 ? '' : d.toISOString();
 }

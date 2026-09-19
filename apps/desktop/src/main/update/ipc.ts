@@ -10,6 +10,7 @@ import type { IpcChannel, UpdateStatusDto } from '../../shared/ipc';
 import { teamIdentifier } from './bundle';
 import { resolveFeedConfig, type FeedConfig } from './feed';
 import { bundlePathFromExe } from './location';
+import { builtAtFromVersion } from './semver';
 import { createSignedAdapter } from './signed';
 import { Updater, type SignedAdapter } from './updater';
 
@@ -39,10 +40,11 @@ export function readBuildInfo(): BuildInfo {
     /* dev build */
   }
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const version = app.getVersion();
   return {
-    version: app.getVersion(),
+    version,
     commit: str(extra['commit']),
-    builtAt: str(extra['builtAt']),
+    builtAt: str(extra['builtAt']) || builtAtFromVersion(version),
     channel: str(extra['channel']) || 'stable',
     signed: extra['signed'] === true || process.env['OPENKT_SIGNED'] === '1',
   };

@@ -91,6 +91,8 @@ export class Updater {
   private staged: Staged | null = null;
   private launchOutcome: LaunchOutcome = { kind: 'normal' };
   private busy: Promise<unknown> | null = null;
+  /** Which path prepared the update that is (or is being) downloaded. */
+  private readyVia: 'signed' | 'custom' = 'custom';
   private readonly listeners = new Set<(s: UpdateStatusDto) => void>();
   private readonly statePath: string;
   private readonly tools: Tools;
@@ -261,7 +263,11 @@ export class Updater {
       this.set('available', loc.message);
       return this.status();
     }
-    const run = this.o.signed ? this.downloadSigned(feed, this.o.signed) : this.downloadCustom(feed);
+    // electron-updater verifies by sha512; a release without one (scripts/mac-release.sh writes sha256 only)
+    // takes the verified custom path, which also checks a signed build's TeamIdentifier.
+    const signed = this.o.signed && feed.files.zip.sha512 ? this.o.signed : null;
+    this.readyVia = signed ? 'signed' : 'custom';
+    const run = signed ? this.downloadSigned(feed, signed) : this.downloadCustom(feed);
     this.busy = run;
     await run.finally(() => {
       this.busy = null;
@@ -344,7 +350,7 @@ export class Updater {
       this.save();
     };
 
-    if (this.o.signed) {
+    if (this.o.signed && this.readyVia === 'signed') {
       this.set('installing');
       pending('');
       this.o.signed.install();
