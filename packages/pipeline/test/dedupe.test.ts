@@ -55,6 +55,15 @@ describe("decideDuplicate", () => {
     const ask = decideDuplicate([neighbour("n1", 0.9), neighbour("n2", Number.NaN)]);
     if (ask.action !== "ask_agent") throw new Error("expected ask_agent");
     expect(ask.candidates.map((c) => c.id)).toEqual(["n1"]);
+    // A NaN in front must not hide the duplicate behind it.
+    expect(decideDuplicate([neighbour("a", Number.NaN), neighbour("b", 0.99)])).toEqual({
+      action: "duplicate",
+      of: "b",
+    });
+    // An ignored (non-finite) neighbour must not pick the project.
+    expect(
+      decideDuplicate([neighbour("a", Number.NaN, { project_id: "p2" }), neighbour("b", 0.99)]),
+    ).toEqual({ action: "duplicate", of: "b" });
   });
 });
 
@@ -90,6 +99,13 @@ describe("guardSupersede", () => {
       [neighbour("n1", 0.9, { created_at: "2025-12-31T23:00:00-02:00" })],
     );
     expect(out.rejected).toEqual([{ id: "n1", reason: "not_older" }]);
+    // The reverse: older by instant but textually later → kept.
+    const kept = guardSupersede(
+      { ...newFact, kind: "decision", created_at: "2026-06-01T00:00:00Z" },
+      { duplicate_of: null, supersedes: ["n1"] },
+      [neighbour("n1", 0.9, { created_at: "2026-06-01T05:00:00+07:00" })],
+    );
+    expect(kept).toEqual({ duplicate_of: null, supersedes: ["n1"], rejected: [] });
   });
 
   it("repeated ids are de-duplicated before the cap", () => {

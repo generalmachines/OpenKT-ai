@@ -16,13 +16,15 @@ export type DuplicateDecision =
 export function decideDuplicate(neighbours: Neighbour[]): DuplicateDecision {
   if (neighbours.length === 0) return { action: "new" };
 
-  const firstProject = neighbours[0]!.project_id;
-  const pool = neighbours.filter(
-    (n) =>
-      n.project_id === firstProject &&
-      typeof n.similarity === "number" &&
-      Number.isFinite(n.similarity),
+  // First drop every neighbour whose similarity is not a finite number —
+  // an ignored neighbour must not pick the project.
+  const finite = neighbours.filter(
+    (n) => typeof n.similarity === "number" && Number.isFinite(n.similarity),
   );
+  if (finite.length === 0) return { action: "new" };
+
+  const firstProject = finite[0]!.project_id;
+  const pool = finite.filter((n) => n.project_id === firstProject);
   if (pool.length === 0) return { action: "new" };
 
   const best = pool.reduce((a, b) => (b.similarity > a.similarity ? b : a));
