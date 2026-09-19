@@ -22,6 +22,7 @@ import { MemorySynthesisService } from "./services/memory-synthesis.service";
 import { MemoryTraceService } from "./services/memory-trace.service";
 import { LocalMemoryEngine } from "./services/local-memory-engine.service";
 import { SessionRepository } from "../sessions/repositories/session.repository";
+import { PageRepository } from "../pages/repositories/page.repository";
 
 // Single repository, single source of truth. Drizzle is global and
 // provides DRIZZLE; the env-driven repo swap that lived here in the
@@ -37,6 +38,8 @@ import { SessionRepository } from "../sessions/repositories/session.repository";
     // other's lightweight, DRIZZLE-only repository class instead of
     // importing one another's module.
     SessionRepository,
+    // Recall returns page sections too (DRIZZLE-only, provided directly like SessionRepository).
+    PageRepository,
     KnowledgeRepository,
     DrizzleOutboxRepository,
     LlmGatewayService,

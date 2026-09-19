@@ -2,5 +2,7 @@ node_modules/
 dist/
 dist-electron/
 release/
+# in-app updates: the update-smoke payload (N+1) packaged by CI
+release-next/
 *.tsbuildinfo
 .env.local

@@ -25,7 +25,7 @@ You are the capture mechanism. In most clients nothing records the conversation 
 | A decision point is reached | `kt_save_memory(content, kind?, project?, session_id?, visibility?)` | — |
 | Work ends | `kt_session_end(session_id, summary)` | — |
 
-Also available: `kt_list_projects()` (spaces the user can see, with their role), `kt_project_brief(project)` (the digest of one space), `kt_search_memories` (browse or filter without counting as a recall), `kt_forget_memory` (archive an item — only when the user asks), `kt_setup` (setup steps from the server itself).
+Also available: `kt_list_projects()` (spaces the user can see, with their role), `kt_project_brief(project)` (the digest of one space), `kt_search_memories` (browse or filter without counting as a recall), `kt_forget_memory` (archive an item — only when the user asks), `kt_list_skills` / `kt_get_skill` / `kt_save_skill` (the team's written procedures: when the user asks for something "the way we do it", find the matching skill and follow it), `kt_setup` (setup steps from the server itself). In clients that render MCP Apps cards there are also `kt_save_card` and `kt_search_card` (below).
 
 If a tool is missing or its arguments differ from this page, trust the tool's own description and schema: the server is the source of truth and this file may be older than it.
 
@@ -93,7 +93,7 @@ If the server rejects a `kind`, use the closest one its schema lists, or omit `k
 
 Do not ask permission for every save; that defeats the point. Save, then mention it in a few words ("Saved to sales / northgate."). Ask first only when the content is sensitive or when the space is unclear.
 
-If the client shows an OpenKT card (claude.ai, Claude Desktop, ChatGPT, Cursor, VS Code), the user confirms the save and picks the space in the card. A tool result that says the draft is "not saved yet" means exactly that: wait for the card's outcome, do not also call `kt_save_memory`, and do not tell the user it is saved until it is.
+If `kt_save_card` is available (claude.ai, Claude Desktop, Cowork, ChatGPT and other clients that render MCP Apps cards), prefer it when the space is not settled: the user confirms the statement and picks the space in the card. Its result says the draft is "NOT saved yet", and that means exactly that: wait for the card's outcome, do not also call `kt_save_memory`, and do not tell the user it is saved until it is. `kt_search_card` shows search results as a card the user can pick from.
 
 ## 4. Choosing the space
 

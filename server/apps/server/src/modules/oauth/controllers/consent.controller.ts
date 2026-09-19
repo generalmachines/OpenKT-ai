@@ -16,17 +16,19 @@ import { ForbiddenDomainError } from "@openkt/core-errors";
 import { okResponse } from "../../../common/http/ok-response";
 import { parseWithSchema } from "../../../common/http/zod-parse";
 import { ActorContextParam } from "../../auth/decorators/actor-context.decorator";
-import { SupabaseJwtGuard } from "../../auth/guards/supabase-jwt.guard";
+import { BearerAuthGuard } from "../../auth/guards/bearer-auth.guard";
 import { OauthError, OauthService } from "../services/oauth.service";
 
-// POST /oauth/consent — called by the dashboard frontend after the user
-// signs in (Supabase) and (optionally) clicks Allow on the consent
-// screen. Mints the authorization code and returns the redirect URL the
-// dashboard should navigate the popup to so the OAuth client picks the
-// code up.
+// POST /oauth/consent — for a frontend that signs the person in itself
+// (a dashboard, the desktop app) instead of using the server's own sign-in
+// page at GET /oauth/authorize. It POSTs the original authorize params with
+// the person's bearer — an `okt_pat_…` session token from /v1/auth/login, or
+// a Supabase JWT when Supabase is configured — and gets back the URL to send
+// the browser to:
 //
-// See the contract docstring at the top of `authorize.controller.ts`
-// for the exact payload + response shape.
+//   POST /oauth/consent   Authorization: Bearer <token>
+//   { client_id, redirect_uri, state?, code_challenge, code_challenge_method: "S256", scope? }
+//   → { data: { redirect_url: "<redirect_uri>?code=…&state=…" } }
 
 const ConsentBody = z.object({
   client_id: z.string().min(1),
@@ -38,7 +40,7 @@ const ConsentBody = z.object({
 });
 
 @Controller("oauth")
-@UseGuards(SupabaseJwtGuard)
+@UseGuards(BearerAuthGuard)
 @ApiBearerAuth("supabase-bearer")
 @ApiTags("OAuth (Claude.ai / DCR clients)")
 export class OauthConsentController {
@@ -47,14 +49,12 @@ export class OauthConsentController {
   @Post("consent")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Mint an OAuth auth code (called by dashboard /oauth/authorize page)",
+    summary: "Mint an OAuth auth code for a frontend that signed the person in itself",
     description:
-      "After the dashboard signs the user in and gets consent, it POSTs " +
-      "the original authorize params back here with a Supabase JWT. We " +
-      "validate the client + PKCE challenge, then issue a one-shot auth " +
-      "code and return the redirect URL the dashboard should navigate the " +
-      "popup to. Frontend should be the only caller — Claude.ai itself " +
-      "never hits this directly.",
+      "Optional alternative to the server-rendered page at GET /oauth/authorize. " +
+      "POST the original authorize params with the person's bearer (okt_pat_ session " +
+      "token, or a Supabase JWT when Supabase is configured). Validates the client + " +
+      "PKCE challenge, issues a one-shot auth code and returns the redirect URL.",
   })
   @ApiBody({
     schema: {

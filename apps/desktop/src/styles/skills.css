@@ -1,0 +1,1007 @@
+/* Skills: the library (Skills.dc.html), a skill opened (Skill.dc.html),
+   editing one (Skill-Edit.dc.html), and the dialogs and sheets around them.
+   Values from design/gen3.py. */
+
+/* ── library ──────────────────────────────────────────────────────────── */
+.skills__lede {
+  max-width: 600px;
+  margin-bottom: 12px;
+}
+.skills__tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-3);
+  background: var(--bg);
+}
+.search:focus-within {
+  border-color: var(--ink);
+}
+.search input {
+  flex-grow: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink);
+}
+.search input::-webkit-search-cancel-button {
+  display: none;
+}
+.skills {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding-bottom: 24px;
+}
+.skill {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skill:hover {
+  border-color: var(--line-strong);
+}
+.skill__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.skill__icon {
+  color: var(--ink-2);
+  display: flex;
+}
+.skill__name {
+  font-size: 15px;
+  font-weight: 500;
+  flex-grow: 1;
+  min-width: 0;
+}
+/* The title's link covers the whole card; Run sits above it. */
+.skill__link {
+  color: var(--ink);
+  text-decoration: none;
+}
+.skill__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+.skill__link:hover {
+  color: var(--ink);
+}
+.skill__link:focus-visible {
+  outline: none;
+}
+.skill__link:focus-visible::after {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.skill__space {
+  white-space: nowrap;
+}
+.skill__desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.skill__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+  margin-top: auto;
+}
+.skill__meta {
+  flex-grow: 1;
+}
+.skill__run {
+  position: relative;
+  z-index: 1;
+}
+.skempty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+  padding: 28px 0;
+}
+.skempty__title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.skempty__text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+/* ── a skill, opened (Skill.dc.html) ──────────────────────────────────── */
+.main--skill {
+  padding: 32px 40px 28px 48px;
+  gap: 12px;
+  overflow: hidden;
+}
+.skhead__crumbs {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.skhead__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.h1--skill {
+  font-size: 24px;
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn--run {
+  padding: 0 16px;
+}
+.skhead__meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+}
+.sknote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: -2px;
+}
+.sknote--ok {
+  color: var(--ok);
+}
+.sknote--error {
+  color: var(--accent-hover);
+}
+.skbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--side);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.skbar--version {
+  border-color: rgba(180, 83, 42, 0.35);
+  background: var(--accent-wash);
+}
+.skbar__text {
+  flex-grow: 1;
+  min-width: 0;
+}
+.skbar__text strong {
+  font-weight: 500;
+  color: var(--ink);
+}
+.skbar__sub {
+  color: var(--ink-3);
+}
+.skbar__back {
+  color: var(--ink);
+  text-decoration: none;
+}
+.skbody {
+  display: flex;
+  gap: 36px;
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 6px;
+}
+.skbody__main {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The file box: Read | Source, or the editor. */
+.viewer {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.viewer--edit {
+  border-color: var(--ink);
+}
+.viewer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 47px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--side);
+  flex-shrink: 0;
+}
+.viewer__path {
+  font-size: 12px;
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewer__hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.viewer__head > .viewer__path {
+  min-width: 64px;
+}
+.viewer__path + .minibtn {
+  margin-left: 4px;
+}
+.viewer__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.viewer__plain {
+  margin: 0;
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.viewer__strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--side);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+.viewer__strip--problem {
+  border-top: 1px solid var(--line);
+  border-bottom: none;
+  background: var(--accent-wash);
+  color: var(--accent-hover);
+  outline: none;
+}
+.viewer__head + .viewer__strip--problem {
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+}
+.viewer__strip pre {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre;
+  overflow-x: auto;
+}
+.viewer__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.viewer__foot label {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.viewer__foot input {
+  flex-grow: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 13px;
+}
+.viewer__rename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-grow: 1;
+  min-width: 0;
+}
+.pathinput {
+  flex-grow: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  font-size: 12px;
+}
+.pathinput[aria-invalid='true'] {
+  border-color: var(--accent);
+}
+
+/* Read | Source */
+.seg {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.seg__btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-3);
+}
+.seg__btn:hover {
+  color: var(--ink);
+}
+.seg__btn[aria-pressed='true'] {
+  background: var(--bg);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.minibtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  white-space: nowrap;
+}
+.minibtn:hover {
+  border-color: var(--line-strong);
+}
+.minibtn--quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--ink-3);
+}
+
+/* The frontmatter, as a quiet header instead of raw YAML. */
+.fm {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 12px;
+  margin: 0 0 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.fm__row {
+  display: contents;
+}
+.fm dt {
+  font-size: 11.5px;
+  line-height: 19.5px;
+  color: var(--ink-3);
+}
+.fm dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fm dd.fm__name {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* Rendered markdown (components/Markdown.tsx). */
+.md {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  max-width: 720px;
+}
+.md > * {
+  flex-shrink: 0;
+}
+.md h2 {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.md h3 {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.md h4,
+.md h5,
+.md h6 {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.md p {
+  margin: 0;
+}
+.md ul,
+.md ol {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.65;
+}
+.md li > p,
+.md li > ul,
+.md li > ol,
+.md li > pre {
+  margin: 4px 0;
+}
+.md strong {
+  font-weight: 600;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--side);
+  border: 1px solid var(--line);
+}
+.md pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--side);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+.md pre code {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: inherit;
+}
+.md blockquote {
+  margin: 0;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.md hr {
+  width: 100%;
+  height: 1px;
+  margin: 6px 0;
+  border: none;
+  background: var(--line);
+}
+.md a {
+  text-underline-offset: 3px;
+}
+.md__table {
+  overflow-x: auto;
+}
+.md table {
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.md th,
+.md td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 18px 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.md th {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* The editor (components/CodeEditor.tsx): gutter and text scroll together. */
+.code {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+.code__gutter {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  /* extra room at the bottom so the gutter can follow the text past a horizontal scrollbar */
+  padding: 14px 10px 44px 16px;
+  font-size: 12px;
+  line-height: 20px;
+  color: #a3a29c;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+.code__gutter span {
+  display: block;
+}
+.code__text {
+  flex-grow: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--ink);
+  background: var(--bg);
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}
+.code--read .code__text {
+  color: var(--ink);
+}
+
+/* ── the rail ─────────────────────────────────────────────────────────── */
+.skrail {
+  width: 264px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-top: 4px;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.skrail__sec {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.skrail .caps {
+  margin: 0 0 6px;
+}
+.skfile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+.skfile:hover {
+  background: #f0efeb;
+}
+.skfile.is-active {
+  background: var(--active);
+}
+.skfile__icon {
+  color: var(--ink-3);
+  display: flex;
+}
+.skfile__name {
+  font-size: 12px;
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skfile__meta {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.skfile__meta.is-edited {
+  color: var(--accent);
+}
+.skfile--add {
+  color: var(--ink-3);
+}
+.skfile--add .skfile__name {
+  font-size: 12.5px;
+}
+.skadd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 0;
+}
+.skadd .pathinput {
+  flex-grow: 0;
+  height: 32px;
+}
+.skadd__msg {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  padding: 2px 2px 0 10px;
+}
+.skadd__msg--error {
+  color: var(--accent-hover);
+  padding-left: 2px;
+}
+.skwho {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.skwho__name {
+  font-size: 13px;
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skwho__role {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.skver {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: var(--ink);
+}
+.skver:hover {
+  color: var(--ink);
+}
+.skver__n {
+  font-size: 11.5px;
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--ink-3);
+  line-height: 17.5px;
+}
+.skver.is-on .skver__n {
+  color: var(--accent);
+}
+.skver__text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.skver:hover .skver__text {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.skrail__more {
+  align-self: flex-start;
+  margin: 4px 0 0 32px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.skrail__usage {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
+}
+
+/* ── dialogs and sheets (components/Overlay.tsx) ──────────────────────── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(26, 26, 24, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal--sheet {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+}
+.modal__box {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  outline: none;
+}
+.modal__box--dialog {
+  width: 480px;
+}
+.modal__box--sheet {
+  width: 480px;
+  height: 100%;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+}
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 12px;
+  flex-shrink: 0;
+}
+[data-platform='darwin'] .modal__box--sheet .modal__head {
+  padding-top: 28px;
+}
+.modal__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-grow: 1;
+  min-width: 0;
+}
+.modal__title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.modal__sub {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.modal__close {
+  width: 30px;
+  height: 30px;
+  margin: -4px -6px 0 0;
+  border: none;
+  color: var(--ink-3);
+}
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 4px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px 18px;
+  flex-shrink: 0;
+}
+.modal__actions--flush {
+  padding: 14px 0 18px;
+}
+.modal__scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+.btn--danger {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+.btn--danger:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* New skill */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 20px;
+}
+.form .field__label:first-child {
+  margin-top: 0;
+}
+.form .select-root .select {
+  justify-content: space-between;
+}
+.form .menu {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.form__hint {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.form__error {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--accent-hover);
+}
+
+/* Share: the access panel stacked into a dialog */
+.access--sheet {
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 20px 20px;
+}
+.access--sheet .access__list {
+  max-width: none;
+  width: 100%;
+}
+.access--sheet .access__aside {
+  width: auto;
+  flex-direction: row;
+  gap: 24px;
+  padding-top: 0;
+}
+.access--sheet .card--roles {
+  flex: 1 1 0;
+}
+.access--sheet .access__privacy {
+  flex: 0 0 200px;
+}
+
+/* Run */
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 20px 20px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.run > * {
+  flex-shrink: 0;
+}
+.run__about {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.run__desc {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.run__lead {
+  font-size: 14px;
+  line-height: 1.55;
+}
+.run__meta {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.run__label {
+  margin: 0;
+}
+.run__input {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.run__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 6px;
+}
+.run__result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--side);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.run__result code {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.run__result--error {
+  color: var(--accent-hover);
+}
+.run__hint {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.run__output {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* A narrow window: the rail gives up some width before the file does. */
+@media (max-width: 1100px) {
+  .main--skill {
+    padding-right: 32px;
+    padding-left: 40px;
+  }
+  .skbody {
+    gap: 24px;
+  }
+  .skrail {
+    width: 220px;
+  }
+}

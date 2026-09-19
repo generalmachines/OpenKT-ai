@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { describeError } from '../../api';
 import { CaptureError, voice } from '../../api/bridge';
-import { useClient, useQuery } from '../../api/hooks';
+import { useClient } from '../../api/hooks';
 import { RecorderError, startRecorder as realRecorder, type Recorder, type StartRecorder } from '../../capture/recorder';
+import { modelsSetup } from '../../api/setup-bridge';
 import { fileCapture, modelsPending } from '../../capture/save';
+import { useSaveSpace } from '../../components/useSaveSpace';
+import { finishingSetup, formatBytes, plainError, rowPercent, speechReadiness, type SpeechReadiness } from '../../onboarding/models';
 import { VoiceSheet, type VoiceState } from './parts';
 
 const LEVELS = 14;
 const MIC_BLOCKED = 'OpenKT cannot use the microphone. Allow it in System Settings → Privacy & Security → Microphone, then try again.';
-export const EXTRACT_LATER = 'Context will be extracted when the models finish downloading.';
+/** Saved without facts: they are pulled out on this Mac once the on-device AI is there (downloading, or not chosen yet). */
+export const EXTRACT_LATER = 'Saved. Its key points are pulled out on this Mac once the on-device AI is there (Settings → Models).';
+/** The speech model is on its way: say how far along the setup is instead of failing. */
+export const speechSetupNotice = (pct: number) => `${finishingSetup(pct)}. Voice notes work as soon as the speech model is on this Mac.`;
+/** The speech model is not on this Mac and nothing is downloading: say so, and offer it right here. */
+export const speechNeededNotice = (bytes: number) => `Voice needs the speech model (${formatBytes(bytes)}). It is downloaded once and runs on this Mac — nothing is sent to a cloud model.`;
+const notReady = (e: unknown) => e instanceof CaptureError && /not_ready|still downloading/i.test(e.message);
 
 export interface VoiceCaptureProps {
   /** Closes the overlay window. */
@@ -29,22 +38,18 @@ export interface VoiceCaptureProps {
  */
 export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, lingerMs = 1400 }: VoiceCaptureProps) {
   const client = useClient();
-  const spaces = useQuery((c) => c.listSpaces(), []);
+  const { spaceId, setSpaceId, space, options, remember } = useSaveSpace();
   const [state, setState] = useState<VoiceState>('listening');
   const [text, setText] = useState('');
   const [notice, setNotice] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array<number>(LEVELS).fill(0));
-  const [spaceId, setSpaceId] = useState('');
+  const [offer, setOffer] = useState<{ label: string; onClick: () => void; disabled?: boolean } | undefined>(undefined);
 
   const session = useRef<{ id: string; rec: Recorder | null; startedAt: number } | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
   const closed = useRef(false);
-
-  useEffect(() => {
-    if (!spaceId && spaces.data?.length) setSpaceId((spaces.data.find((s) => s.personal) ?? spaces.data[0]!).id);
-  }, [spaceId, spaces.data]);
 
   const close = useCallback(
     (afterMs = 0) => {
@@ -55,17 +60,52 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
     [onClose],
   );
 
+  // ── speech not on this Mac yet ── on its way: how far along. Not chosen: offer just the speech model, here.
+  const offRef = useRef<() => void>(() => undefined);
+  useEffect(() => () => offRef.current(), []);
+  const needSpeech = useCallback((speech: SpeechReadiness) => {
+    setState('setup');
+    if (speech.downloading) {
+      setOffer(undefined);
+      return setNotice(speechSetupNotice(speech.percent));
+    }
+    const fetchSpeech = async () => {
+      setOffer({ label: 'Downloading…', onClick: () => undefined, disabled: true });
+      setNotice('Downloading the speech model to this Mac…');
+      offRef.current();
+      offRef.current = modelsSetup.onProgress((r) => r.role === 'whisper' && r.state === 'downloading' && setNotice(`Downloading the speech model — ${rowPercent(r)}%`));
+      const err = await modelsSetup.ensure(['whisper']);
+      offRef.current();
+      if (!err) {
+        setOffer(undefined);
+        return setNotice('The speech model is on this Mac. Press ⌃⌥Space to talk.');
+      }
+      setNotice(err === 'low_disk' ? 'There is not enough space on this Mac for the speech model.' : err === 'paused' ? 'The download is paused (Settings → Models).' : plainError(err));
+      setOffer({ label: 'Try again', onClick: () => void fetchSpeech() });
+    };
+    setNotice(speechNeededNotice(speech.speechBytes));
+    setOffer({ label: `Download the speech model (${formatBytes(speech.speechBytes)})`, onClick: () => void fetchSpeech() });
+  }, []);
+
   const fail = useCallback((e: unknown) => {
+    if (notReady(e)) {
+      void speechReadiness().then(needSpeech);
+      return;
+    }
     const permission = (e instanceof RecorderError || e instanceof CaptureError) && e.kind === 'permission';
     setState(permission ? 'permission' : 'failed');
     setNotice(permission ? MIC_BLOCKED : e instanceof RecorderError && e.kind === 'no-microphone' ? 'No microphone was found on this Mac.' : describeError(e));
-  }, []);
+  }, [needSpeech]);
 
   // Start as soon as the pill is on screen.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
+        // Nothing to record into while the speech model is still downloading.
+        const speech = await speechReadiness();
+        if (cancelled) return;
+        if (!speech.ready) return needSpeech(speech);
         const id = await voice.begin();
         if (cancelled) return voice.cancel(id);
         session.current = { id, rec: null, startedAt: Date.now() };
@@ -90,7 +130,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
       session.current = null;
       s?.rec?.cancel();
     };
-  }, [recorder, fail]);
+  }, [recorder, fail, needSpeech]);
 
   useEffect(() => {
     if (state !== 'listening') return;
@@ -135,6 +175,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
       const later = await modelsPending();
       const note = later ? null : await voice.toSession(s.id);
       await fileCapture(client, { source: 'voice', title: note?.title ?? '', summary: note?.summary, spaceId, turns: [text], facts: note?.facts ?? [], extractLater: later });
+      remember();
       setNotice(later ? EXTRACT_LATER : '');
       setState('saved');
       close(later && lingerMs ? lingerMs + 1600 : lingerMs); // longer, so the line about the models can be read
@@ -142,7 +183,7 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
       setNotice(describeError(e));
       setState('review');
     }
-  }, [client, close, lingerMs, spaceId, text]);
+  }, [client, close, lingerMs, spaceId, text, remember]);
 
   // The hotkey toggles: listening → stop; with a transcript on screen → save.
   useEffect(() => onToggle?.(() => void (stateRef.current === 'listening' ? stop() : stateRef.current === 'review' ? save() : undefined)), [onToggle, stop, save]);
@@ -161,7 +202,6 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
     return () => window.removeEventListener('keydown', onKey);
   }, [discard, save]);
 
-  const space = spaces.data?.find((x) => x.id === spaceId);
   return (
     <div onDoubleClick={() => void stop()} style={{ display: 'contents' }}>
       <VoiceSheet
@@ -169,13 +209,15 @@ export function VoiceCapture({ onClose, onToggle, recorder = realRecorder, linge
         tentative=""
         elapsedSec={elapsed}
         state={state}
-        hint="⌃⌥space to stop"
+        hint="⌃⌥Space or ⌃⌥N again to stop"
         levels={state === 'listening' ? levels : undefined}
         spaceId={spaceId}
         onSpace={setSpaceId}
-        spaces={(spaces.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+        spaces={options}
+        spaceLabel={space ? (space.personal ? 'Personal' : space.name) : undefined}
         accessNote={space ? (space.personal ? 'private' : 'shared space') : ''}
         notice={notice}
+        action={state === 'setup' ? offer : undefined}
         onSave={() => void save()}
       />
     </div>

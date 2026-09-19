@@ -57,6 +57,32 @@ test("session view and fallbacks", () => {
   assert.equal(normalize({ content: [{ type: "text", text: "plain" }] }).view, "message");
 });
 
+test("Spec 04 field names render the same views", () => {
+  const save = normalize({ structuredContent: { view: "save", statement: "Ship on Tuesdays", kind: "decision",
+    spaces: [{ id: "p1", name: "Demo team", access_label: "people it is shared with can read", writable: true },
+             { id: "p2", name: "Read only", writable: false }],
+    default_space_id: "p1", personal: { label: "Only me", project: "me1" } } });
+  assert.equal(save.view, "save");
+  assert.equal(save.draft.content, "Ship on Tuesdays");
+  assert.equal(save.draft.kind, "decision");
+  assert.deepEqual(save.options.map((o) => o.key), ["s:p1", "me"]);
+  assert.equal(save.options[0].note, "people it is shared with can read");
+  assert.equal(save.suggestedKey, "s:p1");
+
+  const search = normalize({ structuredContent: { view: "search", query: "release", space_label: "Demo team",
+    items: [{ id: "m1", kind: "decision", content: "Ship on Tuesdays", author: "Ana" }], recall_id: "r1" } });
+  assert.equal(search.view, "results");
+  assert.equal(search.scope, "Demo team");
+  assert.equal(search.items[0].author, "Ana");
+
+  const session = normalize({ structuredContent: { view: "session", title: "Release planning", summary: "Chose Tuesdays.",
+    facts: [{ kind: "decision", content: "Ship on Tuesdays" }], space: "Demo team" } });
+  assert.equal(session.view, "session");
+  assert.equal(session.session.title, "Release planning");
+  assert.equal(session.session.space, "Demo team");
+  assert.equal(session.saved.length, 1);
+});
+
 test("built bundle is self-contained", () => {
   const html = readFileSync(new URL("../dist/openkt-cards.html", import.meta.url), "utf8");
   assert.doesNotMatch(html, /<script[^>]+src=|<link[^>]+href=|@import|\bfetch\(|XMLHttpRequest|new WebSocket/);

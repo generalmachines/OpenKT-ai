@@ -26,8 +26,32 @@ export const looksLikeEmail = (v: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]{
 
 type Hint = { tone: 'ok' | 'error'; text: string };
 
-/** Access.dc.html — the grants list, share-by-email and the role explainer. */
-export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: 'session' | 'space' }) {
+type Noun = 'session' | 'space' | 'skill';
+
+/** What each role may do, in the words of the thing being shared. */
+const ROLE_TEXT: Record<Noun, { reader: string; editor: string; owner: string }> = {
+  session: {
+    reader: 'their tools can retrieve this context. They cannot open the transcript.',
+    editor: 'reads the transcript, corrects and adds context.',
+    owner: 'changes access, deletes the session.',
+  },
+  space: {
+    reader: 'their tools can retrieve this context. They cannot open the transcript.',
+    editor: 'reads the transcript, corrects and adds context.',
+    owner: 'changes access, deletes the space.',
+  },
+  skill: {
+    reader: 'opens and runs the skill, here and from any connected tool.',
+    editor: 'also changes its files. Every save is a new version; nothing is overwritten.',
+    owner: 'shares it, and can delete it.',
+  },
+};
+
+/**
+ * Access.dc.html — the grants list, share-by-email and the role explainer.
+ * `layout="sheet"` stacks it for the Share sheet on a skill.
+ */
+export function AccessPanel({ resource, noun, layout = 'page' }: { resource: ResourceRef; noun: Noun; layout?: 'page' | 'sheet' }) {
   const client = useClient();
   const grants = useQuery((c) => c.listGrants(resource), [resource.type, resource.id]);
   const me = useQuery((c) => c.getMe(), []);
@@ -50,7 +74,7 @@ export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: '
         tone: 'ok',
         text: grant.pending
           ? `${email} isn’t on OpenKT yet. They’ll get access to this ${noun} as soon as they join.`
-          : `${grant.subject.name} can now ${role === 'editor' ? 'edit' : 'read'} this ${noun}.`,
+          : `${grant.subject.name} can now ${role === 'editor' ? 'edit' : noun === 'skill' ? 'use' : 'read'} this ${noun}.`,
       });
     } catch (err) {
       setHint({ tone: 'error', text: describeError(err) });
@@ -65,9 +89,9 @@ export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: '
   };
 
   return (
-    <div className="access">
+    <div className={`access${layout === 'sheet' ? ' access--sheet' : ''}`}>
       <section className="access__list">
-        <h2 className="h-label">Who can use this context</h2>
+        <h2 className="h-label">Who can use this {noun === 'skill' ? 'skill' : 'context'}</h2>
         <form className="access__invite" onSubmit={onInvite} noValidate>
           <label htmlFor="invite" className="sr-only">
             Invite by email
@@ -99,7 +123,7 @@ export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: '
           </p>
         )}
         {grants.loading && !grants.data && <Loading />}
-        {grants.error && <ErrorNote error={grants.error} />}
+        {grants.error && <ErrorNote error={grants.error} onRetry={grants.reload} />}
         <ul className="plain" aria-label="People and teams with access">
           {(grants.data ?? []).map((g) => (
             <li key={g.id} className={`person${g.pending ? ' person--pending' : ''}`}>
@@ -123,16 +147,24 @@ export function AccessPanel({ resource, noun }: { resource: ResourceRef; noun: '
         <div className="card card--roles">
           <h3>What each role means</h3>
           <p>
-            <strong>Reader</strong> — their tools can retrieve this context. They cannot open the transcript.
+            <strong>Reader</strong> — {ROLE_TEXT[noun].reader}
           </p>
           <p>
-            <strong>Editor</strong> — reads the transcript, corrects and adds context.
+            <strong>Editor</strong> — {ROLE_TEXT[noun].editor}
           </p>
           <p>
-            <strong>Owner</strong> — changes access, deletes the {noun}.
+            <strong>Owner</strong> — {ROLE_TEXT[noun].owner}
           </p>
         </div>
-        {noun === 'session' ? (
+        {noun === 'skill' ? (
+          <div className="access__privacy">
+            <span className="access__privacy-head">
+              <Icon name="lock" size={14} />
+              Skills in a space reach everyone in it
+            </span>
+            <span>People added here get this one skill. Anyone the space is shared with can already use it.</span>
+          </div>
+        ) : noun === 'session' ? (
           <div className="access__privacy">
             <span className="access__privacy-head">
               <Icon name="lock" size={14} />

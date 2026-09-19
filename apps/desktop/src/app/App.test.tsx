@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ApiProvider } from '../api/hooks';
 import { MockClient } from '../api/mock';
 import { AppRoutes } from './AppRoutes';
@@ -17,14 +17,14 @@ function renderApp(route: string, client = new MockClient()) {
   return client;
 }
 
-const SESSION = '/sessions/s-northgate-pricing';
+const SESSION = '/sessions/s-sales-acmeflow';
 
 describe('routing', () => {
   it('opens the most recent session from "/"', async () => {
     renderApp('/');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Pricing call with Northgate' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Acmeflow deal review' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByText('Quote Northgate per store, not per seat')).toBeInTheDocument();
+    expect(await screen.findByText(/^My position: we win competitive deals on PRICE/)).toBeInTheDocument();
   });
 
   it('groups the sidebar into Today and Yesterday', async () => {
@@ -32,28 +32,29 @@ describe('routing', () => {
     const today = await screen.findByRole('group', { name: 'Today' });
     expect(within(today).getAllByRole('link')).toHaveLength(3);
     const yesterday = screen.getByRole('group', { name: 'Yesterday' });
-    expect(within(yesterday).getByText('Hiring plan notes')).toBeInTheDocument();
+    expect(within(yesterday).getByText('Contract playbook')).toBeInTheDocument();
+    expect(within(yesterday).getByText('notion · legal')).toBeInTheDocument();
   });
 
   it('switches session tabs by route', async () => {
     const user = userEvent.setup();
     renderApp(SESSION);
     await user.click(await screen.findByRole('tab', { name: 'Transcript' }));
-    expect(await screen.findByText(/We think in stores, not seats/)).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Context · 6/ }));
-    expect(await screen.findByText('“Then let us quote per store, not per seat.”')).toBeInTheDocument();
+    expect(await screen.findByText(/we should NEVER lead with price vs Acmeflow/)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Context · 8/ }));
+    expect(await screen.findByText('“Against Acmeflow our wedge is native SSO + audit logs they charge extra for”')).toBeInTheDocument();
   });
 
   it('walks Spaces → space → living page with its sources', async () => {
     const user = userEvent.setup();
     renderApp(SESSION);
     await user.click(await screen.findByRole('link', { name: 'Spaces' }));
-    await user.click(await screen.findByRole('link', { name: /sales \/ northgate/ }));
-    await user.click(await screen.findByRole('link', { name: /Northgate — pricing/ }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Northgate — pricing' })).toBeInTheDocument();
+    await user.click(await screen.findByRole('link', { name: /B2B sales team/ }));
+    await user.click(await screen.findByRole('link', { name: /^Sales Presentation & Deal Framing Strategy/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sales Presentation & Deal Framing Strategy' })).toBeInTheDocument();
     const sources = screen.getByRole('complementary', { name: 'Sources' });
-    expect(within(sources).getAllByRole('link')).toHaveLength(4);
-    expect(within(sources).getByText('Draft proposal v1')).toBeInTheDocument();
+    expect(within(sources).getAllByRole('link')).toHaveLength(3);
+    expect(within(sources).getByText('Acmeflow deal review')).toBeInTheDocument();
   });
 
   it('renders settings sections and the decided models', async () => {
@@ -76,37 +77,37 @@ describe('access', () => {
   it('changing a role mutates the mock store and the row', async () => {
     const user = userEvent.setup();
     const client = renderApp(`${SESSION}/access`);
-    const resource = { type: 'session' as const, id: 's-northgate-pricing' };
+    const resource = { type: 'session' as const, id: 's-sales-acmeflow' };
 
-    await user.click(await screen.findByRole('button', { name: 'Role for Ojas Sinha: Reader' }));
+    await user.click(await screen.findByRole('button', { name: 'Role for Tomas: Reader' }));
     await user.click(screen.getByRole('option', { name: 'Editor' }));
 
     await waitFor(async () => {
       const grants = await client.listGrants(resource);
-      expect(grants.find((g) => g.subject.id === 'u-ojas')?.role).toBe('editor');
+      expect(grants.find((g) => g.subject.id === 'u-tomas')?.role).toBe('editor');
     });
-    expect(await screen.findByRole('button', { name: 'Role for Ojas Sinha: Editor' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Role for Tomas: Editor' })).toBeInTheDocument();
   });
 
   it('removing access deletes the grant; inherited grants cannot be removed', async () => {
     const user = userEvent.setup();
     const client = renderApp(`${SESSION}/access`);
 
-    await user.click(await screen.findByRole('button', { name: /Role for Sales team/ }));
+    await user.click(await screen.findByRole('button', { name: /Role for Sales/ }));
     expect(screen.queryByRole('option', { name: 'Remove access' })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: /Role for Ana Reyes/ }));
+    await user.click(screen.getByRole('button', { name: /Role for Marcus/ }));
     await user.click(screen.getByRole('option', { name: 'Remove access' }));
-    await waitFor(() => expect(screen.queryByText('Ana Reyes')).not.toBeInTheDocument());
-    const grants = await client.listGrants({ type: 'session', id: 's-northgate-pricing' });
-    expect(grants.map((g) => g.subject.id)).not.toContain('u-ana');
+    await waitFor(() => expect(screen.queryByText('Marcus')).not.toBeInTheDocument());
+    const grants = await client.listGrants({ type: 'session', id: 's-sales-acmeflow' });
+    expect(grants.map((g) => g.subject.id)).not.toContain('u-marcus');
   });
 
   it('people rows show a name and an email — never an id', async () => {
     renderApp(`${SESSION}/access`);
-    const row = (await screen.findByText('Ana Reyes')).closest('li')!;
-    expect(within(row).getByText(/ana@example\.com/)).toBeInTheDocument();
+    const row = (await screen.findByText('Marcus')).closest('li')!;
+    expect(within(row).getByText(/marcus@example\.com/)).toBeInTheDocument();
     const list = screen.getByRole('list', { name: 'People and teams with access' });
     expect(list.textContent).not.toMatch(/\bu-[a-z]+\b|[0-9a-f]{8}-[0-9a-f]{4}/);
   });
@@ -123,19 +124,19 @@ describe('access', () => {
     expect(within(row).getByText(/ravi@example\.com/)).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Ravi Menon can now edit this session.');
     expect(screen.getByLabelText('Invite by email')).toHaveValue('');
-    const grants = await client.listGrants({ type: 'session', id: 's-northgate-pricing' });
+    const grants = await client.listGrants({ type: 'session', id: 's-sales-acmeflow' });
     expect(grants.find((g) => g.subject.id === 'u-ravi')).toMatchObject({ role: 'editor' });
   });
 
   it('share by email: someone without an account shows as "Invited — hasn’t joined yet"', async () => {
     const user = userEvent.setup();
-    const client = renderApp('/spaces/sp-northgate/access');
+    const client = renderApp('/spaces/sp-openkt/access');
     await user.type(await screen.findByLabelText('Invite by email'), 'dana@partner.test{Enter}');
 
     const row = (await screen.findByText('dana@partner.test')).closest('li')!;
     expect(within(row).getByText('Invited — hasn’t joined yet')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('dana@partner.test isn’t on OpenKT yet. They’ll get access to this space as soon as they join.');
-    const grants = await client.listGrants({ type: 'space', id: 'sp-northgate' });
+    const grants = await client.listGrants({ type: 'space', id: 'sp-openkt' });
     expect(grants.find((g) => g.subject.email === 'dana@partner.test')).toMatchObject({ pending: true, role: 'reader' });
 
     // A pending invitation can still be withdrawn.
@@ -147,7 +148,7 @@ describe('access', () => {
   it('share by email: checks the address before sending anything', async () => {
     const user = userEvent.setup();
     const client = renderApp(`${SESSION}/access`);
-    const before = (await client.listGrants({ type: 'session', id: 's-northgate-pricing' })).length;
+    const before = (await client.listGrants({ type: 'session', id: 's-sales-acmeflow' })).length;
     await user.type(await screen.findByLabelText('Invite by email'), 'ravi');
     await user.click(screen.getByRole('button', { name: 'Invite' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a full email address, like name@company.com.');
@@ -156,14 +157,14 @@ describe('access', () => {
     await user.clear(screen.getByLabelText('Invite by email'));
     await user.type(screen.getByLabelText('Invite by email'), 'pratham@example.com{Enter}');
     expect(screen.getByRole('alert')).toHaveTextContent('That’s you — you already have access.');
-    expect(await client.listGrants({ type: 'session', id: 's-northgate-pricing' })).toHaveLength(before);
+    expect(await client.listGrants({ type: 'session', id: 's-sales-acmeflow' })).toHaveLength(before);
   });
 });
 
-describe('connectors', () => {
+describe('access defaults', () => {
   it('changes a connector default in the store', async () => {
     const user = userEvent.setup();
-    const client = renderApp('/settings/connectors');
+    const client = renderApp('/settings/access');
     await user.click(await screen.findByRole('button', { name: /New ChatGPT sessions are shared with: Only me/ }));
     await user.click(screen.getByRole('option', { name: 'Everyone in Deepwork · read' }));
     await waitFor(async () => {
@@ -177,24 +178,27 @@ describe('⌘K palette', () => {
   it('opens on ⌘K, filters, and navigates on Enter', async () => {
     const user = userEvent.setup();
     renderApp(SESSION);
-    await screen.findByRole('heading', { level: 1, name: 'Pricing call with Northgate' });
+    await screen.findByRole('heading', { level: 1, name: 'Acmeflow deal review' });
 
     await user.keyboard('{Meta>}k{/Meta}');
     const dialog = await screen.findByRole('dialog', { name: 'Search all context' });
     await waitFor(() => expect(within(dialog).getAllByRole('option').length).toBeGreaterThan(5));
 
-    await user.type(within(dialog).getByRole('combobox'), 'refresh');
+    await user.type(within(dialog).getByRole('combobox'), 'titan');
     await waitFor(() => {
-      const titles = within(dialog)
-        .getAllByRole('option')
-        .map((o) => o.textContent ?? '');
-      expect(titles.length).toBeGreaterThan(0);
-      expect(titles.every((t) => /refresh/i.test(t))).toBe(true);
+      // Facts and page sections say it; a session may only mention it in its summary.
+      for (const group of ['Context', 'Pages']) {
+        const titles = within(within(dialog).getByRole('group', { name: group }))
+          .getAllByRole('option')
+          .map((o) => o.textContent ?? '');
+        expect(titles.length).toBeGreaterThan(0);
+        expect(titles.every((t) => /titan/i.test(t))).toBe(true);
+      }
     });
-    expect(within(dialog).queryByText('Hiring plan notes')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Contract playbook')).not.toBeInTheDocument();
 
     await user.keyboard('{Enter}');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Fix auth refresh storm' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Retire BGE: one Titan module' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -211,14 +215,13 @@ describe('⌘K palette', () => {
 });
 
 describe('onboarding', () => {
-  it('counts the tools that are ticked', async () => {
-    const user = userEvent.setup();
-    renderApp('/onboarding/2');
-    expect(screen.getByRole('button', { name: 'Connect 4 tools' })).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'Claude' }));
-    expect(screen.getByRole('button', { name: 'Connect 5 tools' })).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: 'Cursor' }));
-    expect(screen.getByRole('checkbox', { name: 'Cursor' })).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('button', { name: 'Connect 4 tools' })).toBeInTheDocument();
+  afterEach(() => localStorage.clear()); // the first run keeps its step on this Mac
+
+  it('without the app (a browser), the tools step says where connecting happens and moves on', async () => {
+    renderApp('/onboarding/3'); // step 3 since the first run grew a permissions step
+    expect(await screen.findByRole('heading', { level: 2, name: 'Connect your tools' })).toBeInTheDocument();
+    expect(screen.getByText(/happens in the OpenKT app on your Mac/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
   });
 });
+

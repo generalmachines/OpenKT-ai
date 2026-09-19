@@ -70,7 +70,8 @@ export function normalize(result, toolArgs) {
   const sc = (result && result.structuredContent) || parseTextJson(result) || {};
   const text = ((result && result.content) || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
   const args = toolArgs || {};
-  const view = sc.view || (sc.draft ? "save" : sc.session ? "session" : sc.items || sc.memories || sc.results ? "results" : "");
+  // Spec 04 names the results view "search"; both spellings render the same card.
+  const view = (sc.view === "search" ? "results" : sc.view) || (sc.draft || sc.statement ? "save" : sc.session ? "session" : sc.items || sc.memories || sc.results ? "results" : "");
   if (result && result.isError) return { view: "message", isError: true, text: text || "The tool call failed." };
 
   if (view === "save") {
@@ -81,12 +82,12 @@ export function normalize(result, toolArgs) {
     for (const s of Array.isArray(sc.spaces) ? sc.spaces : []) {
       const id = str(String(s.id ?? s.project_id ?? s.slug ?? ""));
       // Defence in depth: the server MUST only send writable spaces, but never offer one flagged otherwise.
-      if (!id || seen.has(id) || s.can_write === false || s.role === "reader") continue;
+      if (!id || seen.has(id) || s.can_write === false || s.writable === false || s.role === "reader") continue;
       seen.add(id);
-      options.push({ key: "s:" + id, label: str(s.label) || str(s.name) || str(s.slug) || id, note: str(s.sublabel) || str(s.access_note), project: id, visibility: "project" });
+      options.push({ key: "s:" + id, label: str(s.label) || str(s.name) || str(s.slug) || id, note: str(s.sublabel) || str(s.access_note) || str(s.access_label), project: id, visibility: "project" });
     }
     const me = { key: "me", label: str(personal.label) || "Only me", note: str(personal.sublabel) || "personal space", project: str(personal.project) || str(personal.id), visibility: "personal" };
-    const suggestedId = sc.suggested_space_id ?? sc.suggested_space;
+    const suggestedId = sc.suggested_space_id ?? sc.suggested_space ?? sc.default_space_id;
     let suggestedKey = suggestedId ? "s:" + suggestedId : "me";
     if (!options.some((o) => o.key === suggestedKey)) suggestedKey = "me";
     // Order: suggestion first, then "Only me", then the rest — as in the approved mock.
@@ -96,7 +97,7 @@ export function normalize(result, toolArgs) {
     return {
       view: "save",
       draft: {
-        content: str(d.content) || str(args.content), kind: str(d.kind) || str(args.kind) || "fact",
+        content: str(d.content) || str(sc.statement) || str(args.content), kind: str(d.kind) || str(sc.kind) || str(args.kind) || "fact",
         sessionId: str(d.session_id) || str(args.session_id), draftId: str(d.draft_id),
         pageHint: page && str(page.title) ? (page.action === "creates" ? "creates" : "updates") + " page “" + page.title + "”" : "",
       },
@@ -117,7 +118,7 @@ export function normalize(result, toolArgs) {
 
   if (view === "session") {
     const s = sc.session || {};
-    const saved = (Array.isArray(sc.saved) ? sc.saved : []).map((m) => ({ kind: str(m.kind) || "fact", content: str(m.content), page: str(m.page && m.page.title ? m.page.title : m.page) })).filter((m) => m.content);
+    const saved = (Array.isArray(sc.saved) ? sc.saved : Array.isArray(sc.facts) ? sc.facts : []).map((m) => ({ kind: str(m.kind) || "fact", content: str(m.content), page: str(m.page && m.page.title ? m.page.title : m.page) })).filter((m) => m.content);
     const open = (Array.isArray(sc.open_questions) ? sc.open_questions : []).map((q) => str(typeof q === "string" ? q : q && q.content)).filter(Boolean);
     const counts = sc.counts || {};
     const stats = [];
@@ -126,10 +127,10 @@ export function normalize(result, toolArgs) {
     if (counts.pages_updated != null) stats.push([counts.pages_updated === 1 ? "page updated" : "pages updated", String(counts.pages_updated)]);
     const mins = s.started_at && s.ended_at ? Math.max(1, Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000)) : null;
     if (mins && Number.isFinite(mins)) stats.push(["", mins < 90 ? mins + " min" : Math.round(mins / 6) / 10 + " h"]);
-    const space = s.space || s.project;
+    const space = s.space || s.project || sc.space;
     return {
       view: "session",
-      session: { id: str(s.id), title: str(s.title), status: str(s.status) || "closed", space: str(typeof space === "string" ? space : space && (space.label || space.name || space.slug)) },
+      session: { id: str(s.id), title: str(s.title) || str(sc.title), status: str(s.status) || "closed", space: str(typeof space === "string" ? space : space && (space.label || space.name || space.slug)) },
       summary: str(sc.summary) || str(s.summary) || str(args.summary), saved, open, stats,
     };
   }

@@ -2,7 +2,7 @@
 
 One self-contained MCP Apps UI bundle for the OpenKT server: a **save** card with a space picker, a **search results** card, and a **session summary** card. It is written for hosts that implement the `io.modelcontextprotocol/ui` extension (claude.ai, Claude Desktop, ChatGPT, Cursor, VS Code and others) so people can see and steer OpenKT inside tools that have no OpenKT interface.
 
-**Status.** The bundle builds, passes its unit tests and renders in the bundled fake host (`preview.html`). It has not yet been exercised inside a real host, and the server does not register it yet ([`server-integration.md`](server-integration.md) says what that takes).
+**Status.** The bundle builds, passes its unit tests and renders in the bundled fake host (`preview.html`). The server serves it as `ui://openkt/cards.html` to clients that advertise the `io.modelcontextprotocol/ui` extension, with the card tools of Spec 04 (`kt_save_card`, `kt_search_card`, `kt_session_card`, and the app-only `kt_commit_save` / `kt_mark_used`) — see `server/apps/server/src/modules/mcp/services/mcp-card-tools.ts`. The API image copies `dist/openkt-cards.html`, so rebuild and commit it after any change here. The view also accepts Spec 04's field names (`view: "search"`, `statement`, `default_space_id`, `access_label`, `facts`).
 
 | Save | Search results |
 |---|---|

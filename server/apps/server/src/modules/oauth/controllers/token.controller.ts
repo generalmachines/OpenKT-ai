@@ -1,11 +1,14 @@
 import {
   Body,
   Controller,
+  Headers,
   HttpCode,
   HttpException,
   HttpStatus,
   Post,
+  Res,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
 
@@ -98,10 +101,17 @@ export class OauthTokenController {
     status: 400,
     description: "invalid_request | invalid_client | invalid_grant (RFC 6749 §5.2)",
   })
-  async token(@Body() body: unknown) {
+  async token(
+    @Body() body: unknown,
+    @Headers("authorization") authorization: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // RFC 6749 §5.1: token responses (and errors) must not be cached.
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
     let input: z.infer<typeof TokenBody>;
     try {
-      input = parseWithSchema(TokenBody, body);
+      input = parseWithSchema(TokenBody, withBasicCredentials(body, authorization));
     } catch {
       // Zod failure → RFC 6749 §5.2 invalid_request.
       throw new HttpException(
@@ -161,4 +171,38 @@ export class OauthTokenController {
       throw error;
     }
   }
+}
+
+// client_secret_basic (RFC 6749 §2.3.1): `Authorization: Basic
+// base64(urlencode(client_id) ":" urlencode(client_secret))`. The credentials
+// are folded into the body so one code path checks them; a client_id in the
+// body must agree with the header.
+export function withBasicCredentials(body: unknown, authorization: string | undefined): unknown {
+  const match = authorization?.match(/^Basic\s+([A-Za-z0-9+/=]+)\s*$/i);
+  if (!match || typeof body !== "object" || body === null) return body;
+  let decoded: string;
+  try {
+    decoded = Buffer.from(match[1]!, "base64").toString("utf8");
+  } catch {
+    return body;
+  }
+  const i = decoded.indexOf(":");
+  if (i < 0) return body;
+  const safeDecode = (v: string) => {
+    try {
+      return decodeURIComponent(v.replace(/\+/g, " "));
+    } catch {
+      return v;
+    }
+  };
+  const clientId = safeDecode(decoded.slice(0, i));
+  const clientSecret = safeDecode(decoded.slice(i + 1));
+  const fields = body as Record<string, unknown>;
+  if (typeof fields.client_id === "string" && fields.client_id !== clientId) {
+    throw new HttpException(
+      { error: "invalid_client", error_description: "client_id in the body does not match HTTP Basic" },
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+  return { ...fields, client_id: clientId, ...(clientSecret ? { client_secret: clientSecret } : {}) };
 }

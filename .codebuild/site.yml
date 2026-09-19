@@ -1,0 +1,32 @@
+# CodeBuild project openkt-ai-site (us-east-1): publishes apps/site (the static openkt.ai landing page, no build
+# step) to Cloudflare Pages project `openkt-landing` on every push to main that touches apps/site/. The token
+# comes from SSM SecureString /openkt-ai/cloudflare-pages-token; CLOUDFLARE_ACCOUNT_ID is in the project
+# environment. After the upload it checks that https://openkt.ai/ serves exactly apps/site/index.html.
+version: 0.2
+env:
+  shell: bash
+  parameter-store:
+    CLOUDFLARE_API_TOKEN: /openkt-ai/cloudflare-pages-token
+phases:
+  install:
+    commands:
+      # Node 22 is preinstalled on the image; putting it first on PATH avoids the slow runtime switch.
+      - export PATH="/usr/local/n/versions/node/$(ls /usr/local/n/versions/node | grep '^22\.' | sort -V | tail -1)/bin:${PATH}"
+      - node --version
+  build:
+    commands:
+      - test -s apps/site/index.html
+      # Publish the page and its assets only: dotfiles and dot-folders (design notes) stay out.
+      - mkdir -p /tmp/site && (cd apps/site && tar --exclude='./.*' -cf - .) | tar -xf - -C /tmp/site && find /tmp/site -type f | sort
+      - npx --yes wrangler@4 pages deploy /tmp/site --project-name openkt-landing --branch main --commit-hash "${CODEBUILD_RESOLVED_SOURCE_VERSION}" --commit-message "OpenKT-ai ${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}" --commit-dirty=true
+  post_build:
+    commands:
+      - |
+        if [ "${CODEBUILD_BUILD_SUCCEEDING}" != "1" ]; then exit 1; fi
+        for i in $(seq 1 24); do
+          if curl -fsS --max-time 10 -H 'cache-control: no-cache' "https://openkt.ai/?v=${CODEBUILD_RESOLVED_SOURCE_VERSION}" -o /tmp/live.html && cmp -s /tmp/live.html apps/site/index.html; then
+            echo "OK: https://openkt.ai/ serves apps/site/index.html at ${CODEBUILD_RESOLVED_SOURCE_VERSION}"; exit 0
+          fi
+          sleep 5
+        done
+        echo "https://openkt.ai/ does not serve apps/site/index.html"; diff <(head -c 2000 /tmp/live.html) <(head -c 2000 apps/site/index.html) | head -20; exit 1

@@ -1,6 +1,5 @@
 import "./instrument";
 
-import { RequestMethod } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -8,7 +7,7 @@ import { Logger } from "nestjs-pino";
 
 import { enableCorsFromEnv } from "@openkt/platform-cors";
 
-import { AppModule } from "./app.module";
+import { AppModule, UNPREFIXED_ROUTES } from "./app.module";
 
 async function bootstrap(): Promise<void> {
   // rawBody: true tells NestJS's express adapter to configure the global
@@ -24,6 +23,10 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
   app.useLogger(app.get(Logger));
+  // Express stops a JSON body at 100 KB by default; a skill may carry 1 MB of
+  // text (more once JSON-escaped). Registered globally, never per path — see
+  // the note above.
+  app.useBodyParser("json", { limit: "3mb" });
   // Behind a reverse proxy, `req.ip` is the proxy unless Express is told how
   // many hops to trust — and the per-IP sign-in limit would be shared by
   // everyone. OPENKT_TRUST_PROXY takes Express's own values: a hop count
@@ -46,14 +49,7 @@ async function bootstrap(): Promise<void> {
   // 8414); Claude.ai hits `${origin}/.well-known/…` before the user
   // even types the server URL. Keeping the OAuth endpoints unprefixed
   // mirrors the discovery doc.
-  app.setGlobalPrefix("v1", {
-    exclude: [
-      { path: "mcp", method: RequestMethod.ALL },
-      { path: "connect", method: RequestMethod.GET },
-      { path: ".well-known/(.*)", method: RequestMethod.ALL },
-      { path: "oauth/(.*)", method: RequestMethod.ALL },
-    ],
-  });
+  app.setGlobalPrefix("v1", { exclude: [...UNPREFIXED_ROUTES] });
   enableCorsFromEnv(app);
   app.enableShutdownHooks();
 

@@ -41,13 +41,12 @@ describe("OauthWellKnownController — oauth-authorization-server (RFC 8414)", (
       token_endpoint: "https://api.openkt.ai/oauth/token",
       registration_endpoint: "https://api.openkt.ai/oauth/register",
       response_types_supported: ["code"],
+      response_modes_supported: ["query"],
       grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
-      token_endpoint_auth_methods_supported: [
-        "client_secret_post",
-        "none",
-      ],
+      token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"],
       scopes_supported: ["read", "write"],
+      service_documentation: "https://api.openkt.ai/connect",
     });
   });
 
@@ -103,6 +102,8 @@ describe("OauthWellKnownController — oauth-protected-resource (RFC 9728)", () 
       authorization_servers: ["https://api.openkt.ai"],
       scopes_supported: ["read", "write"],
       bearer_methods_supported: ["header"],
+      resource_name: "OpenKT",
+      resource_documentation: "https://api.openkt.ai/connect",
     });
   });
 
