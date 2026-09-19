@@ -1,0 +1,12 @@
+{
+  "name": "openkt",
+  "private": true,
+  "description": "OpenKT: an open-source shared context engine for teams. Monorepo root for the packages and the desktop app; the server lives in server/ with its own lockfile.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git" },
+  "engines": { "node": ">=22" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}

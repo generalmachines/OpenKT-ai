@@ -1,0 +1,80 @@
+{
+  "name": "auth-race-existing-vocabulary",
+  "description": "Existing tags fit. The scripted reply uses the wrong case and spacing, which post-validation repairs.",
+  "input": {
+    "fact": {
+      "statement": "Dashboard users were logged out after about an hour because two tabs could call refreshSession() at the same time.",
+      "kind": "issue"
+    },
+    "vocabulary": [
+      {
+        "tag": "auth",
+        "count": 41
+      },
+      {
+        "tag": "frontend",
+        "count": 30
+      },
+      {
+        "tag": "deploy",
+        "count": 22
+      },
+      {
+        "tag": "northgate",
+        "count": 14
+      },
+      {
+        "tag": "pricing",
+        "count": 9
+      },
+      {
+        "tag": "token-refresh",
+        "count": 6
+      },
+      {
+        "tag": "migrations",
+        "count": 5
+      },
+      {
+        "tag": "postgres",
+        "count": 12
+      }
+    ]
+  },
+  "expect": {
+    "require_any": [
+      "auth",
+      "token-refresh"
+    ],
+    "forbid": [
+      "issue",
+      "pratham"
+    ],
+    "count": {
+      "key": "tags",
+      "min": 1,
+      "max": 4
+    }
+  },
+  "mock_replies": [
+    {
+      "tags": [
+        "Auth",
+        "Token Refresh",
+        "frontend"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0,
+    "output": {
+      "tags": [
+        "auth",
+        "token-refresh",
+        "frontend"
+      ]
+    }
+  }
+}

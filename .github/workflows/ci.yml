@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspaces:
+    name: Packages and desktop app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Each command runs the script in every workspace that defines it
+      # (packages/* and apps/*) and skips the ones that do not.
+      - run: npm run typecheck --workspaces --if-present
+      - run: npm test --workspaces --if-present
+      - run: npm run build --workspaces --if-present
+      # packages/mcp-cards/dist/openkt-cards.html is committed on purpose: it is the
+      # file the server serves. A build that changes it means the bundle is stale.
+      - name: Committed cards bundle is up to date
+        run: git diff --exit-code -- packages/mcp-cards/dist
+
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+    # The server was imported as a snapshot and its phase-A cleanup is still in flight on
+    # another branch. Until that lands, this job reports problems without failing the run.
+    # Remove continue-on-error once the cleanup is merged and the job is green.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      # Unit tests only. The e2e tests need a Postgres with pgvector and are not run here yet.
+      - run: npm run test:unit
+
+  plugin:
+    name: Plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # `claude plugin validate` checks the manifests on disk. It needs no account,
+      # API key or other secret, so it is safe to run on pull requests from forks.
+      - run: npm install --global @anthropic-ai/claude-code
+      - name: Validate the plugin
+        run: claude plugin validate plugin --strict
+      - name: Validate the repository-root marketplace
+        run: claude plugin validate . --strict

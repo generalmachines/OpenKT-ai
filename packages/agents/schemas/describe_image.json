@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["description", "visible_text", "entities"],
+  "properties": {
+    "description": { "type": "string", "minLength": 1, "maxLength": 1200 },
+    "visible_text": {
+      "type": "string",
+      "maxLength": 4000,
+      "description": "Text readable in the image, transcribed as written. Empty when there is none."
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Named people, products, organisations, places, files or systems visible in the image.",
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+    }
+  }
+}

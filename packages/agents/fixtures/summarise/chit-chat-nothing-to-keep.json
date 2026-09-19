@@ -1,0 +1,56 @@
+{
+  "name": "chit-chat-nothing-to-keep",
+  "description": "Small talk. An honest one-line summary, no invented substance.",
+  "input": {
+    "chunk": [
+      {
+        "role": "user",
+        "speaker": "Asha",
+        "text": "morning! how's it going"
+      },
+      {
+        "role": "assistant",
+        "text": "Good morning! All good here. How can I help today?"
+      },
+      {
+        "role": "user",
+        "speaker": "Asha",
+        "text": "nothing yet, just got coffee. it's raining like crazy here lol"
+      },
+      {
+        "role": "assistant",
+        "text": "Sounds like a good day to stay in. Let me know when you want to start on something."
+      },
+      {
+        "role": "user",
+        "speaker": "Asha",
+        "text": "will do, thanks. brb"
+      }
+    ],
+    "session": {
+      "date": "2026-09-16",
+      "source": "claude-desktop",
+      "author": "Asha"
+    }
+  },
+  "expect": {
+    "equals": {
+      "open_questions": []
+    },
+    "forbid": [
+      "decided",
+      "bug"
+    ]
+  },
+  "mock_replies": [
+    {
+      "title": "Morning small talk",
+      "summary": "Asha greeted the assistant and chatted about coffee and the rain; no work was started and there is nothing to keep.",
+      "open_questions": []
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1
+  }
+}

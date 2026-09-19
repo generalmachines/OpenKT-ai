@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["brief_md"],
+  "properties": {
+    "brief_md": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The brief in markdown, within the character budget given in the input."
+    }
+  }
+}

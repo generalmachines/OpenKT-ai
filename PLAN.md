@@ -1,20 +1,22 @@
 # OpenKT — build plan
 
-The product: `docs/product.md`. The shape of the system: `docs/architecture.md`. The decisions juniors implement against: `docs/specs/01…05`. The approved screens: `design/canvas/`.
+The product: `docs/product.md`. The shape of the system: `docs/architecture.md`. The decisions contributor tasks are implemented against: `docs/specs/01…05`. The approved screens: `design/canvas/`.
 
 ## Who does what
 
-**Senior (decides, designs, builds the risky core, reviews):**
+The work is split in two. Maintainers make the design decisions and build the risky core; everything else is cut into small, fully specified contributor tasks that anyone — a person or an AI agent — can pick up. On GitHub the two kinds carry the labels `senior` (maintainer task) and `junior` (contributor task); the label names are kept because the task tooling depends on them.
+
+**Maintainers (decide, design, build the risky core, review):**
 system architecture · the memory model and its overlays (Spec 01) · how every small agent decides (Spec 02) · vision, speech and local reasoning (Spec 03) · the API and MCP contract (Spec 04) · provider and connector interfaces (Spec 05) · agent prompts and JSON schemas · access control and sign-in · the recall SQL · screen design on the canvas · every pull request labelled `needs-senior-review`.
 
-**Junior (implements one small, fully specified issue at a time):**
+**Contributors (implement one small, fully specified issue at a time):**
 pure functions with test tables · migrations written from a given DDL · REST endpoints from a given contract · job handlers from a given flow · UI screens from a given artboard · connectors from a given interface · docs pages from given sources. Rules: `AGENTS.md`.
 
-Every junior issue follows the same shape: *Context → Read first → Do exactly this → Files → Acceptance → Out of scope → Depends on.* The full list is in `docs/tasks/JUNIOR_TASKS.md` and mirrored as GitHub issues.
+Every contributor task follows the same shape: *Context → Read first → Do exactly this → Files → Acceptance → Out of scope → Depends on.* The full list is in `docs/tasks/JUNIOR_TASKS.md` and mirrored as GitHub issues.
 
 ## Versions — each one works on its own
 
-| Version | Proves | Senior builds | Juniors build |
+| Version | Proves | Maintainers build | Contributor tasks |
 |---|---|---|---|
 | **0.1 Team retrieval over MCP** | Saved by one person, found by a teammate, invisible to a stranger. | sessions, grants, access scope, hybrid recall SQL, MCP session tools, sign-in | recall weighting, diversity, abstain, recall log + feedback, Qwen embeddings, rerank client, secrets filter, job queue, docker compose, evaluation set, meta endpoint |
 | **0.2 A knowledge base** | New context updates a page instead of piling up. | agent prompts + schemas, pipeline orchestration review | migrations for pages, chunker, dedupe/tag/route/write guards, confidence, job handlers, pages API, lint job, cards registered in the server, connector defaults |

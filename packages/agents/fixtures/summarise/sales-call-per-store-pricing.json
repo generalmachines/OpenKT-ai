@@ -1,0 +1,38 @@
+{
+  "name": "sales-call-per-store-pricing",
+  "description": "Sales call transcript.",
+  "input": {
+    "chunk": "Mira: Thanks for making time, Daniel. How did the pilot go in the three stores?\nDaniel: Good. The store managers like the shelf reports. My problem is the pricing. A flat fee for the whole chain doesn't work for us, because our stores are very different sizes. The Riverside store is four times the floor area of the express ones.\nMira: So you'd want it per store?\nDaniel: Per store, yes, with a lower rate for express formats. We have 42 stores, 17 of them express. If it's per store I can start with the 25 full-size ones and get budget signed this quarter.\nMira: That's workable. I can't confirm numbers on this call, but I'll send a per-store proposal with two tiers by next Tuesday.\nDaniel: Fine. One more thing, procurement will ask whether data stays in the region. Everything has to be hosted in Singapore.\nMira: It can be. I'll put that in writing too.\nDaniel: And who do I talk to about the POS export? Our IT lead, Priya, says the nightly file is pipe-delimited, not CSV.\nMira: That's fine, we handle pipe-delimited already. I'll connect Priya with our engineer.\nDaniel: Great. Enjoy the rest of your day.",
+    "session": {
+      "date": "2026-09-15",
+      "title": "Northgate Market — pilot review call",
+      "source": "meeting",
+      "author": "Mira",
+      "participants": [
+        "Mira (account lead, us)",
+        "Daniel (head of retail operations, Northgate Market)"
+      ],
+      "space": "northgate"
+    }
+  },
+  "expect": {
+    "require_any": [
+      "per-store",
+      "per store"
+    ],
+    "forbid": [
+      "Enjoy the rest"
+    ]
+  },
+  "mock_replies": [
+    {
+      "title": "Northgate pilot review and per-store pricing",
+      "summary": "Daniel of Northgate Market said the three-store pilot went well but a flat chain-wide fee does not fit stores of very different sizes. He asked for per-store pricing with a lower express rate and could start with 25 full-size stores this quarter. Data must be hosted in Singapore. Mira will send a two-tier per-store proposal by 2026-09-22 and connect Priya with an engineer about the pipe-delimited POS export.",
+      "open_questions": []
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1
+  }
+}

@@ -1,6 +1,6 @@
 # Spec 05 — tool providers and connectors
 
-> Owner: senior. Status: decided. Goal: context that already lives in other products (Gmail, Notion, Linear, Drive, Slack, an Obsidian vault) arrives in OpenKT as sessions. **Where the credentials and API calls come from is a plugin**, so nobody is locked to one vendor. Composio is the first plugin.
+> Owner: maintainers. Status: decided. Goal: context that already lives in other products (Gmail, Notion, Linear, Drive, Slack, an Obsidian vault) arrives in OpenKT as sessions. **Where the credentials and API calls come from is a plugin**, so nobody is locked to one vendor. Composio is the first plugin.
 
 ## 1. Two layers, kept apart
 

@@ -1,0 +1,44 @@
+{
+  "name": "exact-duplicate",
+  "description": "Same claim in different words.",
+  "input": {
+    "fact": {
+      "statement": "Access tokens stay at a lifetime of 1 hour.",
+      "created_at": "2026-09-17"
+    },
+    "neighbours": [
+      {
+        "id": "f_201",
+        "statement": "Access tokens expire after one hour.",
+        "created_at": "2026-08-02"
+      },
+      {
+        "id": "f_202",
+        "statement": "Refresh tokens rotate on every use.",
+        "created_at": "2026-08-02"
+      },
+      {
+        "id": "f_203",
+        "statement": "The dashboard uses Supabase for sign-in.",
+        "created_at": "2026-07-19"
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "duplicate_of": "f_201",
+      "supersedes": []
+    }
+  },
+  "mock_replies": [
+    {
+      "duplicate_of": "f_201",
+      "supersedes": []
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

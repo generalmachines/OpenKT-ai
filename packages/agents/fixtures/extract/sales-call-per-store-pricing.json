@@ -1,0 +1,82 @@
+{
+  "name": "sales-call-per-store-pricing",
+  "description": "Sales call transcript (plain text): the customer wants per-store pricing with an express tier, Singapore hosting, and has a pipe-delimited POS export.",
+  "input": {
+    "chunk": "Mira: Thanks for making time, Daniel. How did the pilot go in the three stores?\nDaniel: Good. The store managers like the shelf reports. My problem is the pricing. A flat fee for the whole chain doesn't work for us, because our stores are very different sizes. The Riverside store is four times the floor area of the express ones.\nMira: So you'd want it per store?\nDaniel: Per store, yes, with a lower rate for express formats. We have 42 stores, 17 of them express. If it's per store I can start with the 25 full-size ones and get budget signed this quarter.\nMira: That's workable. I can't confirm numbers on this call, but I'll send a per-store proposal with two tiers by next Tuesday.\nDaniel: Fine. One more thing, procurement will ask whether data stays in the region. Everything has to be hosted in Singapore.\nMira: It can be. I'll put that in writing too.\nDaniel: And who do I talk to about the POS export? Our IT lead, Priya, says the nightly file is pipe-delimited, not CSV.\nMira: That's fine, we handle pipe-delimited already. I'll connect Priya with our engineer.\nDaniel: Great. Enjoy the rest of your day.",
+    "session": {
+      "date": "2026-09-15",
+      "title": "Northgate Market — pilot review call",
+      "source": "meeting",
+      "author": "Mira",
+      "participants": [
+        "Mira (account lead, us)",
+        "Daniel (head of retail operations, Northgate Market)"
+      ],
+      "space": "northgate"
+    }
+  },
+  "expect": {
+    "count": {
+      "key": "facts",
+      "min": 3,
+      "max": 10
+    },
+    "require_all": [
+      "per-store",
+      "Singapore"
+    ],
+    "require_any": [
+      "2026-09-22",
+      "pipe"
+    ],
+    "forbid": [
+      "Enjoy the rest"
+    ]
+  },
+  "mock_replies": [
+    {
+      "facts": [
+        {
+          "statement": "Daniel of Northgate Market said a flat chain-wide fee does not work for them because their stores differ greatly in size; he wants per-store pricing with a lower rate for express formats.",
+          "quote": "Per store, yes, with a lower rate for express formats.",
+          "kind": "fact"
+        },
+        {
+          "statement": "Northgate Market has 42 stores, of which 17 are express format.",
+          "quote": "We have 42 stores, 17 of them express.",
+          "kind": "fact"
+        },
+        {
+          "statement": "With per-store pricing, Daniel can start with Northgate Market's 25 full-size stores and get the budget signed in Q3 2026.",
+          "quote": "If it's per store I can start with the 25 full-size ones and get budget signed this quarter.",
+          "kind": "fact"
+        },
+        {
+          "statement": "Mira will send Northgate Market a per-store proposal with two tiers by 2026-09-22.",
+          "quote": "I'll send a per-store proposal with two tiers by next Tuesday",
+          "kind": "action"
+        },
+        {
+          "statement": "Northgate Market requires all data to be hosted in Singapore.",
+          "quote": "Everything has to be hosted in Singapore.",
+          "kind": "fact"
+        },
+        {
+          "statement": "Northgate Market's nightly POS export is pipe-delimited, not CSV, according to their IT lead Priya.",
+          "quote": "Our IT lead, Priya, says the nightly file is pipe-delimited, not CSV.",
+          "kind": "fact"
+        },
+        {
+          "statement": "Mira will connect Priya, Northgate Market's IT lead, with an engineer about the POS export.",
+          "quote": "I'll connect Priya with our engineer.",
+          "kind": "action"
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

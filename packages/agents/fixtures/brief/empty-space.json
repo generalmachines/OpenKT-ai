@@ -1,0 +1,20 @@
+{
+  "name": "empty-space",
+  "description": "Nothing to condense: answered without a model call.",
+  "input": {
+    "space": "new-space",
+    "pages": [],
+    "recent_changes": []
+  },
+  "expect": {
+    "equals": {
+      "brief_md": "Nothing recorded in this space yet."
+    }
+  },
+  "mock_replies": [],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 0,
+    "dropped": 0
+  }
+}

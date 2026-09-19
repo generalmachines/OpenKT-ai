@@ -1,0 +1,24 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testRegex": ".*\\.e2e-spec\\.ts$",
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@openkt/core-context$": "<rootDir>/libs/core/context/src/index.ts",
+    "^@openkt/core-errors$": "<rootDir>/libs/core/errors/src/index.ts",
+    "^@openkt/auth-authorization$": "<rootDir>/libs/auth/authorization/src/index.ts",
+    "^@openkt/auth-principal$": "<rootDir>/libs/auth/principal/src/index.ts",
+    "^@openkt/auth-service-auth$": "<rootDir>/libs/auth/service-auth/src/index.ts",
+    "^@openkt/data-repositories$": "<rootDir>/libs/data/repositories/src/index.ts",
+    "^@openkt/data-supabase$": "<rootDir>/libs/data/supabase/src/index.ts",
+    "^@openkt/platform-audit$": "<rootDir>/libs/platform/audit/src/index.ts",
+    "^@openkt/platform-config$": "<rootDir>/libs/platform/config/src/index.ts",
+    "^@openkt/platform-cors$": "<rootDir>/libs/platform/cors/src/index.ts",
+    "^@openkt/platform-llm$": "<rootDir>/libs/platform/llm/src/index.ts",
+    "^@openkt/platform-logging$": "<rootDir>/libs/platform/logging/src/index.ts"
+  },
+  "testEnvironment": "node",
+  "testTimeout": 15000
+}

@@ -9,21 +9,26 @@ M01, M02, M03, M04, M05, M06, M10 = (
 PKG_RULES = "Pure function: no database, no network, no `Date.now()`, no randomness. One source file, one test file, one export line in `src/index.ts`."
 
 ISSUES = [
-# ───────────────────────────── senior ─────────────────────────────
+# ───────────────────────────── maintainer tasks (label: senior) ─────────────────────────────
 dict(key="S1", who="senior", ms=M01, title="Import the server into this repository as `server/`",
-  context="The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) is being finished on branch `feat/context-cloud-v0.1` of the private `openkt-server` repository. It moves here as a clean snapshot so all work happens in one place.",
-  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Record the mapping old path → new path in `server/README.md`."],
+  context="The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) was built in an earlier codebase that predates this repository. It moves here as a clean snapshot so all work happens in one place.",
+  steps=["Finish and verify milestones M1–M6 on the branch.", "Scan the tree for secrets; remove deploy-specific files.", "Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.", "Write `server/WHERE_THINGS_LIVE.md` for contributors."],
   accept=["`server/` builds and its unit tests pass from a clean clone.", "No secret, account id or internal hostname in the tree."], deps=[]),
 dict(key="S2", who="senior", ms=M01, title="Built-in sign-in (email link + OIDC) so a server needs no third party",
-  context="Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a junior task.",
+  context="Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a contributor task.",
   steps=["Issue the server's own JWTs; keep accepting Supabase JWTs while `OPENKT_SUPABASE_JWKS_URL` is set.", "Email magic link and OIDC (Google, GitHub).", "Enforce PAT scopes `context:read`, `context:write`, `admin`.", "Add Client ID Metadata Documents beside Dynamic Client Registration."],
   accept=["The v0.1 proof test passes with built-in sign-in only.", "A read-only token calling a write tool gets 403 `insufficient_scope`."], deps=["S1"]),
 dict(key="S3", who="senior", ms=M03, title="Design the missing app screens on the canvas",
   context="Screens are built only from the canvas. Missing: sign-in, transcript tab, hotkeys, access defaults, page editing, empty states, provider setup (Composio key), connector container picker.",
   steps=["Design each on the canvas in the established look.", "Export the artboards to `design/canvas/`."], accept=["Each listed screen exists as an artboard file."], deps=[]),
 dict(key="S4", who="senior", ms=M02, title="Review and tune agent prompts against the evaluation set",
-  context="Prompts and schemas in `packages/agents` are senior-owned (AGENTS.md rule 5).",
+  context="Prompts and schemas in `packages/agents` are maintainer-owned (AGENTS.md rule 5).",
   steps=["Run `npm run eval -w @openkt/agents` against Qwen3.5-4B.", "Tune until valid-JSON ≥ 99 % and quote-gate drops < 15 %.", "Record the table in `packages/agents/EVAL.md`."], accept=["EVAL.md committed with the table and the model id used."], deps=[]),
+
+dict(key="S5", who="senior", ms=M02, title="Server cleanup phase B: remove the broker plumbing and the old worker pipeline",
+  context="Phase A removed what the new product never uses (graph, MemMachine, waitlist, spikes). Phase B removes what the new job queue and pipeline replace: RabbitMQ, SQS, the outbox relay, and the old worker stages (preprocess, embed, triage, episode, synthesize, briefing, member knowledge). It can only happen once their replacements run, because today the old embed stage is what gives new facts their vectors.",
+  steps=["Confirm the Postgres job queue and job handlers J1–J8 are merged and the proof test passes with `OPENKT_QUEUE_BACKEND=postgres` and no broker configured.", "Delete `apps/worker/src/modules/{mq,outbox,memory-engine}` and the server-side publishers; drop `amqplib` and the AWS SQS client from dependencies; remove every `RABBITMQ_*`, `RMQ_*`, `OPENKT_SQS_*`, `OUTBOX_*` variable.", "Fold `briefing`, `briefings` and `member-knowledge` into the new brief (T3) code; delete what is left.", "Add one migration that drops the tables of removed features (`memmachine_nodes`, `project_code_graphs`, `waitlist`, `outbox`, `episodes`, `episode_memories`, `memory_neighbors`, `service_health`, legacy briefing caches) after checking nothing reads them.", "Replace Supabase-bound auth paths once built-in sign-in has shipped."],
+  accept=["`docker compose up` works with Postgres as the only stateful service.", "Proof test, unit and e2e suites pass.", "`grep -ri 'rabbit\\|amqp\\|sqs\\|outbox\\|memmachine\\|neo4j' server/apps server/libs` returns nothing."], deps=["J9", "J31", "J32", "S2"]),
 
 # ───────────────────────────── 0.1 · recall ─────────────────────────────
 dict(key="J1", who="junior", ms=M01, title="recall: reciprocal rank fusion `fuse()`",
@@ -86,7 +91,7 @@ dict(key="J5", who="junior", ms=M01, title="recall: rerank HTTP client with scor
 dict(key="J6", who="junior", ms=M01, title="pipeline: secrets filter `findSecrets()`",
   context="OpenKT never stores credentials, even when a person asks it to (Spec 02 §9).",
   read=["docs/specs/02-agent-decisions.md §9"],
-  steps=["Create `packages/pipeline/src/secrets.ts` exporting `findSecrets(text: string): { type: string; index: number }[]` and `hasSecret(text: string): boolean`.",
+  steps=["`packages/agents/src/secrets.ts` already has a first version — copy it as your starting point (copy, do not import across packages), then make every test in this issue pass.", "Create `packages/pipeline/src/secrets.ts` exporting `findSecrets(text: string): { type: string; index: number }[]` and `hasSecret(text: string): boolean`.",
          "Detect, with one named regex each: `aws_access_key` (`AKIA` or `ASIA` + 16 uppercase alphanumerics); `github_token` (`gh[pousr]_` + 36 or more alphanumerics); `openai_key` (`sk-` + 20 or more of `[A-Za-z0-9_-]`); `anthropic_key` (`sk-ant-` …); `slack_token` (`xox[baprs]-` …); `openkt_pat` (`okt_pat_` + 20 or more); `private_key` (`-----BEGIN [A-Z ]*PRIVATE KEY-----`); `jwt` (three base64url parts separated by dots, the first starting `eyJ`, each part ≥ 10 chars); `connection_string` (`scheme://user:password@host` for schemes postgres, postgresql, mysql, mongodb, mongodb+srv, redis, amqp — the password part must be non-empty); `password_assignment` (case-insensitive `password`, `passwd`, `pwd`, `secret` or `api[_-]?key`, then optional spaces, then `is`, `=` or `:`, then a value of 6+ non-space characters that is not `null`, `none`, `true`, `false`, `required`, `missing`, `<…>` or `***`); `card_number` (13–19 digits, optional spaces or dashes between groups, passing the Luhn check).",
          "Return matches sorted by `index`. Never include the matched text in the result.", "Export from `src/index.ts`."],
   files=["packages/pipeline/src/secrets.ts", "packages/pipeline/test/secrets.test.ts", "packages/pipeline/src/index.ts"],
@@ -95,7 +100,7 @@ dict(key="J6", who="junior", ms=M01, title="pipeline: secrets filter `findSecret
 
 dict(key="J7", who="junior", ms=M01, title="server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint",
   context="Every recall is logged so we can measure whether retrieved context was used (Spec 01 §3, Spec 04 `POST /v1/recall/:recall_id/feedback`).",
-  read=["docs/specs/01-memory-overlays.md §3", "docs/specs/04-api-contract.md (Context section)", "server/README.md (where migrations, schema files and controllers live)"],
+  read=["docs/specs/01-memory-overlays.md §3", "docs/specs/04-api-contract.md (Context section)", "server/WHERE_THINGS_LIVE.md"],
   steps=["Add one migration creating `recall_events` and `recall_feedback` exactly as in Spec 01 §3, with an index on `recall_events(user_id, created_at desc)`. Append its entry to the migrations journal with a `when` value larger than every existing entry.",
          "Add the two Drizzle schema files and export them from the schema index.",
          "In the recall service, after the response is built, insert one `recall_events` row. It must not delay or fail the response: no `await` on the hot path, errors are logged and swallowed.",
@@ -218,8 +223,8 @@ dict(key="J24", who="junior", ms=M02, title="pipeline: `normaliseTags()` with vo
 dict(key="J25", who="junior", ms=M02, title="pipeline: `guardRoutes()`",
   context="The `route` agent proposes where each fact goes; code enforces the rules (Spec 02 §5 step 3).",
   read=["docs/specs/02-agent-decisions.md §5", "packages/agents/schemas/route.json (the agent's output shape — read only)"],
-  steps=["`packages/pipeline/src/route-guards.ts` exporting `guardRoutes(input: { facts: (FactRef & { age_days: number })[]; proposals: Proposal[]; pages: { id: string; sections: { heading: string; locked: boolean }[] }[]; unroutedTitles: string[]; titleSimilarity: (a: string, b: string) => number }): { routes: Route[]; unrouted: { fact_id: string; reason: string }[] }`. `Proposal = { fact_id, action: 'append'|'rewrite_section'|'new_page'|'noop', page_id?, section_heading?, new_page_title? }`. `Route` is the same without `noop`, plus `redirected_from_locked?: boolean`.",
-         "Rules, in this order: unknown `fact_id` → ignore. `confidence < 0.4` → unrouted `low_confidence`. kind `action` or `question` with `age_days > 30` → unrouted `stale`. `append`/`rewrite_section` with unknown `page_id` → unrouted `unknown_page`. Unknown `section_heading` on a known page → treat as `append` to a new section with that heading. Target section `locked` → change to `append` on heading `Updates`, set `redirected_from_locked`. `new_page`: title must be ≤ 60 chars, contain ` — `, and not end with `.`, `?` or `!`, else unrouted `bad_title`.",
+  steps=["`packages/pipeline/src/route-guards.ts` exporting `guardRoutes(input: { facts: (FactRef & { age_days: number })[]; proposals: Proposal[]; pages: { id: string; sections: { heading: string; locked: boolean }[] }[]; unroutedTitles: string[]; titleSimilarity: (a: string, b: string) => number }): { routes: Route[]; unrouted: { fact_id: string; reason: string }[] }`. `Proposal = { fact_id, action: 'append'|'rewrite_section'|'new_page'|'noop', page_id?, section_title?, new_page_title? }`. `Route` is the same without `noop`, plus `redirected_from_locked?: boolean`.",
+         "Rules, in this order: unknown `fact_id` → ignore. `confidence < 0.4` → unrouted `low_confidence`. kind `action` or `question` with `age_days > 30` → unrouted `stale`. `append`/`rewrite_section` with unknown `page_id` → unrouted `unknown_page`. Unknown `section_title` on a known page → treat as `append` to a new section with that heading. Target section `locked` → change to `append` on heading `Updates`, set `redirected_from_locked`. `new_page`: title must be ≤ 60 chars, contain ` — `, and not end with `.`, `?` or `!`, else unrouted `bad_title`.",
          "`new_page` titles with `titleSimilarity ≥ 0.85` are merged into the first one seen. A `new_page` group is allowed when it has ≥ 3 facts (counting entries of `unroutedTitles` equal or similar ≥ 0.85) **or** any fact in it has kind `decision`; otherwise its facts are unrouted `waiting_for_more`.", "Export from `src/index.ts`."],
   files=["packages/pipeline/src/route-guards.ts", "packages/pipeline/test/route-guards.test.ts", "packages/pipeline/src/index.ts"],
   accept=["One test per rule, asserting the exact `reason` string.", "Two facts proposing `Northgate — pricing` and `Northgate — Pricing` end up on one new page.", "A single `fact`-kind proposal for a new page is `waiting_for_more`; the same with kind `decision` is routed.", "A locked target becomes `Updates` with the flag set.", "typecheck and tests pass."], out=[], deps=[]),
@@ -245,7 +250,7 @@ dict(key="J27", who="junior", ms=M02, title="pipeline: `assignConfidence()`",
 # ───────────────────────────── 0.2 · server ─────────────────────────────
 dict(key="J30", who="junior", ms=M02, title="server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults",
   context="The tables of tiers T2 and T3 (Spec 01 §3).",
-  read=["docs/specs/01-memory-overlays.md §3", "server/README.md", "an existing migration + schema pair in `server/` as a style reference"],
+  read=["docs/specs/01-memory-overlays.md §3", "server/WHERE_THINGS_LIVE.md", "an existing migration + schema pair in `server/` as a style reference"],
   steps=["One migration adding: `pages`, `page_sections` (with `embedding vector(1024)`, generated `tsv` using the `simple` config, GIN index on `tsv`, HNSW index on `embedding` with `vector_cosine_ops`), `page_section_facts`, `page_revisions`, `briefs`, `attachments`, `connector_defaults`, and the columns `memories.quote`, `memories.valid_from`, `memories.valid_to`, `projects.shared_with_workspace`. Skip any column that already exists (`ADD COLUMN IF NOT EXISTS`).",
          "Foreign keys cascade on delete from `pages` to its children and from `sessions` to `attachments`; `page_section_facts.memory_id` cascades too.",
          "Drizzle schema files for each table, exported from the schema index. Match the column names exactly.", "Append the journal entry with a `when` larger than every existing one."],
@@ -395,5 +400,5 @@ dict(key="J80", who="junior", ms=M10, title="Docs site with interactive examples
 dict(key="J81", who="junior", ms=M10, title="Landing page copy for openkt.ai from product.md",
   context="The current site speaks only to engineers (\"skip the 47k-token repo scan\"). The product is now for every knowledge worker.", read=["docs/product.md"],
   steps=["Write `docs/site/landing.md`: hero (≤ 12 words) + one-sentence sub; the three losses (between sessions, tools, people); four before/after cards from product.md personas; how it works in 5 steps; open source and self-run section; the three install levels. Every claim must be traceable to product.md.", "No benchmarks, no customer logos, no \"10x\"."],
-  files=["docs/site/landing.md"], accept=["A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block)."], out=["Changing the live site — that is a separate, senior-approved deploy."], deps=[]),
+  files=["docs/site/landing.md"], accept=["A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block)."], out=["Changing the live site — that is a separate, maintainer-approved deploy."], deps=[]),
 ]

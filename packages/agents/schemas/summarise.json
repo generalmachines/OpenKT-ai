@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "summary", "open_questions"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1, "maxLength": 100, "description": "At most 8 words." },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 800, "description": "At most 80 words." },
+    "open_questions": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 1, "maxLength": 240 }
+    }
+  }
+}

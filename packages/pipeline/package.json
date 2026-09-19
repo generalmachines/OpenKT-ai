@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Pure decision functions for the OpenKT write path (Spec 02): chunking, duplicate rules, tag normalising, routing guards, section validation, confidence. No database, no network, no clock.",
   "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/masti-ai/openkt-next.git", "directory": "packages/pipeline" },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

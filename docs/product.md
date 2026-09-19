@@ -1,6 +1,6 @@
 # OpenKT — product
 
-> Status: draft 1, 2026-09-19. Written from `docs/_brief.md`. Architecture, docs and the website derive from this file; change it here first.
+> Status: draft 1, 2026-09-19. Written from the founder's brief ([`history/2026-09-founder-brief.md`](history/2026-09-founder-brief.md)). Architecture, docs and the website derive from this file; change it here first.
 
 ## What it is
 

@@ -150,7 +150,7 @@ ToolProvider: connect(user, app) → connection · list(connection, cursor) → 
 
 ## 7. What is reused from the existing code
 
-| Keep (evolve in `openkt-server`, then publish as a clean-history snapshot) | Drop |
+| Keep (imported into `server/` as a clean-history snapshot of the earlier codebase) | Drop |
 |---|---|
 | NestJS skeleton, Drizzle, migrations discipline | MemMachine + Neo4j |
 | MCP controller, OAuth 2.1 server, consent flow, PAT issuance | The directory-bound project model |
