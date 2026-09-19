@@ -19,6 +19,7 @@ import { ProjectsApplicationService } from "../../projects/services/projects-app
 import {
   CloseSessionSchema,
   CreateSessionSchema,
+  SessionSourceSchema,
 } from "../../sessions/contracts/session.contract";
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
 import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
@@ -606,20 +607,9 @@ const StartSessionSchema = z.object({
       "Project UUID or slug to file this session under. Omit to use the user's personal space.",
     ),
   title: z.string().max(200).optional().describe("Optional short title for this session."),
-  source: z
-    .enum([
-      "claude-code",
-      "chatgpt",
-      "claude",
-      "mcp",
-      "voice",
-      "meeting",
-      "screenshot",
-      "note",
-      "connector",
-    ])
+  source: SessionSourceSchema
     .optional()
-    .describe("The connector opening this session. Defaults to 'mcp'."),
+    .describe("The tool opening this session, e.g. 'claude-code', 'codex', 'cursor', 'claude-ai'. Defaults to 'mcp'."),
   client: z.string().max(120).optional().describe("Free-text client identifier, e.g. 'claude-code/1.2.0'."),
 });
 

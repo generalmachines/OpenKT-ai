@@ -30,6 +30,7 @@ export class HttpApp {
     const { AppModule } = await import("../../../apps/server/src/app.module");
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     this.app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+    this.app.useBodyParser("json", { limit: "3mb" }); // as main.ts
     this.app.set("trust proxy", true);
     this.app.setGlobalPrefix("v1", { exclude: [{ path: "mcp", method: RequestMethod.ALL }] });
     await this.app.init();

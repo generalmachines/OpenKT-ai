@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { and, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
@@ -7,7 +7,6 @@ import { ValidationDomainError } from "@openkt/core-errors";
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
 import { sessions, sessionTurns } from "../../../db/schema";
 import type {
-  AddSessionTurnInput,
   CreateSessionInput,
   ListSessionsQuery,
   SessionListMeta,
@@ -15,16 +14,27 @@ import type {
   SessionTurnRecord,
 } from "../contracts/session.contract";
 
+// Spec 04: a turn appended to a closed session is 409 — open a new session.
+export const sessionClosed = () =>
+  new HttpException(
+    { code: "session_closed", message: "This session is closed; open a new session to add turns." },
+    HttpStatus.CONFLICT,
+  );
+
+type NewTurn = { role: string; content: string; metadata: Record<string, unknown> };
+
 @Injectable()
 export class SessionRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDb) {}
 
+  // null when `(owner, source, external_id)` already names a session (a
+  // concurrent create won) — the caller reads that one with findByExternalId.
   async create(
     context: ActorContext,
     projectId: string,
     orgId: string | null,
     input: CreateSessionInput,
-  ): Promise<SessionRecord> {
+  ): Promise<SessionRecord | null> {
     const userId = context.principal.userId;
     if (!userId) throw new ValidationDomainError("user principal required");
 
@@ -38,11 +48,28 @@ export class SessionRepository {
         client: input.client ?? null,
         title: input.title ?? null,
         metadata: input.metadata ?? {},
+        externalId: input.external_id ?? null,
+        externalUrl: input.external_url ?? null,
         status: "open",
       })
+      .onConflictDoNothing()
       .returning();
-    if (!row) throw new ValidationDomainError("session create failed");
+    if (!row) {
+      if (input.external_id) return null;
+      throw new ValidationDomainError("session create failed");
+    }
     return this.toRecord(row);
+  }
+
+  async findByExternalId(ownerUserId: string, source: string, externalId: string): Promise<SessionRecord | null> {
+    const row = await this.db.query.sessions.findFirst({
+      where: and(
+        eq(sessions.ownerUserId, ownerUserId),
+        eq(sessions.source, source),
+        eq(sessions.externalId, externalId),
+      ),
+    });
+    return row ? this.toRecord(row) : null;
   }
 
   async findById(sessionId: string): Promise<SessionRecord | null> {
@@ -91,46 +118,57 @@ export class SessionRepository {
     };
   }
 
-  // Adds a turn at the next sequence number for the session in a
-  // single INSERT ... SELECT so two concurrent turns can't race for
-  // the same seq (the unique index on (session_id, seq) is the
-  // fallback guard if this ever does race under repeatable-read).
-  async addTurn(sessionId: string, input: AddSessionTurnInput): Promise<SessionTurnRecord> {
-    const result = await this.db.execute(sql`
-      insert into ${sessionTurns} (session_id, seq, role, content, metadata)
-      select ${sessionId}::uuid,
-             coalesce(max(seq), 0) + 1,
-             ${input.role},
-             ${input.content},
-             ${JSON.stringify(input.metadata ?? {})}::jsonb
-        from ${sessionTurns}
-       where session_id = ${sessionId}::uuid
-      returning id, session_id, seq, role, content, created_at, metadata
-    `);
-    const row = result.rows[0] as
-      | {
-          id: string;
-          session_id: string;
-          seq: number;
-          role: string;
-          content: string;
-          created_at: string | Date;
-          metadata: unknown;
-        }
-      | undefined;
-    if (!row) throw new ValidationDomainError("session turn create failed");
+  // Appends turns at the next sequence numbers, in order, all or nothing.
+  // The session row is locked for the transaction, so concurrent appends
+  // take turns and a close cannot slip in between the check and the insert;
+  // a closed session is 409 `session_closed`.
+  async appendTurns(sessionId: string, turns: NewTurn[]): Promise<SessionTurnRecord[]> {
+    const rows = await this.db.transaction(async (tx) => {
+      const locked = await tx.execute(sql`
+        select status from ${sessions} where id = ${sessionId}::uuid for update
+      `);
+      const status = (locked.rows[0] as { status?: string } | undefined)?.status;
+      if (!status) throw new ValidationDomainError("session not found");
+      if (status !== "open") throw sessionClosed();
 
-    await this.touchActivity(sessionId);
+      const inserted = await tx.execute(sql`
+        insert into ${sessionTurns} (session_id, seq, role, content, metadata)
+        select ${sessionId}::uuid,
+               base.n + t.ord,
+               t.elem->>'role',
+               t.elem->>'content',
+               coalesce(t.elem->'metadata', '{}'::jsonb)
+          from (select coalesce(max(seq), 0) as n from ${sessionTurns} where session_id = ${sessionId}::uuid) base,
+               jsonb_array_elements(${JSON.stringify(turns)}::jsonb) with ordinality as t(elem, ord)
+         order by t.ord
+        returning id, session_id, seq, role, content, created_at, metadata
+      `);
+      await tx
+        .update(sessions)
+        .set({ lastActivityAt: sql`now()`, updatedAt: sql`now()` })
+        .where(eq(sessions.id, sessionId));
+      return inserted.rows as Array<{
+        id: string;
+        session_id: string;
+        seq: number;
+        role: string;
+        content: string;
+        created_at: string | Date;
+        metadata: unknown;
+      }>;
+    });
 
-    return {
-      id: row.id,
-      session_id: row.session_id,
-      seq: row.seq,
-      role: row.role as SessionTurnRecord["role"],
-      content: row.content,
-      created_at: this.iso(row.created_at),
-      metadata: (row.metadata ?? {}) as Record<string, unknown>,
-    };
+    return rows
+      .map((row) => ({
+        id: row.id,
+        session_id: row.session_id,
+        seq: Number(row.seq),
+        role: row.role as SessionTurnRecord["role"],
+        content: row.content,
+        created_at: this.iso(row.created_at),
+        metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      }))
+      .sort((a, b) => a.seq - b.seq);
   }
 
   async close(sessionId: string, summary: string | null): Promise<SessionRecord> {
@@ -211,6 +249,8 @@ export class SessionRepository {
       ended_at: row.endedAt ? this.iso(row.endedAt) : null,
       last_activity_at: this.iso(row.lastActivityAt),
       metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      external_id: row.externalId ?? null,
+      external_url: row.externalUrl ?? null,
       created_at: this.iso(row.createdAt),
       updated_at: this.iso(row.updatedAt),
     };
