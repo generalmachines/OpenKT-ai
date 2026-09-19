@@ -30,8 +30,10 @@ fi
 
 setting() { # name → value from the environment, else from the GitHub environment `production`
   local v="${!1:-}"
-  [ -n "${v}" ] || v="$(gh variable get "$1" --env production 2>/dev/null || true)"
-  [ -n "${v}" ] || { echo "Missing setting $1 (export it, or sign in with gh)"; exit 1; }
+  # `gh variable list --json` works on old gh releases too (`gh variable get` needs gh ≥ 2.47).
+  [ -n "${v}" ] || v="$(gh variable list --env production --json name,value \
+    --jq ".[] | select(.name == \"$1\") | .value" 2>/dev/null || true)"
+  [ -n "${v}" ] || { echo "Missing setting $1 (export it, or sign in with gh)" >&2; exit 1; }
   printf '%s' "${v}"
 }
 AWS_REGION="$(setting AWS_REGION)"
