@@ -25,6 +25,8 @@ dokku apps:exists "$API" 2>/dev/null || dokku apps:create "$API"
 dokku builder:set "$API" selected dockerfile
 dokku builder-dockerfile:set "$API" dockerfile-path docker/Dockerfile.api
 dokku ps:set "$API" procfile-path .dokku/Procfile.api
+dokku app-json:set "$API" appjson-path .dokku/app.json   # startup healthcheck on /v1/health
+dokku nginx:set "$API" client-max-body-size 4m          # skill saves go up to 1 MB of JSON
 dokku network:set "$API" attach-post-create "$NET"
 dokku ports:set "$API" http:80:4100
 

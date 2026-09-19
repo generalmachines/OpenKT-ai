@@ -33,9 +33,17 @@ There is no worker app yet: facts are embedded when saved (`OPENKT_INLINE_EMBED`
 | `DEPLOY_ARTIFACT_BUCKET` | Temporary source-archive bucket |
 | `PUBLIC_URL` | Where the post-deploy smoke test looks, e.g. `https://api.openkt.ai` |
 
+## Deploying by hand, and proving what runs
+
+`GET /v1/meta` (public) answers `{version, commit, built_at, …}`. The commit comes from `build-info.json`, which `deploy/dokku/ship.sh` writes into the source archive, so it is baked into the image and cannot drift from the running code. The post-deploy smoke test (`deploy/dokku/smoke.sh`) passes only when `/v1/meta` reports the commit just shipped and `/v1/projects` still refuses a tokenless call with 401.
+
+When GitHub Actions cannot run, deploy from a workstation with `scripts/deploy-from-box.sh [git-ref]` (default: exactly `origin/main`). It runs the same `ship.sh` and `smoke.sh` as the workflow, refuses a dirty tree, and takes a local lock; the host takes its own lock, so two deploys never overlap. Full build logs stay on the host in `/var/log/openkt-next-deploy/` (SSM only returns the last 24 000 characters); the deploy prints their tail.
+
+Each release runs its migrations (release phase), then Dokku waits for the `.dokku/app.json` startup healthcheck (`/v1/health` on port 4100) before it moves traffic; a failed check leaves the previous release serving.
+
 ## First-time host setup
 
-`deploy/dokku/bootstrap.sh` (run once as root on the host, for example through Systems Manager) creates the two apps with their builder paths, network, port map, configuration and domains. It is idempotent. After the first successful deploy, request the certificate:
+`deploy/dokku/bootstrap.sh` (run once as root on the host, for example through Systems Manager) creates the two apps with their builder paths, network, port map, configuration and domains. It is idempotent. After the first successful deploy, request the certificate (until it exists nothing listens on 443 and the smoke test fails with status 000 — that is what failed the very first deploy):
 
 ```
 dokku letsencrypt:enable openkt-next-api && dokku letsencrypt:cron-job --add
