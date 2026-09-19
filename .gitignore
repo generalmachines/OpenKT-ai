@@ -1,8 +1,35 @@
+# dependencies and build output
 node_modules/
 dist/
+dist-electron/
+release/
+coverage/
 *.tsbuildinfo
-.DS_Store
+
+# environment and secrets
 .env
 .env.*
 !.env.example
-coverage/
+
+# logs
+*.log
+npm-debug.log*
+
+# python
+__pycache__/
+*.pyc
+
+# operating system and editors
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# local agent state
+.claude/
+
+# review artefacts written by `npm run shots`; the few images the docs use live in docs/images/
+apps/desktop/shots/
+packages/mcp-cards/screenshots/
