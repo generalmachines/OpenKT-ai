@@ -37,7 +37,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 1. Finish and verify milestones M1–M6 on the branch.
 2. Scan the tree for secrets; remove deploy-specific files.
 3. Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.
-4. Record the mapping old path → new path in `server/README.md`.
+4. Write `server/WHERE_THINGS_LIVE.md` for junior engineers.
 
 **Acceptance — every line must be true and tested**
 - [ ] `server/` builds and its unit tests pass from a clean clone.
@@ -382,7 +382,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Read first**
 - docs/specs/01-memory-overlays.md §3
 - `docs/specs/04-api-contract.md (Context section)`
-- `server/README.md (where migrations, schema files and controllers live)`
+- `server/WHERE_THINGS_LIVE.md`
 
 **Do exactly this**
 1. Add one migration creating `recall_events` and `recall_feedback` exactly as in Spec 01 §3, with an index on `recall_events(user_id, created_at desc)`. Append its entry to the migrations journal with a `when` value larger than every existing entry.
@@ -904,7 +904,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Read first**
 - docs/specs/01-memory-overlays.md §3
-- `server/README.md`
+- `server/WHERE_THINGS_LIVE.md`
 - an existing migration + schema pair in `server/` as a style reference
 
 **Do exactly this**
