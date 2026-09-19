@@ -89,21 +89,22 @@ export const writeSection = defineAgent<WriteSectionInput, WriteSectionOutput>({
     if (missing.length) return fail(`every fact must be cited as [^f:<id>]; not cited: ${missing.join(", ")}`);
 
     const before = proseBlocks(input.section_md);
-    const beforeKeys = new Set(before.map(normaliseForMatch));
     const after = proseBlocks(section_md);
 
-    // Uncited prose is allowed only where a person wrote it: blocks already in the section, unchanged.
-    const uncited = after.find((b) => !b.match(CITATION) && !beforeKeys.has(normaliseForMatch(b)));
+    // Spec 02 §6: every sentence cites a fact. Text a person wrote lives in locked sections, which
+    // are never given to this agent, so there is no uncited text here to keep.
+    const uncited = after.find((b) => !b.match(CITATION));
     if (uncited) return fail(`every sentence needs a [^f:<id>] citation; none in: ${JSON.stringify(uncited.slice(0, 80))}`);
 
     // A superseded fact may appear only as "was <old>; since <date> <new>", next to the fact that replaced it.
     const stale = after.find((b) => citesAny(b, superseded) && !(/\bwas\b[\s\S]*;\s*since \d{4}-\d{2}-\d{2}\b/i.test(b) && citesAny(b, newIds)));
     if (stale) return fail(`a superseded fact may only be cited in the form "was X; since YYYY-MM-DD Y" together with the new fact; fix: ${JSON.stringify(stale.slice(0, 80))}`);
 
-    // Append mode adds; it does not edit. Only blocks resting on a superseded fact may change.
+    // Append mode adds; it does not edit. Only blocks resting on a superseded fact may change, and
+    // an uncited block (which may not be kept, above) may go.
     if ((input.mode ?? "append") === "append") {
       const afterText = normaliseForMatch(section_md);
-      const changed = before.find((b) => !citesAny(b, superseded) && !afterText.includes(normaliseForMatch(b)));
+      const changed = before.find((b) => b.match(CITATION) && !citesAny(b, superseded) && !afterText.includes(normaliseForMatch(b)));
       if (changed) return fail(`existing text must stay unchanged when adding; changed or removed: ${JSON.stringify(changed.slice(0, 80))}`);
     }
 
