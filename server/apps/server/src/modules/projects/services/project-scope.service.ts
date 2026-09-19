@@ -20,28 +20,17 @@ export class ProjectScopeService {
       throw new ValidationDomainError("user principal required");
     }
 
-    const existing = await this.db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(
-        and(
-          eq(projects.ownerUserId, userId),
-          eq(projects.visibility, "personal"),
-          isNull(projects.orgId),
-        ),
-      )
-      // A person may also own other org-less spaces created through
-      // POST /v1/projects (default visibility "personal", e.g. a team space
-      // they then share by email). The personal space is the auto-created one:
-      // slug "personal", else the oldest.
-      .orderBy(sql`(${projects.slug} = 'personal') desc`, asc(projects.createdAt))
-      .limit(1);
+    // THE personal space is the one marked `is_personal` (migration 0043) —
+    // never "an org-less space you own": team spaces made with
+    // POST /v1/projects are org-less with visibility `personal` too, and
+    // guessing between them filed private notes into shared spaces (QA S0).
+    const existing = await this.findPersonalProjectId(userId);
+    if (existing) return existing;
 
-    if (existing[0]) {
-      return existing[0].id;
-    }
-
-    const [created] = await this.db
+    // First use (sign-up does this too). The partial unique index
+    // `projects_one_personal_per_owner` makes concurrent first uses agree on
+    // one row: the loser's insert does nothing and it reads the winner's.
+    await this.db
       .insert(projects)
       .values({
         slug: "personal",
@@ -49,14 +38,25 @@ export class ProjectScopeService {
         visibility: "personal",
         orgId: null,
         ownerUserId: userId,
+        isPersonal: true,
       })
-      .returning({ id: projects.id })
+      .onConflictDoNothing()
       .catch((err: Error) => {
         throw new ValidationDomainError(err.message);
       });
 
+    const created = await this.findPersonalProjectId(userId);
     if (!created) throw new ValidationDomainError("personal project create failed");
-    return created.id;
+    return created;
+  }
+
+  private async findPersonalProjectId(userId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.ownerUserId, userId), eq(projects.isPersonal, true)))
+      .limit(1);
+    return row?.id ?? null;
   }
 
   async resolveProjectIdOrSlug(
@@ -114,6 +114,9 @@ export class ProjectScopeService {
     if (!userId) {
       throw new ValidationDomainError("user principal required");
     }
+
+    // `personal` names the personal space, whatever else carries that slug.
+    if (value === "personal") return this.resolvePersonalProjectId(context);
 
     const personalMatch = await this.db
       .select({ id: projects.id })

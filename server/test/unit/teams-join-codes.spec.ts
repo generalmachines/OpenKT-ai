@@ -43,10 +43,8 @@ describe("slugFromName", () => {
 });
 
 describe("isPersonalSpace", () => {
-  it("is the org-less, personal space named `personal` only", () => {
-    expect(isPersonalSpace({ visibility: "personal", orgId: null, slug: "personal" })).toBe(true);
-    expect(isPersonalSpace({ visibility: "personal", orgId: null, slug: "personal-team" })).toBe(false);
-    expect(isPersonalSpace({ visibility: "org", orgId: null, slug: "personal" })).toBe(false);
-    expect(isPersonalSpace({ visibility: "personal", orgId: "0b8b0b1e-0000-4000-8000-000000000000", slug: "personal" })).toBe(false);
+  it("is the space marked personal, whatever its slug", () => {
+    expect(isPersonalSpace({ isPersonal: true })).toBe(true);
+    expect(isPersonalSpace({ isPersonal: false })).toBe(false);
   });
 });
