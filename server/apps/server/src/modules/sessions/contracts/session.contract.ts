@@ -7,17 +7,33 @@ export const ISO = z.string().datetime({ offset: true });
 // as a zod enum (application boundary) over a free-text column
 // (`sessions.source` is `text`, not a pg enum) so new connectors never
 // require a migration; only this list needs a one-line addition.
-export const SessionSourceSchema = z.enum([
+// The tool ids are those of `packages/connect` (`kt connect <tool>`) and the
+// desktop app; `connector` is for anything else (say which in `client`).
+export const SESSION_SOURCES = [
+  // coding agents and editors
   "claude-code",
-  "chatgpt",
+  "codex",
+  "cursor",
+  "gemini",
+  "windsurf",
+  "opencode",
+  "vscode",
+  // assistants and agents
+  "claude-desktop",
+  "claude-ai",
   "claude",
+  "cowork",
+  "chatgpt",
+  "hermes",
   "mcp",
+  // the desktop app's own captures
   "voice",
-  "meeting",
   "screenshot",
+  "meeting",
   "note",
   "connector",
-]);
+] as const;
+export const SessionSourceSchema = z.enum(SESSION_SOURCES);
 export type SessionSource = z.infer<typeof SessionSourceSchema>;
 
 export const SessionStatusSchema = z.enum(["open", "closed"]);
@@ -40,6 +56,10 @@ export const SessionRecordSchema = z.object({
   ended_at: ISO.nullable(),
   last_activity_at: ISO,
   metadata: z.record(z.string(), z.unknown()),
+  // The conversation's id and link in the tool it came from; `(source,
+  // external_id)` names one session per owner (migration 0045).
+  external_id: z.string().nullable(),
+  external_url: z.string().nullable(),
   created_at: ISO,
   updated_at: ISO,
 });
@@ -66,6 +86,10 @@ export const CreateSessionSchema = z.object({
   source: SessionSourceSchema.default("mcp"),
   client: z.string().max(120).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
+  // Spec 04: the same `(source, external_id)` again → 200 with the existing
+  // session, so a hook or an import that retries never makes a duplicate.
+  external_id: z.string().min(1).max(256).optional(),
+  external_url: z.string().url().max(2048).optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
 });
 export type CreateSessionInput = z.infer<typeof CreateSessionSchema>;
@@ -76,6 +100,24 @@ export const AddSessionTurnSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({}),
 });
 export type AddSessionTurnInput = z.infer<typeof AddSessionTurnSchema>;
+
+// Spec 04: `{turns:[{role, speaker?, content, t0_ms?, t1_ms?}]}` → `{appended,
+// next_seq}`. At most 200 turns and 1 MB of text per call. `speaker` and the
+// timings ride in each turn's metadata.
+export const SESSION_TURNS_MAX = 200;
+export const SESSION_TURNS_MAX_BYTES = 1024 * 1024;
+export const BatchSessionTurnSchema = z.object({
+  role: SessionTurnRoleSchema,
+  speaker: z.string().max(200).optional(),
+  content: z.string().min(1).max(50_000),
+  t0_ms: z.number().int().min(0).optional(),
+  t1_ms: z.number().int().min(0).optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+export const AddSessionTurnsSchema = z.object({
+  turns: z.array(BatchSessionTurnSchema).min(1).max(SESSION_TURNS_MAX),
+});
+export type AddSessionTurnsInput = z.infer<typeof AddSessionTurnsSchema>;
 
 export const CloseSessionSchema = z.object({
   summary: z.string().max(20_000).nullable().optional(),

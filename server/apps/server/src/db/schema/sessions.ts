@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // T0 (session) tier — architecture.md §2. The raw record of one
 // conversation with a coding agent or chat assistant, one meeting,
@@ -31,9 +31,17 @@ export const sessions = pgTable("kt_sessions", {
   endedAt: timestamp("ended_at", { withTimezone: true }),
   lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  // The conversation's id/link in its tool (migration 0045). Unique per
+  // (owner, source) when set — `POST /v1/sessions` is idempotent on it.
+  externalId: text("external_id"),
+  externalUrl: text("external_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  ownerSourceExternal: uniqueIndex("kt_sessions_owner_source_external_unique")
+    .on(t.ownerUserId, t.source, t.externalId)
+    .where(sql`${t.externalId} IS NOT NULL`),
+}));
 
 export const sessionTurns = pgTable(
   "kt_session_turns",

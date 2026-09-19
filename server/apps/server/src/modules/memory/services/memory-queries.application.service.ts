@@ -5,7 +5,7 @@ import {
   requireMemoryReadAccess,
   requireProjectAccess,
 } from "@openkt/auth-authorization";
-import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
+import { NotFoundDomainError } from "@openkt/core-errors";
 
 import type {
   ListMemoriesQuery,
@@ -85,9 +85,15 @@ export class MemoryQueriesApplicationService {
     const requested = [...new Set(input.filters.project_ids ?? [])];
     const primaryProjectId = requested[0];
     if (!primaryProjectId) {
-      throw new ValidationDomainError(
-        "search requires filters.project_ids with at least one project",
+      // No space given → every space the caller can read and every session
+      // granted to them, authorised inside the search SQL.
+      const result = await this.memoryEngine.search(context, input, [], [], { everyReadableSpace: true });
+      await this.memoryRepository.logAccessBatch(
+        context,
+        result.data.map((memory) => memory.id),
+        "read",
       );
+      return result;
     }
 
     // The engine searches EVERY id in the list, so every id is authorised —
