@@ -1,6 +1,6 @@
 # Wiring the OpenKT cards into the MCP server
 
-Audience: whoever owns `McpServerFactoryService` in `openkt-server`. Everything the view assumes is on this page. Checked against the primary sources on 2026-09-19; they are listed at the end, with what could not be confirmed.
+Audience: whoever owns `McpServerFactoryService` in `server/`. **Implemented** in `server/apps/server/src/modules/mcp/services/mcp-card-tools.ts` (tools, resource) and `mcp-apps.ts` (capability negotiation); where it differs from this page, the resource URI is the fixed `ui://openkt/cards.html` that Spec 04 names, and tools carry `_meta.ui` only on the card tools. Everything the view assumes is on this page. Checked against the primary sources on 2026-09-19; they are listed at the end, with what could not be confirmed.
 
 The bundle is one file, `dist/openkt-cards.html` (about 470 KB, almost all of it the official `@modelcontextprotocol/ext-apps` view SDK and its schema validation). It makes no network requests and runs under the default MCP Apps policy (`default-src 'none'`), so **do not declare `_meta.ui.csp`**.
 

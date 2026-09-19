@@ -109,7 +109,7 @@ Card tools (registered only when the client advertises the `io.modelcontextproto
 | `kt_commit_save` | **app only** (`visibility:["app"]`) | `{statement, kind, project_id \| 'personal'}` → performs the save |
 | `kt_mark_used` | **app only** | `{recall_id, id}` → feedback |
 
-Clients without the extension never see the card tools; `kt_save_memory` and `kt_recall` are the fallback. Where form elicitation is supported, `kt_save_memory` called with no `project` and more than one writable space elicits the space; elsewhere it saves to the personal space and says so.
+Clients without the extension never see the card tools; `kt_save_memory` and `kt_recall` are the fallback. How the server knows, statelessly: a 2026-07-28 client sends `_meta["io.modelcontextprotocol/clientCapabilities"]` on every request; an older client advertises `capabilities.extensions["io.modelcontextprotocol/ui"].mimeTypes ∋ "text/html;profile=mcp-app"` in `initialize`, and the server answers with `Mcp-Session-Id: okt1.ui.<random>` (or `okt1.no.<random>`), which the client echoes on later requests. Card tools carry `_meta.ui = {resourceUri, visibility}`, the deprecated flat `_meta["ui/resourceUri"]`, and (model-visible ones) ChatGPT's `_meta["openai/outputTemplate"]`. The resource is the committed bundle `packages/mcp-cards/dist/openkt-cards.html`, copied into the API image. Where form elicitation is supported, `kt_save_memory` called with no `project` and more than one writable space elicits the space; elsewhere it saves to the personal space and says so.
 
 ### Server `instructions` (≤ 2 KB) — the behavioural contract
 

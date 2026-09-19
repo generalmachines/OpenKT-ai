@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 
 import type { ActorContext } from "@openkt/core-context";
 import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors";
@@ -30,6 +30,11 @@ export class ProjectScopeService {
           isNull(projects.orgId),
         ),
       )
+      // A person may also own other org-less spaces created through
+      // POST /v1/projects (default visibility "personal", e.g. a team space
+      // they then share by email). The personal space is the auto-created one:
+      // slug "personal", else the oldest.
+      .orderBy(sql`(${projects.slug} = 'personal') desc`, asc(projects.createdAt))
       .limit(1);
 
     if (existing[0]) {

@@ -23,6 +23,10 @@ const MCP_WRITE_TOOLS = new Set([
   "kt_session_start",
   "kt_session_end",
   "kt_setup",
+  "kt_save_skill",
+  // MCP Apps card tools that write (called by the card, not the model).
+  "kt_commit_save",
+  "kt_mark_used",
 ]);
 
 // BearerAuthGuard — accepts EITHER a Supabase JWT (used by the dashboard

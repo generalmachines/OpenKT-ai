@@ -14,6 +14,8 @@ import type { ActorContext } from "@openkt/core-context";
 
 import { ActorContextParam } from "../../auth/decorators/actor-context.decorator";
 import { BearerAuthGuard } from "../../auth/guards/bearer-auth.guard";
+import { resolveIssuer } from "../../oauth/controllers/well-known.controller";
+import { resolveClientUiSupport } from "../services/mcp-apps";
 import { McpServerFactoryService } from "../services/mcp-server-factory.service";
 
 // Streamable HTTP JSON-RPC transport for OpenKT clients. Stateless: a
@@ -43,7 +45,15 @@ export class McpController {
     @Body() body: unknown,
   ): Promise<void> {
     const { StreamableHTTPServerTransport } = await this.factory.sdk();
-    const server = await this.factory.build(context);
+    // MCP Apps: does this client render ui:// cards? Read from the request
+    // itself, or from the session id we handed out at initialize — see
+    // services/mcp-apps.ts. Only decides which tools are listed.
+    const uiSupport = resolveClientUiSupport(body, req.header("mcp-session-id") ?? undefined);
+    if (uiSupport.sessionId) res.setHeader("Mcp-Session-Id", uiSupport.sessionId);
+    const server = await this.factory.build(context, {
+      ui: uiSupport.ui,
+      serverUrl: `${resolveIssuer(req)}/mcp`,
+    });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       // enableJsonResponse: true makes the transport return plain JSON
