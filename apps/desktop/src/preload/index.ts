@@ -4,7 +4,7 @@
  * small, typed, promise-based surface — no raw ipcRenderer, no Node.
  */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { CaptureEvent, HotkeyInfo, IpcChannel, OpenKTBridge, OverlayKind } from '../shared/ipc';
+import type { CaptureEvent, HotkeyInfo, IpcChannel, NetRequest, NetResponse, OpenKTBridge, OverlayKind } from '../shared/ipc';
 
 const ch = <C extends IpcChannel>(c: C): C => c;
 
@@ -32,6 +32,14 @@ const bridge: OpenKTBridge = {
     openMain: (route?: string) => ipcRenderer.invoke(ch('app:open-main'), typeof route === 'string' ? route : undefined),
     hotkeys: () => ipcRenderer.invoke(ch('app:hotkeys')) as Promise<HotkeyInfo[]>,
     onNavigate: (listener) => listen<string>(ch('app:navigate'), listener),
+  },
+  net: {
+    request: (req: NetRequest) => ipcRenderer.invoke(ch('net:request'), req) as Promise<NetResponse>,
+  },
+  secureStore: {
+    get: (key: string) => ipcRenderer.invoke(ch('secure:get'), key) as Promise<string | null>,
+    set: (key: string, value: string) => ipcRenderer.invoke(ch('secure:set'), key, value) as Promise<void>,
+    delete: (key: string) => ipcRenderer.invoke(ch('secure:delete'), key) as Promise<void>,
   },
 };
 

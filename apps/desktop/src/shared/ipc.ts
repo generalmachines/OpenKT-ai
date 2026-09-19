@@ -36,7 +36,24 @@ export type IpcChannel =
   | 'overlay:close'
   | 'app:open-main'
   | 'app:hotkeys'
-  | 'app:navigate';
+  | 'app:navigate'
+  | 'net:request'
+  | 'secure:get'
+  | 'secure:set'
+  | 'secure:delete';
+
+/** A server request made by main for the renderer (file:// origins fail the server's CORS allowlist). */
+export interface NetRequest {
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface NetResponse {
+  status: number;
+  body: string;
+}
 
 /** Exposed on `window.openkt` by the preload script. Absent in a browser. */
 export interface OpenKTBridge {
@@ -59,6 +76,15 @@ export interface OpenKTBridge {
     hotkeys(): Promise<HotkeyInfo[]>;
     /** Main asks the main window to navigate (tray → "New voice note"). */
     onNavigate(listener: (route: string) => void): () => void;
+  };
+  net: {
+    request(req: NetRequest): Promise<NetResponse>;
+  };
+  /** OS-keychain-encrypted strings (the access token). */
+  secureStore: {
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<void>;
+    delete(key: string): Promise<void>;
   };
 }
 

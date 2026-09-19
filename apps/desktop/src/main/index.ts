@@ -2,6 +2,7 @@ import { app, ipcMain, session } from 'electron';
 import type { CaptureEvent, IpcChannel, OverlayKind } from '../shared/ipc';
 import { createCaptureService, type MeetingDetected } from './capture';
 import { StubEngine } from './engine/stub';
+import { registerNetIpc } from './net';
 import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
@@ -74,6 +75,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
     registerIpc();
+    registerNetIpc();
     capture.onEvent(broadcast);
     capture.onMeetingDetected((meeting) => {
       pendingMeeting = meeting;
