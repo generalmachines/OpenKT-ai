@@ -19,7 +19,7 @@ export class ProjectsApplicationService {
     @Inject(ORG_REPOSITORY) private readonly orgRepository: OrgRepository,
   ) {}
 
-  async create(context: ActorContext, input: CreateProjectRecord) {
+  async create(context: ActorContext, input: Omit<CreateProjectRecord, "slug"> & { slug?: string }) {
     if (input.visibility === "personal" && input.orgId !== null) {
       throw new ValidationDomainError("personal projects must not include orgId");
     }
@@ -29,7 +29,27 @@ export class ProjectsApplicationService {
     if (input.orgId) {
       await requireOrgAccess(context, input.orgId, "write");
     }
-    return this.projectRepository.create(context, input);
+    const slug = input.slug ?? (await this.freeSlug(context, input.name, input.orgId));
+    return this.projectRepository.create(context, { ...input, slug });
+  }
+
+  // A slug made from the name, unique among the caller's own org-less spaces
+  // (the database only enforces uniqueness inside an org), and never
+  // `personal`, which names the personal space.
+  private async freeSlug(context: ActorContext, name: string, orgId: string | null): Promise<string> {
+    const base = slugFromName(name);
+    if (orgId) return base;
+    const userId = context.principal.userId;
+    const taken = new Set(
+      (await this.projectRepository.listVisible(context, {}))
+        .filter((p) => p.ownerUserId === userId && p.orgId === null)
+        .map((p) => p.slug),
+    );
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n++) {
+      const candidate = `${base.slice(0, 36)}-${n}`;
+      if (!taken.has(candidate)) return candidate;
+    }
   }
 
   listVisible(context: ActorContext, filters: ProjectListFilters) {
@@ -71,4 +91,19 @@ export class ProjectsApplicationService {
       orgId,
     };
   }
+}
+
+// "Hackathon Crew!" → "hackathon-crew". Always matches the slug rule
+// (^[a-z0-9][a-z0-9-]{1,40}$) and is never "personal".
+export function slugFromName(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 36)
+    .replace(/-+$/g, "");
+  if (slug.length < 2) return "team";
+  return slug === "personal" ? "personal-team" : slug;
 }

@@ -155,7 +155,7 @@ export function esc(value: string): string {
 
 // Neutral greys, system fonts, one dark primary button — the same look as the
 // OpenKT MCP cards. Light and dark follow the viewer's system setting.
-const CSS = `
+export const CSS = `
 :root{--bg:#f6f6f4;--card:#fff;--ink:#1a1a18;--ink-2:#55554f;--ink-3:#8a8a83;--line:#e4e4df;--field:#fff;--focus:#1a1a18;--err-bg:#fbeeec;--err-ink:#8a2a1c;--btn:#1a1a18;--btn-ink:#fff;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1d1d1b;--ink:#f1f1ee;--ink-2:#b9b9b2;--ink-3:#85857e;--line:#33332f;--field:#232321;--focus:#f1f1ee;--err-bg:#3a1f1a;--err-ink:#f3b4a8;--btn:#f1f1ee;--btn-ink:#141413;color-scheme:dark}}
 *{box-sizing:border-box}

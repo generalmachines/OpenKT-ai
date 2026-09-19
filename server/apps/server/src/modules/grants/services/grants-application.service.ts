@@ -13,6 +13,8 @@ import type {
 } from "../contracts/grant.contract";
 import { GrantRepository } from "../repositories/grant.repository";
 
+const GRANT_RANK: Record<GrantRole, number> = { reader: 1, editor: 2, owner: 3 };
+
 // GrantsApplicationService — architecture.md §3: "A grant gives a
 // person... a role... on a workspace, a space, or a single session."
 // A skill is shared the same way (resource_type = 'skill').
@@ -111,6 +113,31 @@ export class GrantsApplicationService {
       (await this.grantRepository.remove(resourceType, resourceId, subjectUserId)) ||
       (await this.grantRepository.removePending(resourceType, resourceId, subjectUserId));
     return { revoked };
+  }
+
+  // Someone opened a join link (modules/teams): they get the link's role on
+  // its resource, on behalf of whoever made the link — the same `grants` row
+  // an owner's share creates, so there is no second way in. Never lowers a
+  // role the person already holds, and the owner stays the owner. Returns the
+  // role they end up with. `claim` runs only when a grant is actually needed
+  // (it uses up one of the link's uses); when it returns false the link ran
+  // out in the meantime and nothing is granted (null).
+  async grantByJoinLink(
+    resourceType: GrantResourceType,
+    resourceId: string,
+    subjectUserId: string,
+    role: GrantRole,
+    invitedBy: string,
+    claim: () => Promise<boolean> = async () => true,
+  ): Promise<{ role: GrantRole; granted: boolean } | null> {
+    const owner = await this.grantRepository.findResourceOwner(resourceType, resourceId);
+    if (!owner) throw new NotFoundDomainError(resourceType);
+    if (owner.ownerUserId === subjectUserId) return { role: "owner", granted: false };
+    const current = await this.grantRepository.findUserRole(resourceType, resourceId, subjectUserId);
+    if (current && GRANT_RANK[current] >= GRANT_RANK[role]) return { role: current, granted: false };
+    if (!(await claim())) return null;
+    await this.grantRepository.put(resourceType, resourceId, owner.orgId, subjectUserId, role, invitedBy);
+    return { role, granted: true };
   }
 
   private async requireOwner(

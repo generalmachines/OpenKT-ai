@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { createUIResource } from "@mcp-ui/server";
 import { z } from "zod";
 
@@ -24,6 +24,8 @@ import { SessionsApplicationService } from "../../sessions/services/sessions-app
 import { SKILL_MD, renderSkillText } from "../../skills/services/skill-files";
 import { SkillsApplicationService } from "../../skills/services/skills-application.service";
 import { registerCardTools } from "./mcp-card-tools";
+import { registerTeamTools } from "../../teams/mcp/team-tools";
+import { TeamsService } from "../../teams/services/teams.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
 
 // The contract every connected tool should follow — kept here (not
@@ -39,6 +41,8 @@ Contract for every session:
 2. RECALL — call kt_recall(query, session_id) before any non-trivial work: before answering a question, before implementing something that might already have a decided approach, before debugging something that might already have a known cause. A teammate's session may have already solved this.
 3. SAVE — call kt_save_memory(content, session_id) at decision points as they happen, not only at the end: a decision made, an incident and its fix, a convention, a gotcha. Small and frequent beats one big dump at close.
 4. END — call kt_session_end(session_id, summary) when the work is done. Idle sessions close themselves, but an explicit summary is better than none.
+
+TEAMS — to start a team or bring someone in, kt_create_team / kt_invite_link return a join link to share; when the user pastes a …/join/<code> link, call kt_join_team.
 
 SKILLS — when the user asks to do something "the way we do it", or mentions a team procedure, template or house style, call kt_list_skills and follow the matching skill (kt_get_skill returns it in full).
 
@@ -81,6 +85,9 @@ export class McpServerFactoryService {
     private readonly ui: McpUiRendererService,
     private readonly sessionsApp: SessionsApplicationService,
     private readonly skillsApp: SkillsApplicationService,
+    // Optional so a factory built by hand (the proof test) still works; Nest
+    // always injects it.
+    @Optional() private readonly teams?: TeamsService,
   ) {}
 
   async sdk(): Promise<SdkExports> {
@@ -477,6 +484,9 @@ export class McpServerFactoryService {
         );
       },
     );
+
+    // ── kt_create_team · kt_join_team · kt_invite_link ─────────────
+    if (this.teams) registerTeamTools(server, context, this.teams);
 
     // ── kt_setup ────────────────────────────────────────────────────
     // Returns setup guidance as plain text. No sign-in flow and no

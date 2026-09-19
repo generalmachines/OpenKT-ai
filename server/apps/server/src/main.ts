@@ -53,7 +53,13 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("v1", {
     exclude: [
       { path: "mcp", method: RequestMethod.ALL },
+      // The zero-install pages (modules/web): / → /connect, /join/<code>, /connect/*.
+      // `join/:code` exactly — /v1/join and /v1/join/:code/preview stay under /v1.
+      { path: "/", method: RequestMethod.GET },
+      { path: "join/:code", method: RequestMethod.GET },
+      { path: "join/:code", method: RequestMethod.POST },
       { path: "connect", method: RequestMethod.GET },
+      { path: "connect/(.*)", method: RequestMethod.POST },
       { path: ".well-known/(.*)", method: RequestMethod.ALL },
       { path: "oauth/(.*)", method: RequestMethod.ALL },
     ],

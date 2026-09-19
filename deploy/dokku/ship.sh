@@ -28,7 +28,7 @@ cleanup() {
 trap cleanup EXIT
 # Only what the images need — keeps the archive small. The API image also serves the MCP Apps cards bundle.
 git archive --format=tar --output="${archive}" --add-virtual-file="build-info.json:${build_info}" \
-  "${sha}" server docker .dokku .dockerignore packages/mcp-cards/dist/openkt-cards.html
+  "${sha}" server docker .dokku .dockerignore packages/mcp-cards/dist/openkt-cards.html plugin/SETUP-PROMPT.md
 aws s3 cp "${archive}" "${artifact_uri}" --region "${AWS_REGION}" --only-show-errors
 echo "Uploaded ${artifact_uri} (${build_info})"
 
