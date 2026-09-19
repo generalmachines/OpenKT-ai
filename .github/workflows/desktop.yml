@@ -80,6 +80,23 @@ jobs:
           codesign -dv --verbose=2 "$APP" 2>&1 | head -20 || true
           codesign --verify --deep --strict "$APP" && echo "codesign verify: ok"
           spctl -a -vv "$APP" 2>&1 || true
+      - name: Minimum macOS — no bundled binary may need more than LSMinimumSystemVersion
+        working-directory: apps/desktop
+        run: |
+          APP="release/mac-arm64/OpenKT.app"
+          WANT=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")
+          minos() { otool -l "$1" 2>/dev/null | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; f=0}' | sort -V | tail -1; }
+          echo "LSMinimumSystemVersion: $WANT"
+          echo "Electron Framework minos: $(minos "$APP/Contents/Frameworks/Electron Framework.framework/Electron Framework")"
+          MAX=0
+          while IFS= read -r f; do
+            v=$(minos "$f"); [ -n "$v" ] || continue
+            echo "  $v  ${f#$APP/Contents/Resources/}"
+            MAX=$(printf '%s\n%s\n' "$MAX" "$v" | sort -V | tail -1)
+          done < <(find "$APP/Contents/Resources" -type f \( -perm +111 -o -name '*.dylib' \) -not -path '*/app.asar*')
+          echo "highest minos among bundled binaries: $MAX"
+          test "$(printf '%s\n%s\n' "$MAX" "$WANT" | sort -V | tail -1)" = "$WANT"
+          echo "minimum macOS: $WANT (bundled binaries need $MAX)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: OpenKT-mac-arm64-dmg
@@ -187,20 +204,23 @@ jobs:
           ls -la "$APP/Contents/Resources/llama/llama-server"
           codesign --verify --deep --strict "$APP" && echo "codesign verify: ok"
           otool -L "$APP/Contents/Resources/llama/llama-server"
-      - name: Launch with OPENKT_SMOKE=1
+      - name: Launch the way a user does (LaunchServices, `open -a`) with OPENKT_SMOKE=1
         env:
-          OPENKT_SMOKE: "1"
           OPENKT_SMOKE_OUT: ${{ runner.temp }}/smoke-result.json
-          OPENKT_MODELS_DIR: ${{ env.MODELS_DIR }}
         run: |
-          set +e
-          "$HOME/Applications/OpenKT.app/Contents/MacOS/OpenKT" > "$RUNNER_TEMP/app.log" 2>&1
-          CODE=$?
-          set -e
-          echo "exit code: $CODE"
+          APP="$HOME/Applications/OpenKT.app"
+          rm -f "$OPENKT_SMOKE_OUT"
+          # `open` does not pass this shell's environment on: the smoke switches go through --env.
+          open -W -n -a "$APP" \
+            --env OPENKT_SMOKE=1 \
+            --env "OPENKT_SMOKE_OUT=$OPENKT_SMOKE_OUT" \
+            --env "OPENKT_MODELS_DIR=$MODELS_DIR" \
+            --stdout "$RUNNER_TEMP/app.log" --stderr "$RUNNER_TEMP/app.log" &
+          OPEN_PID=$!
+          for i in $(seq 1 330); do kill -0 $OPEN_PID 2>/dev/null || break; sleep 1; done
+          if kill -0 $OPEN_PID 2>/dev/null; then echo "app still running after 330 s"; pkill -f "OpenKT.app/Contents/MacOS/OpenKT" || true; fi
           tail -60 "$RUNNER_TEMP/app.log" || true
           cat "$OPENKT_SMOKE_OUT"
-          test "$CODE" = "0"
           test "$(jq -r '.ok' "$OPENKT_SMOKE_OUT")" = "true"
           test "$(jq -r '.packaged' "$OPENKT_SMOKE_OUT")" = "true"
           if pgrep -f "Resources/llama/llama-server"; then echo "orphan llama-server"; exit 1; fi

@@ -3,7 +3,7 @@
  * After `tsc`: (1) bundle the ESM workspace package @openkt/agents (+ ajv) into one CommonJS
  * file the packaged main process can `require` — no node_modules resolution inside the asar;
  * (2) copy models.manifest.json next to the compiled manifest.js.
- * esbuild comes from the lockfile (vite's dependency tree).
+ * esbuild is a declared devDependency of this app.
  */
 import { build } from 'esbuild';
 import { cpSync, existsSync, mkdirSync } from 'node:fs';

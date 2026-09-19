@@ -2,7 +2,7 @@
 
 Test builds are **not signed with an Apple Developer ID and not notarised**, so macOS
 blocks them the first time. This is expected. You need an Apple Silicon Mac (M1 or later)
-on macOS 15 or later.
+on macOS 13.3 or later.
 
 ## 1. Install
 
@@ -11,7 +11,8 @@ on macOS 15 or later.
 
 ## 2. Allow it to open (once)
 
-On macOS 15 (Sequoia) right-click → Open no longer bypasses the block. Use either way:
+On macOS 15 (Sequoia) and later, right-click → Open no longer bypasses the block (on macOS 13–14 it still
+works). Either way below works on every version:
 
 **A — System Settings**
 
