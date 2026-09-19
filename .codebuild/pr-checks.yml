@@ -7,8 +7,11 @@ env:
   shell: bash
 phases:
   install:
-    runtime-versions:
-      nodejs: 22
+    commands:
+      # Node 22 is preinstalled on the image (/usr/local/n/versions/node). Putting it first on PATH is instant;
+      # `runtime-versions: nodejs: 22` makes CodeBuild copy it with `n` first (about 60 s, longer when it stalls).
+      - export PATH="/usr/local/n/versions/node/$(ls /usr/local/n/versions/node | grep '^22\.' | sort -V | tail -1)/bin:${PATH}"
+      - node --version && npm --version
   build:
     commands:
       - echo "== Packages and desktop app" && npm ci --no-audit --no-fund
