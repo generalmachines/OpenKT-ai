@@ -14,7 +14,6 @@ import { EpisodeStageService } from "./services/episode-stage.service";
 import { JobLedgerService } from "./services/job-ledger.service";
 import { MemberKnowledgeBatchService } from "./services/member-knowledge-batch.service";
 import { MemberKnowledgeStageService } from "./services/member-knowledge-stage.service";
-import { MemMachineBridgeService } from "./services/memmachine-bridge.service";
 import { MemoryPipelineOrchestratorService } from "./services/memory-pipeline.orchestrator.service";
 import { PreprocessStageService } from "./services/preprocess-stage.service";
 import { RmqCommandConsumerService } from "./services/rmq-command-consumer.service";
@@ -32,8 +31,7 @@ import { WorkerLlmConfigResolverService } from "./services/worker-llm-config-res
 // the Drizzle module graph — binds its own pg-backed recorder
 // (`WorkerLlmCallRecorder`). Without this binding every LLM call from
 // the worker (triage / synthesize / episode / member_knowledge /
-// briefing) goes unrecorded in `llm_calls`, which is exactly what
-// prod was seeing (0 rows in the table despite hundreds of runs).
+// briefing) goes unrecorded in `llm_calls`.
 @Module({
   imports: [WorkerDatabaseModule],
   providers: [
@@ -45,7 +43,6 @@ import { WorkerLlmConfigResolverService } from "./services/worker-llm-config-res
     { provide: LLM_QUOTA_CHECK, useExisting: WorkerLlmQuotaChecker },
     LlmGatewayService,
     WorkerTagMatcherService,
-    MemMachineBridgeService,
     PreprocessStageService,
     EmbedStageService,
     TriageStageService,

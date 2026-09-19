@@ -50,7 +50,7 @@ import { MemoryRepository } from "../../apps/server/src/modules/memory/repositor
 import { MemoryCommandsApplicationService } from "../../apps/server/src/modules/memory/services/memory-commands.application.service";
 import { MemoryQueriesApplicationService } from "../../apps/server/src/modules/memory/services/memory-queries.application.service";
 import { MemoryRecallService } from "../../apps/server/src/modules/memory/services/memory-recall.service";
-import { MemMachineMemoryEngine } from "../../apps/server/src/modules/memory/services/memmachine-memory-engine.service";
+import { LocalMemoryEngine } from "../../apps/server/src/modules/memory/services/local-memory-engine.service";
 import { KnowledgeRepository } from "../../apps/server/src/modules/memory/repositories/knowledge.repository";
 import { ProjectScopeService } from "../../apps/server/src/modules/projects/services/project-scope.service";
 import { CreateSessionSchema } from "../../apps/server/src/modules/sessions/contracts/session.contract";
@@ -77,12 +77,6 @@ const projectsAppStub = {
   create: jest.fn(),
 } as never;
 const briefingStub = { getBriefing: jest.fn().mockResolvedValue(null) } as never;
-const personalTokensStub = {
-  create: jest.fn(),
-  list: jest.fn(),
-  revoke: jest.fn(),
-  verify: jest.fn(),
-} as never;
 
 function actorContextFor(userId: string): ActorContext {
   return {
@@ -132,7 +126,7 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
   let grantRepository: GrantRepository;
   let projectScopeService: ProjectScopeService;
   let accessScopeService: AccessScopeService;
-  let memoryEngine: MemMachineMemoryEngine;
+  let memoryEngine: LocalMemoryEngine;
   let memoryCommands: MemoryCommandsApplicationService;
   let memoryRecall: MemoryRecallService;
   let sessionsApp: SessionsApplicationService;
@@ -158,7 +152,7 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
     grantRepository = new GrantRepository(db as never);
     projectScopeService = new ProjectScopeService(db as never);
     accessScopeService = new AccessScopeService(db as never);
-    memoryEngine = new MemMachineMemoryEngine(db as never, configServiceStub);
+    memoryEngine = new LocalMemoryEngine(db as never, configServiceStub);
     const knowledgeRepository = new KnowledgeRepository(db as never);
 
     memoryCommands = new MemoryCommandsApplicationService(
@@ -200,7 +194,6 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
       briefingStub,
       new McpUiRendererService(),
       sessionsApp,
-      personalTokensStub,
     );
 
     // Fixture profiles — memories.owner_user_id FKs to profiles.

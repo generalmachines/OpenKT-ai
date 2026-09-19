@@ -23,8 +23,7 @@ import { AccessScopeService } from "../../access/services/access-scope.service";
 const KNOWLEDGE_LIMIT = 5;
 
 /**
- * Single-responsibility service for the memory recall path
- * (Step 6 of sgs-backend-migration-program-v1, internal split).
+ * Single-responsibility service for the memory recall path.
  *
  * Why separate from MemoryQueriesApplicationService:
  *

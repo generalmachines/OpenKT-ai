@@ -20,7 +20,7 @@ import { MemoryQueriesApplicationService } from "./services/memory-queries.appli
 import { MemoryRecallService } from "./services/memory-recall.service";
 import { MemorySynthesisService } from "./services/memory-synthesis.service";
 import { MemoryTraceService } from "./services/memory-trace.service";
-import { MemMachineMemoryEngine } from "./services/memmachine-memory-engine.service";
+import { LocalMemoryEngine } from "./services/local-memory-engine.service";
 import { SessionRepository } from "../sessions/repositories/session.repository";
 
 // Single repository, single source of truth. Drizzle is global and
@@ -40,8 +40,8 @@ import { SessionRepository } from "../sessions/repositories/session.repository";
     KnowledgeRepository,
     DrizzleOutboxRepository,
     LlmGatewayService,
-    MemMachineMemoryEngine,
-    { provide: MEMORY_ENGINE, useExisting: MemMachineMemoryEngine },
+    LocalMemoryEngine,
+    { provide: MEMORY_ENGINE, useExisting: LocalMemoryEngine },
     MemoryOutboxService,
     MemoryCommandsApplicationService,
     MemoryEnhancementService,

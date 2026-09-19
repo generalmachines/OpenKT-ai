@@ -69,7 +69,7 @@ describe("CORS (e2e)", () => {
 
   it("OPTIONS /v1/auth/password from an allowlisted origin returns 204 with the expected CORS headers", async () => {
     app = await bootCorsApp(
-      "http://localhost:5273,http://100.74.238.87:5273",
+      "http://localhost:5273,http://127.0.0.1:5273",
     );
 
     const res = await request(app.getHttpServer())
@@ -98,17 +98,17 @@ describe("CORS (e2e)", () => {
 
   it("echoes the second allowlisted origin verbatim (proves CSV parsing, not a single hard-coded value)", async () => {
     app = await bootCorsApp(
-      "http://localhost:5273,http://100.74.238.87:5273",
+      "http://localhost:5273,http://127.0.0.1:5273",
     );
 
     const res = await request(app.getHttpServer())
       .options("/v1/auth/password")
-      .set("Origin", "http://100.74.238.87:5273")
+      .set("Origin", "http://127.0.0.1:5273")
       .set("Access-Control-Request-Method", "POST")
       .expect(204);
 
     expect(res.headers["access-control-allow-origin"]).toBe(
-      "http://100.74.238.87:5273",
+      "http://127.0.0.1:5273",
     );
   });
 

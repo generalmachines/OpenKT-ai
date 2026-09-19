@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 // HTML renderer for MCP-UI tool responses.
 //
-// Design system mirrors the openkt dashboard (masti-ai/openkt):
+// Design system mirrors the OpenKT dashboard:
 //   - Nunito Sans body, Bitter headings (Google Fonts CDN)
 //   - Warm palette: --warm-50 → --warm-900 (#faf8f5 → #2a251d)
 //   - Accent #c06830 (terracotta), light variant #e8956a

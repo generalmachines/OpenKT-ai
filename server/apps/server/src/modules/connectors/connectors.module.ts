@@ -6,7 +6,7 @@ import { ConnectorsController } from "./controllers/connectors.controller";
 import { ConnectorsService } from "./services/connectors.service";
 
 // The /connect static HTML page that used to live in this module is
-// gone — the dashboard (masti-ai/openkt) now owns the connector UX.
+// gone — the dashboard now owns the connector UX.
 // We keep /v1/me/connectors as a JSON endpoint the dashboard calls.
 @Module({
   imports: [AuthModule, PersonalTokensModule],

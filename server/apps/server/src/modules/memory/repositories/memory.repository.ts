@@ -203,37 +203,6 @@ export class MemoryRepository {
     return this.toRecord(rows[0], tagMap.get(rows[0].m.id) ?? []);
   }
 
-  // Bulk hydrate memories by id (preserving caller-supplied order).
-  // Used by the recall path when an external memory engine (MemMachine)
-  // returns a ranked list of OpenKT memory IDs that we need to wrap in
-  // the OpenKT MemoryRecord shape.
-  async findByIds(
-    _context: ActorContext,
-    memoryIds: string[],
-  ): Promise<MemoryRecord[]> {
-    if (memoryIds.length === 0) return [];
-    const rows = await this.db
-      .select({
-        m: memories,
-        projectSlug: projects.slug,
-        projectName: projects.name,
-        projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
-        ownerDisplayName: profiles.displayName,
-      })
-      .from(memories)
-      .innerJoin(projects, eq(projects.id, memories.projectId))
-      .leftJoin(profiles, eq(profiles.userId, memories.ownerUserId))
-      .where(inArray(memories.id, memoryIds));
-    if (rows.length === 0) return [];
-    const tagMap = await this.hydrateTags(rows.map((r) => r.m.id));
-    const byId = new Map<string, MemoryRecord>();
-    for (const row of rows) {
-      byId.set(row.m.id, this.toRecord(row, tagMap.get(row.m.id) ?? []));
-    }
-    return memoryIds.map((id) => byId.get(id)).filter((m): m is MemoryRecord => !!m);
-  }
-
   async findDuplicate(
     context: ActorContext,
     projectId: string,
@@ -588,7 +557,7 @@ export class MemoryRepository {
       // array interpolated into sql`` expands to a parenthesized param
       // list `($1, $2, ...)`, which Postgres treats as a record and
       // refuses to cast ("cannot cast type record to uuid[]"). Same
-      // idiom as memmachine-memory-engine.service.ts.
+      // idiom as local-memory-engine.service.ts.
       const idList = sql.join(
         memoryIds.map((id) => sql`${id}::uuid`),
         sql`, `,

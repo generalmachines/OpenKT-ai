@@ -5,11 +5,11 @@
 //
 // Defaults cover the two surfaces a developer hits during local work:
 // the dashboard at http://localhost:5273 and the same dashboard reached
-// over Tailscale from another device. Production overrides this with the
+// by loopback address. Production overrides this with the
 // public app origin (e.g. https://app.openkt.ai).
 export const DEFAULT_DEV_ALLOWED_ORIGINS: readonly string[] = [
   "http://localhost:5273",
-  "http://100.74.238.87:5273",
+  "http://127.0.0.1:5273",
 ];
 
 export function parseAllowedOrigins(

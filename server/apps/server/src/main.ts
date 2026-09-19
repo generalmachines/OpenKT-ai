@@ -47,7 +47,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("OpenKT SGS API")
+    .setTitle("OpenKT API")
     .setDescription(
       "Canonical NestJS backend contract for OpenKT. Success responses use `{ data, error, meta }` envelopes and JWT-authenticated routes expect `Authorization: Bearer <token>`.",
     )
@@ -57,7 +57,7 @@ async function bootstrap(): Promise<void> {
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
-        description: "Supabase access token for user-authenticated SGS routes.",
+        description: "Supabase access token for user-authenticated routes.",
       },
       "supabase-bearer",
     )

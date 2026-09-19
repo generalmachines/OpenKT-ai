@@ -4,7 +4,6 @@ import { ConfigModule } from "@nestjs/config";
 import { validateWorkerEnvironment } from "@openkt/platform-config";
 
 import { AnalyticsRollupModule } from "./modules/analytics-rollup/analytics-rollup.module";
-import { HealthMonitorModule } from "./modules/health-monitor/health-monitor.module";
 import { JobsModule } from "./modules/jobs/jobs.module";
 import { MemoryEngineModule } from "./modules/memory-engine/memory-engine.module";
 import { MqModule } from "./modules/mq/mq.module";
@@ -24,7 +23,6 @@ import { WorkerRuntimeService } from "./worker-runtime.service";
     JobsModule,
     MemoryEngineModule,
     AnalyticsRollupModule,
-    HealthMonitorModule,
   ],
   providers: [WorkerRuntimeService],
 })

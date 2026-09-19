@@ -36,7 +36,7 @@ describe("WorkerLlmConfigResolverService", () => {
     const db = {
       one: jest.fn().mockResolvedValueOnce({
         provider: "minimax",
-        base_url: "https://api.minimax.villamarket.ai/v1",
+        base_url: "https://api.minimax.io/v1",
         model: "MiniMax-M2.7",
         api_key_ciphertext: LlmKeyCipher.encrypt("project-secret"),
       }),
@@ -46,7 +46,7 @@ describe("WorkerLlmConfigResolverService", () => {
     await expect(resolver.resolve(MESSAGE)).resolves.toEqual({
       provider: "minimax",
       apiKey: "project-secret",
-      baseUrl: "https://api.minimax.villamarket.ai/v1",
+      baseUrl: "https://api.minimax.io/v1",
       model: "MiniMax-M2.7",
     });
     expect(db.one).toHaveBeenCalledTimes(1);

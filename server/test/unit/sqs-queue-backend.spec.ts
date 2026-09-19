@@ -5,9 +5,7 @@ import {
   SendMessageCommand,
 } from "@aws-sdk/client-sqs";
 import { ConfigService } from "@nestjs/config";
-import { MODULE_METADATA } from "@nestjs/common/constants";
 
-import { HealthMonitorModule } from "../../apps/worker/src/modules/health-monitor/health-monitor.module";
 import { SqsCommandConsumerService } from "../../apps/worker/src/modules/memory-engine/services/sqs-command-consumer.service";
 import { RmqCommandConsumerService } from "../../apps/worker/src/modules/memory-engine/services/rmq-command-consumer.service";
 import {
@@ -15,7 +13,6 @@ import {
   MEMORY_EVENTS_EXCHANGE,
 } from "../../apps/worker/src/modules/mq/mq.constants";
 import { SqsPublisher } from "../../apps/worker/src/modules/mq/sqs-publisher.service";
-import { WorkerModule } from "../../apps/worker/src/worker.module";
 import { workerEnvironmentSchema } from "../../libs/platform/config/src/env.schemas";
 
 const QUEUE_URL = "https://sqs.ap-south-1.amazonaws.com/123456789012/openkt-commands";
@@ -33,11 +30,6 @@ function config(values: Record<string, unknown>): ConfigService {
 describe("SQS queue backend", () => {
   afterEach(() => {
     jest.useRealTimers();
-  });
-
-  it("wires the health monitor into the worker application", () => {
-    const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, WorkerModule);
-    expect(imports).toContain(HealthMonitorModule);
   });
 
   it("keeps RabbitMQ as the default and validates backend-specific settings", () => {

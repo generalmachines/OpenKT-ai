@@ -5,7 +5,6 @@ import { Test } from "@nestjs/testing";
 import { AnalyticsRollupModule } from "../../apps/worker/src/modules/analytics-rollup/analytics-rollup.module";
 import { WorkerDatabaseModule } from "../../apps/worker/src/modules/database/worker-database.module";
 import { WorkerPgService } from "../../apps/worker/src/modules/database/worker-pg.service";
-import { HealthMonitorModule } from "../../apps/worker/src/modules/health-monitor/health-monitor.module";
 import { MemoryEngineModule } from "../../apps/worker/src/modules/memory-engine/memory-engine.module";
 import { OutboxModule } from "../../apps/worker/src/modules/outbox/outbox.module";
 
@@ -63,7 +62,6 @@ describe("WorkerDatabaseModule", () => {
 
   it.each([
     MemoryEngineModule,
-    HealthMonitorModule,
     AnalyticsRollupModule,
     OutboxModule,
   ])("%p imports the shared worker database module", (featureModule) => {

@@ -91,7 +91,6 @@ function heuristicTags(content: string): string[] {
     "mcp",
     "cli",
     "rabbitmq",
-    "memmachine",
     "supabase",
     "auth",
     "dashboard",

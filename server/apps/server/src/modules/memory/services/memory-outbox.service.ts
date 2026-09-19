@@ -7,8 +7,7 @@ import type { MemoryRecord } from "../contracts/memory.contract";
 import { DrizzleOutboxRepository } from "../repositories/drizzle-outbox.repository";
 
 /**
- * Memory-domain outbox publisher — Step 6 / Step 7 of the SGS backend
- * migration program. Sits between the command service and the generic
+ * Memory-domain outbox publisher. Sits between the command service and the generic
  * outbox repository so memory-specific event types and payload shapes
  * stay in this module instead of leaking into the data tier.
  *

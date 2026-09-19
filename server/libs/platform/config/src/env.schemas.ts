@@ -100,19 +100,11 @@ const baseEnvironmentSchema = z.object({
   // applies a dev-friendly default; production must set this to the
   // public app origin (e.g. https://app.openkt.ai).
   CORS_ALLOWED_ORIGINS: z.string().min(1).optional(),
-  // Memory engine selection. `local` (plain Postgres: pgvector +
-  // tsvector hybrid search, architecture.md §1 "no graph database, no
-  // message broker required") is the v0.1 default so a fresh
-  // `docker compose up` needs nothing else running. `memmachine` is
-  // opt-in for deployments that still want the episodic-memory graph
-  // pipeline. Flipped from "memmachine" 2026-09-19 — see
-  // AGENT_CHANGELOG.md.
-  MEMORY_ENGINE: z.enum(["local", "memmachine"]).default("local"),
-  // Base URL for the MemMachine REST API. Only consulted when
-  // MEMORY_ENGINE=memmachine.
-  OPENKT_MEMORY_ENGINE: z.enum(["local", "memmachine"]).default("local"),
-  OPENKT_MEMMACHINE_URL: z.string().url().optional(),
-  OPENKT_MEMMACHINE_TIMEOUT_MS: z.coerce.number().int().min(100).optional(),
+  // Memory engine. `local` is the only engine: plain Postgres —
+  // pgvector + tsvector hybrid search, no graph database and no
+  // message broker required. The variable stays so a deployment that
+  // still sets a removed engine name fails loudly at boot.
+  OPENKT_MEMORY_ENGINE: z.enum(["local"]).default("local"),
   // Optional cross-encoder rerank step (M5 hybrid recall). Any
   // OpenAI/TEI-compatible `/rerank` endpoint — e.g. a local
   // Infinity/TEI sidecar serving BAAI/bge-reranker. Skipped cleanly
@@ -144,11 +136,6 @@ const baseEnvironmentSchema = z.object({
   // compliance reasons — the existing token/latency accounting still
   // works, the new columns simply stay NULL.
   OPENKT_LLM_IO_CAPTURE: z.coerce.boolean().default(true),
-  // Direct Neo4j read for /v1/projects/:id/graph (optional — when unset,
-  // graph still returns memories + episodes + similarity, just no `mentions`).
-  OPENKT_MEMMACHINE_NEO4J_URI: z.string().min(1).optional(),
-  OPENKT_MEMMACHINE_NEO4J_USER: z.string().min(1).optional(),
-  OPENKT_MEMMACHINE_NEO4J_PASSWORD: z.string().min(1).optional(),
   // RabbitMQ management API (used by /v1/internal/rabbitmq-state). When
   // OPENKT_RABBITMQ_MGMT_URL is set the rabbitmq-state endpoint hits
   // ${url}/api/{exchanges,queues,consumers} with basic-auth from

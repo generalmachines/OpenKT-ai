@@ -14,7 +14,6 @@ import {
   type StageExecutionResult,
 } from "../pipeline-message";
 import { ROUTING_KEY_EPISODE_DONE } from "../../mq/mq.constants";
-import { MemMachineBridgeService } from "./memmachine-bridge.service";
 import { WorkerPgService } from "../../database/worker-pg.service";
 import { WorkerLlmConfigResolverService } from "./worker-llm-config-resolver.service";
 
@@ -33,7 +32,6 @@ export class EpisodeStageService {
     private readonly db: WorkerPgService,
     private readonly llmGatewayService: LlmGatewayService,
     private readonly llmConfigResolver: WorkerLlmConfigResolverService,
-    private readonly memMachine: MemMachineBridgeService,
   ) {}
 
   async execute(message: PipelineCommandMessage): Promise<StageExecutionResult> {
@@ -128,7 +126,7 @@ export class EpisodeStageService {
     let candidates: Array<{ id: string; similarity: number }>;
 
     if (hasLocalEmbedding) {
-      // Local pgvector path (MEMORY_ENGINE=local).
+      // pgvector nearest neighbours within the same project.
       candidates = (
         await this.db.query<{ id: string; similarity: number }>(
           `select id, (1 - (embedding <=> $2::vector))::real as similarity
@@ -142,26 +140,6 @@ export class EpisodeStageService {
           [memory.project_id, toPgVector(vector!), memory.id, MAX_NEIGHBOURS],
         )
       ).filter((row) => row.similarity >= JOIN_THRESHOLD);
-    } else if (this.memMachine.isEnabled()) {
-      // No local embedding (embed stage skipped because MemMachine
-      // owns embeddings). Pull the same shortlist from MemMachine via
-      // the same TEI/BGE-M3 model, scoped to this tenancy. Episode
-      // rows still get written, just without a centroid vector.
-      const ns = this.memMachine.namespace({
-        org_id: memory.org_id,
-        project_id: memory.project_id,
-        owner_user_id: memory.owner_user_id,
-      });
-      const hits = await this.memMachine.findCandidates({
-        orgId: ns.orgId,
-        projectId: ns.projectId,
-        query: memory.content,
-        limit: MAX_NEIGHBOURS,
-        excludeMemoryId: memory.id,
-      });
-      candidates = hits
-        .filter((hit) => hit.similarity >= JOIN_THRESHOLD)
-        .map((hit) => ({ id: hit.openktMemoryId, similarity: hit.similarity }));
     } else {
       return {
         result: { skipped: true, reason: "embedding missing" },
@@ -265,11 +243,9 @@ export class EpisodeStageService {
     }
 
     // Centroid is a per-episode 1024d vector used for episode-level
-    // recall. We can only compute it when local embeddings exist
-    // (MEMORY_ENGINE=local). In MemMachine mode we leave it null —
-    // the episode row is still useful (name + summary + member set)
-    // and the dashboard can query MemMachine for episode-similar
-    // memories instead of using episodes.embedding.
+    // recall. It can only be computed when the member memories have
+    // embeddings; otherwise it stays null — the episode row is still
+    // useful (name + summary + member set).
     let centroidPgVector: string | null = null;
     if (hasLocalEmbedding) {
       const vectorRows = await this.db.query<{ id: string; embedding: string | null }>(
@@ -334,9 +310,8 @@ async function recomputeCentroid(
   db: WorkerPgService,
   episodeId: string,
 ): Promise<void> {
-  // No-op when no member has a local embedding (MemMachine mode).
-  // The episode keeps a null centroid; dashboards that need
-  // episode-level similarity should query MemMachine instead.
+  // No-op when no member has an embedding — the episode keeps a
+  // null centroid.
   const data = await db.query<{ embedding: string | null }>(
     `select m.embedding::text as embedding
        from episode_memories em

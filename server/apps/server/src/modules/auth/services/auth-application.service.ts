@@ -1,18 +1,10 @@
-import {
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-  forwardRef,
-} from "@nestjs/common";
+import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { resolveSupabaseEnvironment, STATELESS_AUTH_OPTIONS } from "@openkt/data-supabase";
 
 import { AuditService } from "../../audit/services/audit.service";
-import { WaitlistService } from "../../waitlist/services/waitlist.service";
 
 // Lightweight request metadata threaded from the controller. Public-auth
 // endpoints don't have an ActorContext yet (they're pre-auth), so we
@@ -55,11 +47,6 @@ export class AuthApplicationService {
 
   constructor(
     private readonly configService: ConfigService,
-    // forwardRef because WaitlistModule imports AuthModule for guards on
-    // its admin controller, so AuthModule can't import WaitlistModule
-    // directly without a cycle.
-    @Inject(forwardRef(() => WaitlistService))
-    private readonly waitlist: WaitlistService,
     private readonly audit: AuditService,
   ) {}
 
@@ -132,27 +119,6 @@ export class AuthApplicationService {
     password: string,
     meta?: AuthRequestMeta,
   ): Promise<SessionShape> {
-    // Closed-beta gate. Anyone can land on the signup endpoint, but
-    // Supabase only sees the request if the email is approved on the
-    // waitlist OR carries a pending org invite OR already exists.
-    const eligibility = await this.waitlist.checkSignupEligibility(email);
-    if (!eligibility.allowed) {
-      this.logger.warn(
-        `[auth.signup] blocked email=${email.toLowerCase()} reason=${eligibility.reason}`,
-      );
-      await this.writeAudit("auth.signup.blocked", null, meta, {
-        email: email.toLowerCase(),
-        reason: eligibility.reason,
-      });
-      throw new ForbiddenException({
-        code: "signup_not_approved",
-        message:
-          eligibility.detail ??
-          "Beta access is currently invite-only. Join the waitlist at https://openkt.ai.",
-        reason: eligibility.reason,
-      });
-    }
-
     const supabase = this.anonClient();
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error || !data.user) {
@@ -165,17 +131,6 @@ export class AuthApplicationService {
     await this.writeAudit("auth.signup.success", data.user.id, meta, {
       email: data.user.email ?? null,
       session_created: !!data.session,
-    });
-
-    // Record the redemption so the admin UI can show "who's actually
-    // signed up vs still pending invite." Best-effort; a failure here
-    // never blocks the signup that already succeeded upstream.
-    this.waitlist.markSignedUp(email).catch((err: unknown) => {
-      this.logger.warn(
-        `[auth.signup] markSignedUp failed for ${email}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
     });
 
     // If the project requires email confirmation Supabase returns a

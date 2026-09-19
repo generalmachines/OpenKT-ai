@@ -63,8 +63,7 @@ export class EmbedStageService {
 
     // Embedding is OUR data — recall queries pgvector directly against
     // `memories.embedding`. We always run the embed pass and write the
-    // vector, regardless of whether MemMachine is enabled (MemMachine
-    // ingest is a separate concern handled outside this stage). We also
+    // vector. We also
     // re-embed even when an embedding is already present so a content
     // edit on the same row will refresh the vector — `nextCommand`
     // carries the new `updated_at` forward to keep version tokens in

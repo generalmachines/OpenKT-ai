@@ -24,19 +24,6 @@ export const orgSettings = pgTable("org_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Org-level secrets (encrypted-at-rest by Supabase Vault originally).
-// Local pg version stores ciphertext + a label; the public view used
-// by the BFF only exposes metadata.
-export const orgSecrets = pgTable("org_secrets", {
-  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`),
-  orgId: uuid("org_id").notNull(),
-  label: text("label").notNull(),
-  ciphertext: text("ciphertext").notNull(),
-  createdBy: uuid("created_by"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
 // `orgInvites` moved to ./org-invites.ts to add targeted + open-link
 // modes (expires_at, is_open, max_uses, used_count, revoked_at) and
 // a sibling `org_invite_redemptions` table. Importers should pull
@@ -66,6 +53,5 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
 export type ProjectSettings = typeof projectSettings.$inferSelect;
 export type OrgSettings = typeof orgSettings.$inferSelect;
-export type OrgSecret = typeof orgSecrets.$inferSelect;
 export type ProjectInvite = typeof projectInvites.$inferSelect;
 export type ProjectMember = typeof projectMembers.$inferSelect;

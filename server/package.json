@@ -2,7 +2,7 @@
   "name": "@openkt/api",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenKT NestJS backend — server (HTTP API at api.openkt.ai) + worker (RabbitMQ consumer). Built and deployed independently from web/ (Next.js dashboard).",
+  "description": "OpenKT backend — the HTTP + MCP API server and the background worker (NestJS, Drizzle, Postgres + pgvector).",
   "scripts": {
     "build": "npm run build:api && npm run build:worker",
     "build:api": "nest build server && tsc-alias -p apps/server/tsconfig.app.json",
@@ -20,13 +20,11 @@
     "test:smoke:optional-auth": "bash test/smoke/optional-user-auth.sh",
     "test:smoke:user-settings": "bash test/smoke/user-settings-roundtrip.sh",
     "test:smoke:memory-read": "bash test/smoke/memory-read.sh",
-    "test:shakeout:memory-engine": "ts-node -r tsconfig-paths/register scripts/shakeout-memory-engine.ts",
     "lint": "npm run typecheck",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio --port 4983",
-    "db:migrate": "ts-node -r tsconfig-paths/register apps/server/src/db/migrate.ts",
-    "db:migrate-from-supabase": "node scripts/migrate-from-supabase.mjs"
+    "db:migrate": "ts-node -r tsconfig-paths/register apps/server/src/db/migrate.ts"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -41,7 +39,6 @@
     "@nestjs/microservices": "^11.1.19",
     "@nestjs/platform-express": "^11.1.7",
     "@nestjs/swagger": "^11.4.2",
-    "@nestjs/terminus": "^11.0.0",
     "@sentry/node": "^10.57.0",
     "@supabase/supabase-js": "^2.105.1",
     "@types/pg": "^8.20.0",
@@ -50,7 +47,6 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "jsonwebtoken": "^9.0.3",
-    "neo4j-driver": "^5.28.0",
     "nestjs-pino": "^4.4.1",
     "pg": "^8.20.0",
     "pino": "^9.9.4",

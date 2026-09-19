@@ -85,9 +85,8 @@ function buildStage(pg: FakePg, llmObject: { tags: string[]; duplicate_of: strin
   const tagMatcher = {
     match: jest.fn(async () => ({ tagIds: [], resolutions: [] })),
   };
-  const memMachine = { isEnabled: () => false };
   const config = { get: jest.fn(() => undefined) };
-  return new TriageStageService(pg, gateway, tagMatcher, resolver, memMachine, config);
+  return new TriageStageService(pg, gateway, tagMatcher, resolver, config);
 }
 
 describe("Triage synthesize gate", () => {

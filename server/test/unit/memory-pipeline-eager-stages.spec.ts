@@ -174,12 +174,10 @@ describe("Per-memory eager fan-out contract (preprocess → embed → triage →
 
     const fakeGateway = { tryGenerateObject: jest.fn() };
     const fakeResolver = { resolve: jest.fn(async () => null) };
-    const fakeMemMachine = { isEnabled: () => false };
     const stage = new EpisodeStageService(
       pg,
       fakeGateway,
       fakeResolver,
-      fakeMemMachine,
     );
 
     const result = await stage.execute(
@@ -217,12 +215,10 @@ describe("Per-memory eager fan-out contract (preprocess → embed → triage →
 
     const fakeGateway = { tryGenerateObject: jest.fn() };
     const fakeResolver = { resolve: jest.fn(async () => null) };
-    const fakeMemMachine = { isEnabled: () => false };
     const stage = new EpisodeStageService(
       pg,
       fakeGateway,
       fakeResolver,
-      fakeMemMachine,
     );
 
     const result = await stage.execute(

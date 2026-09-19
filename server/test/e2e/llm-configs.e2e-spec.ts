@@ -53,7 +53,7 @@ describe("LLM configs encrypted backend surface", () => {
       scopeId: USER_ID,
       provider: "minimax",
       label: "default",
-      baseUrl: "https://api.minimax.villamarket.ai/v1",
+      baseUrl: "https://api.minimax.io/v1",
       model: "MiniMax-M2.7",
       apiKey: "sk-test-secret-value",
       enabled: true,

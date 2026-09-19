@@ -1,6 +1,6 @@
-# OpenKT BFF Tests
+# OpenKT server tests
 
-These are repeatable curl-based smoke checks for the current migration checkpoint.
+`test/unit` and `test/e2e` are jest suites (`npm run test:unit`, `npm run test:e2e`). This file covers `test/smoke`: repeatable curl-based checks against a running server.
 
 ## What is covered now
 
@@ -8,7 +8,7 @@ These are repeatable curl-based smoke checks for the current migration checkpoin
 - service-token auth path
 - standard unauthorized error envelope
 - optional Supabase-backed user auth if a bearer token or email/password is provided
-- Phase 4 read-only memory routes
+- read-only memory routes
 - optional user settings DB round-trip against a real Supabase-backed account
 
 ## Commands
@@ -24,7 +24,7 @@ The default checkpoint suite covers the reliable path:
 - service-token auth
 - error envelope
 - optional Supabase JWT auth
-- Phase 4 read-only memory routes
+- read-only memory routes
 
 Run the optional authenticated smoke with a real bearer token:
 
@@ -46,7 +46,7 @@ OPENKT_TEST_EMAIL=<email> OPENKT_TEST_PASSWORD=<password> npm run test:smoke:use
 
 Keep `user-settings-roundtrip.sh` as a separate manual smoke. It touches persisted settings state and is intentionally not part of `npm run test:smoke`.
 
-Run the Phase 4 read-only memory smoke:
+Run the read-only memory smoke:
 
 ```bash
 OPENKT_TEST_EMAIL=<email> OPENKT_TEST_PASSWORD=<password> npm run test:smoke:memory-read

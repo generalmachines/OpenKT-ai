@@ -19,7 +19,6 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { BriefingModule } from "./modules/briefing/briefing.module";
 import { BriefingsModule } from "./modules/briefings/briefings.module";
 import { CaptureModule } from "./modules/capture/capture.module";
-import { GraphModule } from "./modules/graph/graph.module";
 import { HealthModule } from "./modules/health/health.module";
 import { InternalModule } from "./modules/internal/internal.module";
 import { InvitesModule } from "./modules/invites/invites.module";
@@ -32,9 +31,7 @@ import { ProfileModule } from "./modules/profile/profile.module";
 import { PrimeModule } from "./modules/prime/prime.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { MemberKnowledgeModule } from "./modules/member-knowledge/member-knowledge.module";
-import { SecretsModule } from "./modules/secrets/secrets.module";
 import { SettingsModule } from "./modules/settings/settings.module";
-import { WaitlistModule } from "./modules/waitlist/waitlist.module";
 import { PersonalTokensModule } from "./modules/personal-tokens/personal-tokens.module";
 import { ConnectorsModule } from "./modules/connectors/connectors.module";
 import { OauthModule } from "./modules/oauth/oauth.module";
@@ -56,7 +53,6 @@ import { AccessModule } from "./modules/access/access.module";
     AuditModule,
     HealthModule,
     InternalModule,
-    GraphModule,
     MemoryModule,
     PrimeModule,
     OrgsModule,
@@ -64,7 +60,6 @@ import { AccessModule } from "./modules/access/access.module";
     ProjectsModule,
     ProfileModule,
     SettingsModule,
-    SecretsModule,
     InvitesModule,
     LlmConfigsModule,
     McpModule,
@@ -74,7 +69,6 @@ import { AccessModule } from "./modules/access/access.module";
     MemberKnowledgeModule,
     RateLimitModule,
     AnalyticsModule,
-    WaitlistModule,
     PersonalTokensModule,
     ConnectorsModule,
     OauthModule,

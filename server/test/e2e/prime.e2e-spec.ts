@@ -155,7 +155,7 @@ describe("PrimeController POST /prime (e2e)", () => {
       data: [
         {
           id: "00000000-0000-0000-0000-0000000000bb",
-          content: "Ship the migration through SGS.",
+          content: "Ship the migration through the API.",
           kind: "decision",
         },
       ],
@@ -183,7 +183,7 @@ describe("PrimeController POST /prime (e2e)", () => {
         project: expect.objectContaining({ id: PROJECT_ID, viewerRole: "owner" }),
         memories: [
           expect.objectContaining({
-            content: "Ship the migration through SGS.",
+            content: "Ship the migration through the API.",
           }),
         ],
         reconciliation: {

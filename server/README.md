@@ -1,58 +1,96 @@
-# OpenKT BFF
+# OpenKT server
 
-This workspace is the new SGS backend foundation for OpenKT.
+The OpenKT backend: a shared context store for a team's AI tools. It exposes
+a REST API and an MCP endpoint, keeps everything in Postgres (pgvector for
+similarity, `tsvector` for keywords), and enforces who can read what inside
+the search query itself.
 
-Current scope:
+Two processes are built from this directory:
 
-- `apps/server` is the canonical HTTP backend shell.
-- `apps/worker` is the async worker shell for the future memory engine.
-- `libs/` holds shared context, config, logging, and database boundary primitives.
+- **server** (`apps/server`) — the HTTP API under `/v1/*`, the MCP endpoint at
+  `/mcp`, and the OAuth 2.1 endpoints for MCP clients.
+- **worker** (`apps/worker`) — background processing of saved context
+  (embedding, de-duplication, grouping, briefs).
 
-This workspace is intentionally separate from the current Next backend. The migration will move backend ownership here in phases.
+It is a standalone NestJS + Drizzle project with its own `package.json` and
+lockfile. It is **not** part of the repository's npm workspaces — run every
+command from `server/`.
 
-## Worker queue backend
+The product and its contract are described in `../docs/product.md`,
+`../docs/architecture.md` and `../docs/specs/04-api-contract.md`.
 
-RabbitMQ remains the local and backward-compatible default. To run the
-pipeline on Amazon SQS, set:
+## Run it
 
-```dotenv
-OPENKT_QUEUE_BACKEND=sqs
-AWS_REGION=ap-south-1
-OPENKT_SQS_COMMAND_QUEUE_URL=https://sqs.ap-south-1.amazonaws.com/ACCOUNT_ID/openkt-commands.fifo
-OPENKT_SQS_WAIT_TIME_SECONDS=20
-OPENKT_SQS_VISIBILITY_TIMEOUT_SECONDS=300
-OPENKT_SQS_VISIBILITY_HEARTBEAT_SECONDS=60
-OPENKT_SQS_SHUTDOWN_GRACE_SECONDS=30
-OPENKT_SQS_MAX_MESSAGES=8
+You need Node 20+ and a Postgres 16 with the `pgvector` extension:
+
+```bash
+docker run -d --name openkt-postgres \
+  -e POSTGRES_USER=openkt -e POSTGRES_PASSWORD=openkt -e POSTGRES_DB=openkt \
+  -p 15432:5432 pgvector/pgvector:pg16
 ```
 
-The worker uses long polling, processes up to ten messages per receive, and
-deletes each message only after the pipeline handler succeeds. While a job is
-running, it renews the message visibility timeout every 60 seconds; the
-heartbeat interval must be no more than half of the visibility timeout. Failed
-deliveries and duplicate deliveries whose ledger job is still running are
-left in the queue for visibility-timeout retry. Configure an SQS dead-letter
-queue/redrive policy on the command queue to cap retries.
+Then:
 
-On shutdown, the consumer stops receiving new messages but continues renewing
-visibility for active handlers while they drain. After
-`OPENKT_SQS_SHUTDOWN_GRACE_SECONDS`, it releases any remaining leases so SQS
-can retry them. Set the Dokku stop timeout above this grace period.
+```bash
+cd server
+npm ci
+cp .env.example .env        # set DATABASE_URL and the values described below
+npm run db:migrate
+npm run start:api:dev       # http://localhost:4100  (health: GET /v1/health)
+npm run start:worker:dev    # optional — background processing
+```
 
-Both Standard and FIFO queues are supported. For a queue URL ending in
-`.fifo`, the publisher derives a stable message group from the aggregate or
-project identity and uses the pipeline message ID for deduplication. Messages
-from the same group are handled sequentially; different groups can run in
-parallel.
+Configuration is validated at boot; a missing or invalid variable stops the
+process with a message naming it. Every variable is declared in
+`libs/platform/config/src/env.schemas.ts` and listed in `.env.example`. The
+ones you must set:
 
-On EC2, attach an instance role that grants `sqs:ReceiveMessage`,
-`sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`,
-`sqs:GetQueueAttributes`, and `sqs:SendMessage` on the command queue. Do not
-put long-lived AWS access keys in Dokku environment variables; the AWS SDK
-automatically uses the instance-role credentials.
+| Variable | Used for |
+|---|---|
+| `DATABASE_URL` | Postgres with pgvector. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Sign-in. Supabase is used for authentication only; no product data lives there. Personal access tokens (`okt_pat_…`) and OAuth for MCP clients are issued by this server. |
+| `RABBITMQ_URL` | The worker's queue when `OPENKT_QUEUE_BACKEND=rabbitmq` (the default). `OPENKT_QUEUE_BACKEND=sqs` uses Amazon SQS instead and needs `AWS_REGION` and `OPENKT_SQS_COMMAND_QUEUE_URL`. |
 
-`OPENKT_SQS_EVENTS_QUEUE_URL` is optional. When unset, stage-completion events
-are not exported, while command processing remains fully enabled. When set,
-the worker only publishes to that queue; it does not consume it. Grant
-`sqs:SendMessage` on the events queue in that case, with no receive/delete
-permissions required there.
+Optional, and degrading cleanly when unset:
+
+| Variable | Used for |
+|---|---|
+| `OPENKT_BGE_URL` (or `OPENKT_EMBEDDING_BACKEND=openai` + `OPENAI_API_KEY`) | Embeddings. Without them recall falls back to keyword search. |
+| `OPENKT_RERANK_URL` | A TEI/Cohere-style `/rerank` endpoint applied to the fused results. |
+| `OPENKT_DEFAULT_LLM_PROVIDER`, `OPENKT_DEFAULT_LLM_KEY`, `OPENKT_DEFAULT_LLM_BASE_URL`, `OPENKT_DEFAULT_LLM_MODEL` | The generation model (any OpenAI-compatible endpoint) used by the worker and the capture endpoint. |
+| `CORS_ALLOWED_ORIGINS` | Browser origins allowed to call the API with credentials. |
+
+## Test it
+
+```bash
+npm run typecheck
+npm run test:unit
+DATABASE_URL=postgres://openkt:openkt@127.0.0.1:15432/openkt npm run test:e2e
+```
+
+Tests that need a database skip themselves when `DATABASE_URL` is unset. Run
+`npm run db:migrate` against that database first.
+
+`test/e2e/proof-context-cloud-v0.1.e2e-spec.ts` is the product's promise in
+executable form — something one person saved reaches a teammate who has been
+granted access, and nobody else. It must always pass.
+
+`npm run test:smoke` runs curl-based checks against a running server; see
+`test/README.md`.
+
+`npm run openapi:generate` boots the application and writes
+`docs/openapi/server.v1.json`.
+
+## Where things live
+
+`WHERE_THINGS_LIVE.md` maps every concept (sessions, facts, recall, grants,
+MCP tools, migrations, environment variables) to its path, and lists the rules
+that are easy to break — start there before changing anything.
+
+```
+apps/server/src/modules/<name>/   one feature each: controllers, services, contracts, repositories
+apps/server/src/db/               Drizzle schema and SQL migrations (append-only)
+apps/worker/src/modules/          queue consumers, pipeline stages, outbox relay
+libs/                             shared code: auth, config, errors, logging, LLM gateway
+test/unit · test/e2e · test/smoke
+```

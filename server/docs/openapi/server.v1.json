@@ -257,6 +257,10 @@
                     "type": "string",
                     "minLength": 10,
                     "maxLength": 10
+                  },
+                  "refresh_token": {
+                    "type": "string",
+                    "description": "Caller's Supabase refresh_token. Optional for backward compat, but the CLI needs it to avoid forcing re-login every hour."
                   }
                 }
               }
@@ -532,76 +536,6 @@
         "summary": "Per-memory timeline: pipeline jobs + recall accesses for one memory",
         "tags": [
           "Internal Observability"
-        ]
-      }
-    },
-    "/v1/projects/{project_id}/graph": {
-      "get": {
-        "operationId": "GraphController_getGraph",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 200
-            }
-          },
-          {
-            "name": "include",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "description": "comma-separated subset of: memories,episodes,entities,similarity"
-            }
-          },
-          {
-            "name": "depth",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 5,
-              "default": 2
-            }
-          },
-          {
-            "name": "focus",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "maxLength": 128
-            }
-          },
-          {
-            "name": "project_id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "supabase-bearer": []
-          }
-        ],
-        "summary": "Knowledge graph for a project — nodes (memories, episodes, entities) and edges (contributes_to, supersedes, mentions, similar)",
-        "tags": [
-          "Knowledge Graph"
         ]
       }
     },
@@ -989,6 +923,58 @@
         ]
       }
     },
+    "/v1/memories/{memory_id}/neighbors": {
+      "get": {
+        "operationId": "MemoriesController_getNeighbors",
+        "parameters": [
+          {
+            "name": "min_similarity",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "memory_id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Pre-computed semantic neighbors for a memory — top-N pgvector matches from the worker's neighbors stage, with preview + tags.",
+        "tags": [
+          "Memory"
+        ]
+      }
+    },
     "/v1/memories/search": {
       "post": {
         "operationId": "MemoriesController_search",
@@ -1371,6 +1357,26 @@
         ]
       }
     },
+    "/v1/projects/personal": {
+      "get": {
+        "operationId": "ProjectsController_getPersonal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get (or lazily create) the caller's personal project",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
     "/v1/projects": {
       "get": {
         "operationId": "ProjectsController_listVisible",
@@ -1559,6 +1565,10 @@
                     "maxLength": 256
                   },
                   "with_briefing": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "with_categorized": {
                     "type": "boolean",
                     "default": false
                   }
@@ -1962,6 +1972,84 @@
         ]
       }
     },
+    "/v1/projects/{project_id}/pipeline-stream": {
+      "get": {
+        "operationId": "PipelineStreamController_stream",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "project_id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Chronological firehose of pipeline events (stage runs, LLM calls, outbox messages) for a project. UI polls this for the live pipeline view.",
+        "tags": [
+          "Observability"
+        ]
+      }
+    },
+    "/v1/internal/rabbitmq-state": {
+      "get": {
+        "operationId": "RabbitMqStateController_state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Live RabbitMQ broker state — exchanges, queues, consumers. Requires platform-admin allowlist membership.",
+        "tags": [
+          "Internal Observability"
+        ]
+      }
+    },
     "/v1/me": {
       "get": {
         "operationId": "ProfileController_getMe",
@@ -2305,36 +2393,6 @@
         ]
       }
     },
-    "/v1/secrets/orgs/{orgSlug}": {
-      "get": {
-        "operationId": "SecretsController_listOrgSecrets",
-        "parameters": [
-          {
-            "name": "orgSlug",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "supabase-bearer": []
-          }
-        ],
-        "summary": "List secret metadata for an organization",
-        "tags": [
-          "Secrets"
-        ]
-      }
-    },
     "/v1/invites": {
       "post": {
         "operationId": "InvitesController_create",
@@ -2667,9 +2725,9 @@
         ]
       }
     },
-    "/v1/briefings": {
-      "get": {
-        "operationId": "BriefingsController_getCurrent",
+    "/v1/me/tokens": {
+      "post": {
+        "operationId": "PersonalTokensController_create",
         "parameters": [],
         "responses": {
           "200": {
@@ -2681,16 +2739,16 @@
             "supabase-bearer": []
           }
         ],
-        "summary": "Fetch the current team briefing for a project",
+        "summary": "Create a personal access token. Returns the raw `okt_pat_…` value in `token` — copy it now, you won't see it again.",
         "tags": [
-          "Briefings"
+          "Personal Access Tokens"
         ]
       },
-      "post": {
-        "operationId": "BriefingsController_refresh",
+      "get": {
+        "operationId": "PersonalTokensController_list",
         "parameters": [],
         "responses": {
-          "201": {
+          "200": {
             "description": ""
           }
         },
@@ -2699,9 +2757,38 @@
             "supabase-bearer": []
           }
         ],
-        "summary": "Regenerate the team briefing for a project",
+        "summary": "List the caller's active tokens (no secrets).",
         "tags": [
-          "Briefings"
+          "Personal Access Tokens"
+        ]
+      }
+    },
+    "/v1/me/tokens/{id}": {
+      "delete": {
+        "operationId": "PersonalTokensController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Revoke a token. Irreversible.",
+        "tags": [
+          "Personal Access Tokens"
         ]
       }
     },
@@ -2773,6 +2860,611 @@
         "summary": "Get the changelog of what's new since a timestamp",
         "tags": [
           "Briefing"
+        ]
+      }
+    },
+    "/v1/sessions": {
+      "post": {
+        "operationId": "SessionsController_start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "claude-code",
+                      "chatgpt",
+                      "claude",
+                      "mcp",
+                      "voice",
+                      "meeting",
+                      "screenshot",
+                      "note",
+                      "connector"
+                    ],
+                    "default": "mcp"
+                  },
+                  "client": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "nullable": true
+                  },
+                  "metadata": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Open a session",
+        "tags": [
+          "Sessions"
+        ]
+      },
+      "get": {
+        "operationId": "SessionsController_list",
+        "parameters": [
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          {
+            "name": "project_id",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List sessions for a project",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{id}/turns": {
+      "post": {
+        "operationId": "SessionsController_addTurn",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "assistant",
+                      "system",
+                      "tool"
+                    ]
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "metadata": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "role",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Append a turn to an open session",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{id}/close": {
+      "post": {
+        "operationId": "SessionsController_close",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 20000,
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Close a session with the model's own summary",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{id}": {
+      "get": {
+        "operationId": "SessionsController_getById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Get a session with its turns and distilled memories",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/v1/projects/{id}/grants": {
+      "get": {
+        "operationId": "ProjectGrantsController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List grants on a project (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      }
+    },
+    "/v1/projects/{id}/grants/{userId}": {
+      "put": {
+        "operationId": "ProjectGrantsController_put",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "reader",
+                      "editor",
+                      "owner"
+                    ]
+                  }
+                },
+                "required": [
+                  "role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Grant (or update) a user's role on a project (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      },
+      "delete": {
+        "operationId": "ProjectGrantsController_remove",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Revoke a user's grant on a project (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      }
+    },
+    "/v1/sessions/{id}/grants": {
+      "get": {
+        "operationId": "SessionGrantsController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "List grants on a session (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      }
+    },
+    "/v1/sessions/{id}/grants/{userId}": {
+      "put": {
+        "operationId": "SessionGrantsController_put",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "reader",
+                      "editor",
+                      "owner"
+                    ]
+                  }
+                },
+                "required": [
+                  "role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Grant (or update) a user's role on a session (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      },
+      "delete": {
+        "operationId": "SessionGrantsController_remove",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Revoke a user's grant on a session (owner-only)",
+        "tags": [
+          "Grants"
+        ]
+      }
+    },
+    "/v1/briefings": {
+      "get": {
+        "operationId": "BriefingsController_getCurrent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Fetch the current team briefing for a project",
+        "tags": [
+          "Briefings"
+        ]
+      },
+      "post": {
+        "operationId": "BriefingsController_refresh",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Regenerate the team briefing for a project",
+        "tags": [
+          "Briefings"
+        ]
+      }
+    },
+    "/v1/capture": {
+      "post": {
+        "operationId": "CaptureController_capture",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt",
+                  "project_id"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 8000
+                  },
+                  "project_id": {
+                    "type": "string",
+                    "description": "UUID or slug of the target project"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "openkt-bearer": []
+          }
+        ],
+        "summary": "Classify+extract a user prompt as a saveable project memory. Called by openkt-cli's capture.py (Stage 2). Cheap LLM call (~$0.001) decides whether the prompt contains durable context worth saving; if yes, saves it via the same memoryCommands.create path that kt_save_memory uses.",
+        "tags": [
+          "Capture"
         ]
       }
     },
@@ -2895,10 +3587,411 @@
           "Internal Analytics"
         ]
       }
+    },
+    "/v1/me/connectors": {
+      "get": {
+        "operationId": "ConnectorsController_build",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Generate install configs for every supported MCP client. Mints a fresh PAT named after the calling client (`client` query param) so the user can revoke that connector independently.",
+        "tags": [
+          "Connectors"
+        ]
+      }
+    },
+    "/v1/.well-known/oauth-authorization-server": {
+      "get": {
+        "description": "Returns the authorization server's metadata so MCP clients can find /oauth/authorize, /oauth/token, /oauth/register. Honours x-forwarded-proto / x-forwarded-host so the URLs match the public origin. Path is `/.well-known/oauth-authorization-server` (no /v1 prefix).",
+        "operationId": "OauthWellKnownController_metadata",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorization server metadata (RFC 8414)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "issuer": {
+                      "type": "string",
+                      "example": "https://api.openkt.ai"
+                    },
+                    "authorization_endpoint": {
+                      "type": "string"
+                    },
+                    "token_endpoint": {
+                      "type": "string"
+                    },
+                    "registration_endpoint": {
+                      "type": "string"
+                    },
+                    "response_types_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "grant_types_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "code_challenge_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "token_endpoint_auth_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "scopes_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "RFC 8414 metadata discovery",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
+    },
+    "/v1/.well-known/oauth-protected-resource": {
+      "get": {
+        "description": "Returns metadata about the /mcp protected resource so MCP clients can discover the authorization server automatically. Honours x-forwarded-proto / x-forwarded-host. Path is `/.well-known/oauth-protected-resource` (no /v1 prefix).",
+        "operationId": "OauthWellKnownController_protectedResource",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Protected resource metadata (RFC 9728)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resource": {
+                      "type": "string",
+                      "example": "https://api.openkt.ai/mcp"
+                    },
+                    "authorization_servers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "https://api.openkt.ai"
+                      ]
+                    },
+                    "scopes_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "bearer_methods_supported": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "RFC 9728 protected resource metadata",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
+    },
+    "/v1/oauth/register": {
+      "post": {
+        "description": "MCP clients (Claude.ai) POST here to auto-mint a client_id + client_secret. No auth required at the protocol level — rate-limited to 5/min/IP. Response is RFC 7591 §3.2.1 shape (no /v1 envelope).",
+        "operationId": "OauthRegisterController_register",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Client registered. SAVE THE SECRET — it's only returned once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "client_id": {
+                      "type": "string",
+                      "example": "okt_oauth_<64hex>"
+                    },
+                    "client_secret": {
+                      "type": "string",
+                      "example": "<64hex>"
+                    },
+                    "client_id_issued_at": {
+                      "type": "number"
+                    },
+                    "client_name": {
+                      "type": "string"
+                    },
+                    "redirect_uris": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "grant_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "response_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "token_endpoint_auth_method": {
+                      "type": "string",
+                      "example": "client_secret_post"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "RFC 7591 dynamic client registration",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
+    },
+    "/v1/oauth/authorize": {
+      "get": {
+        "description": "Claude.ai opens this in a popup. We validate params + 302 to ${OPENKT_DASHBOARD_URL}/oauth/authorize?... where the dashboard handles Supabase sign-in + consent. The dashboard then POSTs to /oauth/consent. Bad client_id / redirect_uri → 400 inline; other errors → redirect back to redirect_uri with ?error=... per spec.",
+        "operationId": "OauthAuthorizeController_authorize",
+        "parameters": [
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "read write"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "code_challenge_method",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "S256"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "required": true,
+            "in": "query",
+            "description": "base64url S256, >= 43 chars",
+            "schema": {}
+          },
+          {
+            "name": "redirect_uri",
+            "required": true,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "client_id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "okt_oauth_<64hex>"
+            }
+          },
+          {
+            "name": "response_type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "code"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to dashboard consent page"
+          },
+          "400": {
+            "description": "invalid_client | invalid_redirect_uri"
+          }
+        },
+        "summary": "RFC 6749 §4.1.1 authorization endpoint",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
+    },
+    "/v1/oauth/consent": {
+      "post": {
+        "description": "After the dashboard signs the user in and gets consent, it POSTs the original authorize params back here with a Supabase JWT. We validate the client + PKCE challenge, then issue a one-shot auth code and return the redirect URL the dashboard should navigate the popup to. Frontend should be the only caller — Claude.ai itself never hits this directly.",
+        "operationId": "OauthConsentController_consent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "client_id",
+                  "redirect_uri",
+                  "code_challenge"
+                ],
+                "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string",
+                    "example": "S256"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "example": "read write"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Auth code minted; navigate window to redirect_url",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "redirect_url": {
+                          "type": "string",
+                          "example": "https://claude.ai/oauth/callback?code=<x>&state=<y>"
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "null"
+                    },
+                    "meta": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "supabase-bearer": []
+          }
+        ],
+        "summary": "Mint an OAuth auth code (called by dashboard /oauth/authorize page)",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
+    },
+    "/v1/oauth/token": {
+      "post": {
+        "description": "POST grant_type=authorization_code with code + code_verifier (PKCE S256) + client_id + client_secret + redirect_uri to exchange a fresh auth code for an access token (90d TTL, okt_pat_ prefix) and refresh token. POST grant_type=refresh_token with refresh_token + client credentials to rotate. Success shape per §5.1, errors per §5.2.",
+        "operationId": "OauthTokenController_token",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Access + refresh tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string",
+                      "example": "okt_pat_<64hex>"
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "example": "Bearer"
+                    },
+                    "expires_in": {
+                      "type": "number",
+                      "example": 7776000
+                    },
+                    "refresh_token": {
+                      "type": "string",
+                      "example": "okt_rt_<64hex>"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "example": "read write"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request | invalid_client | invalid_grant (RFC 6749 §5.2)"
+          }
+        },
+        "summary": "RFC 6749 token endpoint (authorization_code + refresh_token grants)",
+        "tags": [
+          "OAuth (Claude.ai / DCR clients)"
+        ]
+      }
     }
   },
   "info": {
-    "title": "OpenKT SGS API",
+    "title": "OpenKT API",
     "description": "Canonical NestJS backend contract for OpenKT. Success responses use `{ data, error, meta }` envelopes and JWT-authenticated routes expect `Authorization: Bearer <token>`.",
     "version": "1.0.0",
     "contact": {}
@@ -2911,7 +4004,7 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "type": "http",
-        "description": "Supabase access token for user-authenticated SGS routes."
+        "description": "Supabase access token for user-authenticated routes."
       }
     },
     "schemas": {}

@@ -12,7 +12,6 @@ import {
   type StageExecutionResult,
 } from "../pipeline-message";
 import { ROUTING_KEY_TRIAGE_DONE } from "../../mq/mq.constants";
-import { MemMachineBridgeService } from "./memmachine-bridge.service";
 import { WorkerTagMatcherService } from "./worker-tag-matcher.service";
 import { WorkerPgService } from "../../database/worker-pg.service";
 import { WorkerLlmConfigResolverService } from "./worker-llm-config-resolver.service";
@@ -47,7 +46,6 @@ export class TriageStageService {
     private readonly llmGatewayService: LlmGatewayService,
     private readonly tagMatcher: WorkerTagMatcherService,
     private readonly llmConfigResolver: WorkerLlmConfigResolverService,
-    private readonly memMachine: MemMachineBridgeService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -111,8 +109,7 @@ export class TriageStageService {
     let candidates: Array<{ id: string; similarity: number }>;
 
     if (vector) {
-      // Local pgvector path — used when MEMORY_ENGINE=local or for
-      // older memories that still have an OpenKT-side embedding.
+      // pgvector nearest neighbours within the same project.
       candidates = (
         await this.db.query<{ id: string; similarity: number }>(
           `select id, (1 - (embedding <=> $2::vector))::real as similarity
@@ -126,26 +123,6 @@ export class TriageStageService {
           [memory.project_id, toPgVector(vector), memory.id],
         )
       ).filter((row) => row.similarity >= 0.5);
-    } else if (this.memMachine.isEnabled()) {
-      // No local embedding (the embed stage was skipped because
-      // MemMachine owns embeddings). Ask MemMachine for the same
-      // shortlist instead — it embeds via the same TEI/BGE-M3 model
-      // and ranks within the matching tenancy.
-      const ns = this.memMachine.namespace({
-        org_id: memory.org_id,
-        project_id: memory.project_id,
-        owner_user_id: memory.owner_user_id,
-      });
-      const hits = await this.memMachine.findCandidates({
-        orgId: ns.orgId,
-        projectId: ns.projectId,
-        query: memory.content,
-        limit: 5,
-        excludeMemoryId: memory.id,
-      });
-      candidates = hits
-        .filter((hit) => hit.similarity >= 0.5)
-        .map((hit) => ({ id: hit.openktMemoryId, similarity: hit.similarity }));
     } else {
       return {
         result: { skipped: true, reason: "embedding missing" },

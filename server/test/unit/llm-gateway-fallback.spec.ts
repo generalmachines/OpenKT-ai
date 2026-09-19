@@ -62,7 +62,7 @@ describe("LlmGatewayService — fallback chain", () => {
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0][0]).toBe(
-      "https://api.minimax.villamarket.ai/v1/chat/completions",
+      "https://api.minimax.io/v1/chat/completions",
     );
   });
 

@@ -21,7 +21,6 @@ import {
   CreateSessionSchema,
 } from "../../sessions/contracts/session.contract";
 import { SessionsApplicationService } from "../../sessions/services/sessions-application.service";
-import { PersonalTokensService } from "../../personal-tokens/services/personal-tokens.service";
 import { McpUiRendererService } from "./mcp-ui-renderer.service";
 
 // The contract every connected tool should follow — kept here (not
@@ -76,7 +75,6 @@ export class McpServerFactoryService {
     private readonly briefing: BriefingService,
     private readonly ui: McpUiRendererService,
     private readonly sessionsApp: SessionsApplicationService,
-    private readonly personalTokens: PersonalTokensService,
   ) {}
 
   async sdk(): Promise<SdkExports> {
@@ -355,153 +353,34 @@ export class McpServerFactoryService {
     );
 
     // ── kt_setup ────────────────────────────────────────────────────
-    // Interactive onboarding wizard. Uses MCP elicitation (spec rev
-    // 2025-06-18, supported by Claude.ai, Claude Code, Cursor) to walk
-    // the user through email → verification code → org-pick in the
-    // chat, no dashboard round-trip needed.
-    //
-    // DEMO MODE: the email + code path is currently mock data so the
-    // user can evaluate the UX before we implement real OAuth 2.1 +
-    // DCR. Any 6-digit code is accepted; the org list is hard-coded.
-    // Replace the mock branches with real Supabase signInWithOtp +
-    // verifyOtp once the UX is signed off.
+    // Returns setup guidance as plain text. No sign-in flow and no
+    // token minting happens here — reaching this tool already required
+    // a valid bearer, and tokens are issued by POST /v1/me/tokens.
     server.registerTool(
       "kt_setup",
       {
-        title: "Interactive setup wizard",
+        title: "Setup guidance",
         description:
-          "Walk the user through OpenKT onboarding right in the chat: email + code login, " +
-          "org selection, default-project pick. Call this on first connection or whenever the " +
-          "user wants to switch accounts. Uses MCP elicitation so the client renders proper " +
-          "form fields instead of asking the agent to ad-hoc prompt for input.",
-        inputSchema: z.object({}).shape,
+          "Return paste-able steps for connecting an AI tool to this OpenKT server. " +
+          "Call this when the user asks how to set OpenKT up in another client.",
+        inputSchema: z.object({
+          client: z
+            .string()
+            .max(100)
+            .optional()
+            .describe("The client being set up, e.g. 'claude-code', 'cursor', 'claude.ai'."),
+        }).shape,
         annotations: {
-          title: "Interactive setup wizard",
-          readOnlyHint: false,
+          title: "Setup guidance",
+          readOnlyHint: true,
           destructiveHint: false,
-          idempotentHint: false,
+          idempotentHint: true,
         },
       },
-      async () => {
-        return this.runSetupWizard(server, context);
-      },
+      async (input) => textResult(setupGuidance(input.client)),
     );
 
     return server;
-  }
-
-  private async runSetupWizard(
-    server: InstanceType<SdkExports["McpServer"]>,
-    context: ActorContext,
-  ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-    // Step 1 — collect email
-    const emailResult = await server.server.elicitInput({
-      message: "Welcome to OpenKT. What email do you want to sign in with?",
-      requestedSchema: {
-        type: "object",
-        properties: {
-          email: {
-            type: "string",
-            title: "Email",
-            description: "The address you used to join the OpenKT beta waitlist.",
-          },
-        },
-        required: ["email"],
-      },
-    });
-    if (emailResult.action !== "accept" || !emailResult.content) {
-      return jsonResult({
-        setup: "cancelled",
-        reason: emailResult.action,
-        hint: "You can re-run kt_setup any time.",
-      });
-    }
-    const email = String((emailResult.content as { email?: unknown }).email ?? "");
-
-    // Step 2 — verification code (mock-accept any 6-digit value)
-    const codeResult = await server.server.elicitInput({
-      message: `We sent a code to ${email}. Enter it to continue. (Demo mode: any 6 digits works.)`,
-      requestedSchema: {
-        type: "object",
-        properties: {
-          code: {
-            type: "string",
-            title: "6-digit code",
-            description: "Check your inbox for the verification code we just sent.",
-          },
-        },
-        required: ["code"],
-      },
-    });
-    if (codeResult.action !== "accept" || !codeResult.content) {
-      return jsonResult({ setup: "cancelled_at_code", email });
-    }
-    const code = String((codeResult.content as { code?: unknown }).code ?? "");
-
-    // Step 3 — org selection (mock list; real list comes from
-    // ProjectsApplicationService once the auth flow is real).
-    const orgResult = await server.server.elicitInput({
-      message: `Signed in as ${email}. Which workspace do you want to set as default?`,
-      requestedSchema: {
-        type: "object",
-        properties: {
-          org_slug: {
-            type: "string",
-            title: "Workspace",
-            description: "Pick the workspace OpenKT should default to for future calls.",
-            oneOf: [
-              { const: "deepwork", title: "Deepwork — Pratham's personal scope" },
-              { const: "openkt", title: "OpenKT — the company" },
-              { const: "gas-city", title: "Gas-city — pilot org" },
-            ],
-          },
-        },
-        required: ["org_slug"],
-      },
-    });
-    if (orgResult.action !== "accept" || !orgResult.content) {
-      return jsonResult({ setup: "cancelled_at_org", email, code_received: !!code });
-    }
-    const orgSlug = String((orgResult.content as { org_slug?: unknown }).org_slug ?? "");
-
-    // The email/code/org steps above are still an elicitation UX
-    // preview (no real signInWithOtp/verifyOtp — see the DEMO MODE
-    // note on this tool's registration). The token below, however, is
-    // real: reaching this handler already required a valid bearer
-    // (BearerAuthGuard gates every /mcp call), so `context.principal`
-    // is a genuine authenticated user. We mint an actual `okt_pat_…`
-    // for that user instead of returning a fake string — a client
-    // that runs kt_setup gets a credential it can actually use.
-    const userId = context.principal.userId;
-    const issued = userId
-      ? await this.personalTokens
-          .create({ userId, name: `MCP setup (${new Date().toISOString().slice(0, 10)})` })
-          .catch(() => null)
-      : null;
-
-    return jsonResult({
-      setup: "complete",
-      account: { email, org: orgSlug },
-      token: issued
-        ? {
-            note:
-              "Real personal access token, shown once — store it now. " +
-              "The email/code/org steps above are still a UX preview " +
-              "(TODO: replace with real Supabase signInWithOtp/verifyOtp).",
-            raw_token: issued.rawToken,
-            scopes: issued.scopes,
-            expires_at: issued.expiresAt,
-          }
-        : {
-            note: "Could not mint a token — no authenticated principal on this connection.",
-            raw_token: null,
-          },
-      next_steps: [
-        "Call kt_list_projects to see the workspaces you have access to.",
-        "Save a first memory with kt_save_memory.",
-        "kt_project_brief grounds you on a project's current state.",
-      ],
-    });
   }
 
   private async resolveProjectId(
@@ -586,6 +465,25 @@ const CloseSessionToolSchema = z.object({
     .optional()
     .describe("A few sentences: what was asked, what changed, what's left open."),
 });
+
+function textResult(text: string) {
+  return { content: [{ type: "text" as const, text }] };
+}
+
+function setupGuidance(client?: string): string {
+  const target = client?.trim() ? client.trim() : "your AI tool";
+  return [
+    `Connecting ${target} to OpenKT:`,
+    "1. Add a remote MCP server (Streamable HTTP) pointing at <your OpenKT server URL>/mcp.",
+    "2. Authenticate. Clients that support OAuth sign in through the browser when they first connect. " +
+      "Otherwise create a personal access token (POST /v1/me/tokens) and send it as " +
+      "`Authorization: Bearer okt_pat_…`.",
+    "3. Check the connection by calling kt_list_projects — it lists the spaces you can read and write.",
+    "4. Then work as the server instructions describe: kt_session_start at the start of work, " +
+      "kt_recall before non-trivial work, kt_save_memory when something durable is settled, " +
+      "kt_session_end when the work ends.",
+  ].join("\n");
+}
 
 function jsonResult(value: unknown) {
   return {
