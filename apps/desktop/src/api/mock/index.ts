@@ -7,6 +7,7 @@ import type {
   Id,
   ModelJob,
   ModelSettings,
+  NewFactInput,
   NewSessionInput,
   RecallHit,
   ResourceRef,
@@ -55,6 +56,14 @@ export class MockClient implements OpenKTClient {
   private nextId(prefix: string): Id {
     this.seq += 1;
     return `${prefix}-new-${this.seq}`;
+  }
+
+  /** Everything is sample data here, and the Workspace setting already says so — no per-screen badge. */
+  readonly preview: ReadonlySet<never> = new Set();
+
+  async getMe() {
+    const me = this.db.workspace.me;
+    return { id: me.id, name: me.name, initials: me.initials, email: `${me.name.split(' ')[0]?.toLowerCase() ?? 'me'}@example.com` };
   }
 
   async getWorkspace() {
@@ -128,16 +137,39 @@ export class MockClient implements OpenKTClient {
     return clone(session);
   }
 
-  async closeSession(id: Id) {
+  async closeSession(id: Id, summary?: string) {
     const s = this.db.sessions.find((x) => x.id === id);
     if (!s) throw new NotFoundError('session', id);
     s.status = 'closed';
+    if (summary?.trim()) s.summary = summary.trim();
     this.changed();
     return clone(s);
   }
 
   async listContext(sessionId: Id): Promise<ContextItem[]> {
     return clone(this.db.context.filter((c) => c.sessionId === sessionId));
+  }
+
+  async saveFact(input: NewFactInput): Promise<ContextItem> {
+    if (!this.db.sessions.some((x) => x.id === input.sessionId)) throw new NotFoundError('session', input.sessionId);
+    const item: ContextItem = {
+      id: this.nextId('c'),
+      kind: input.kind ?? 'fact',
+      statement: input.statement.trim(),
+      author: this.db.workspace.me.name,
+      sessionId: input.sessionId,
+      spaceId: input.spaceId,
+      tags: [],
+      createdAt: new Date().toISOString(),
+    };
+    this.db.context.push(item);
+    this.changed();
+    return clone(item);
+  }
+
+  async deleteFact(id: Id): Promise<void> {
+    this.db.context = this.db.context.filter((c) => c.id !== id);
+    this.changed();
   }
 
   async listGrants(resource: ResourceRef): Promise<Grant[]> {

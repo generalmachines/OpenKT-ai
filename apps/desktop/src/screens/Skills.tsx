@@ -3,6 +3,7 @@ import { useClient, useQuery } from '../api/hooks';
 import type { Skill, SkillRun } from '../api/types';
 import { ErrorNote, Loading } from '../components/bits';
 import { Icon } from '../components/Icon';
+import { PreviewBadge } from '../components/PreviewBadge';
 
 function SkillCard({ skill }: { skill: Skill }) {
   const client = useClient();
@@ -44,6 +45,7 @@ export function Skills() {
   const skills = useQuery((c) => c.listSkills(), []);
   return (
     <main className="main main--list">
+      <PreviewBadge area="skills" />
       <div className="titlebar">
         <h1 className="h1 h1--sm">Skills</h1>
         <button type="button" className="btn btn--dark btn--cta" onClick={() => void client.createSkill('Untitled skill')}>

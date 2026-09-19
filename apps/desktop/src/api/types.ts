@@ -223,6 +223,25 @@ export interface RecallHit {
   href: string;
 }
 
+/** The signed-in person, as the server knows them (`GET /v1/me`). */
+export interface Me {
+  id: Id;
+  name: string;
+  email: string;
+  initials: string;
+}
+
+/** A fact the client extracted (or the user wrote) and files under a session. */
+export interface NewFactInput {
+  sessionId: Id;
+  spaceId: Id;
+  statement: string;
+  kind?: ContextKind;
+}
+
+/** Parts of the product an adapter serves from sample data, so screens can say so. */
+export type PreviewArea = 'pages' | 'skills' | 'connectors' | 'access-defaults' | 'models' | 'teams';
+
 export interface NewSessionInput {
   source: SessionSource;
   title: string;

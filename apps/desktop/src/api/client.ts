@@ -5,11 +5,14 @@ import type {
   Grant,
   GrantSubject,
   Id,
+  Me,
   ModelJob,
   ModelSettings,
+  NewFactInput,
   NewSessionInput,
   Page,
   PageListItem,
+  PreviewArea,
   RecallHit,
   ResourceRef,
   Role,
@@ -35,6 +38,11 @@ export interface OpenKTClient {
   /** Called after any mutation. Returns an unsubscribe function. */
   subscribe(listener: () => void): () => void;
 
+  /** Areas this adapter fills with sample data because the server has no endpoint yet. */
+  readonly preview: ReadonlySet<PreviewArea>;
+
+  /** Who the token belongs to. The Connect screen's "Test connection". */
+  getMe(): Promise<Me>;
   getWorkspace(): Promise<Workspace>;
 
   listSpaces(): Promise<Space[]>;
@@ -46,8 +54,12 @@ export interface OpenKTClient {
   listSessions(filter?: { spaceId?: Id; mine?: boolean }): Promise<SessionListItem[]>;
   getSession(id: Id): Promise<Session>;
   createSession(input: NewSessionInput): Promise<Session>;
-  closeSession(id: Id): Promise<Session>;
+  /** `summary` is what the session view shows once closed. */
+  closeSession(id: Id, summary?: string): Promise<Session>;
   listContext(sessionId: Id): Promise<ContextItem[]>;
+  /** File one fact under a session. */
+  saveFact(input: NewFactInput): Promise<ContextItem>;
+  deleteFact(id: Id): Promise<void>;
 
   listGrants(resource: ResourceRef): Promise<Grant[]>;
   putGrant(resource: ResourceRef, subject: GrantSubject, role: Role): Promise<Grant>;

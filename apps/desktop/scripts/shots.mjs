@@ -27,8 +27,49 @@ const APP = { width: 1280, height: 800 };
 const CAPTURE = { width: 760, height: 460 };
 const S = '/sessions/s-northgate-pricing';
 
-/** name, route, viewport, optional steps before the shot, artboard it mirrors */
+/** A stand-in for the Electron bridge's local AI, so the note confirmation can be shot in a browser. */
+function fakeLocalAi() {
+  localStorage.setItem('openkt.api', JSON.stringify({ adapter: 'mock' }));
+  window.openkt = {
+    platform: 'browser',
+    app: { onNavigate: () => () => undefined, hotkeys: async () => [], openMain: async () => undefined },
+    capture: { onEvent: () => () => undefined },
+    localAi: {
+      extractNote: async () => ({
+        status: 'ok',
+        title: 'Northgate pricing follow-up',
+        summary: 'Northgate wants per-store pricing across 40 stores. The revised deck goes out Friday; legacy POS export is still an open risk.',
+        facts: [
+          { kind: 'decision', statement: 'Quote Northgate per store, not per seat', quote: 'quote per store' },
+          { kind: 'action', statement: 'Send the revised deck to Ana by Friday', quote: 'deck by Friday' },
+          { kind: 'question', statement: 'Can the legacy POS export nightly?', quote: 'legacy POS' },
+        ],
+      }),
+    },
+  };
+}
+
+/** The real server's 401 body, without touching the network (a refused fetch would log a console error). */
+function refusingServer() {
+  window.fetch = async () =>
+    new Response(JSON.stringify({ data: null, error: { code: 'unauthorized', message: 'invalid or expired token', details: null, request_id: 'shot' }, meta: null }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+}
+
+/** name, route, viewport, optional steps before the shot, artboard it mirrors, optional init script */
 const SHOTS = [
+  ['00-connect', '/connect', APP, null, 'Onboarding.dc.html'],
+  [
+    '00b-connect-failed',
+    '/connect',
+    APP,
+    async (p) => {
+      await p.getByLabel('Access token').fill('okt_pat_example');
+      await p.getByRole('button', { name: 'Test connection' }).click();
+      await p.getByRole('alert').waitFor();
+    },
+    null,
+    refusingServer,
+  ],
   ['01-onboarding-1-sign-in', '/onboarding/1', APP, null, null],
   ['02-onboarding-2-connect-tools', '/onboarding/2', APP, null, 'Onboarding.dc.html'],
   ['03-onboarding-3-models', '/onboarding/3', APP, null, null],
@@ -38,6 +79,18 @@ const SHOTS = [
   ['07-session-access', `${S}/access`, APP, null, 'Access.dc.html'],
   ['08-session-access-role-menu', `${S}/access`, APP, async (p) => p.getByRole('button', { name: /Role for Ana Reyes/ }).click(), null],
   ['09-new-note', '/new', APP, null, null],
+  [
+    '09b-new-note-confirm',
+    '/new',
+    APP,
+    async (p) => {
+      await p.getByLabel('Note', { exact: true }).fill('Call with Ana at Northgate. They want us to quote per store, 40 stores. I owe her the revised deck by Friday. Open question: can their legacy POS export nightly?');
+      await p.getByRole('button', { name: 'Save', exact: true }).click();
+      await p.getByLabel('Summary').waitFor();
+    },
+    null,
+    fakeLocalAi,
+  ],
   ['10-spaces', '/spaces', APP, null, null],
   ['11-space', '/spaces/sp-northgate', APP, null, 'Space.dc.html'],
   ['12-space-access', '/spaces/sp-northgate/access', APP, null, null],
@@ -116,9 +169,10 @@ async function main() {
     await waitForServer(base);
     const browser = await chromium.launch({ executablePath });
     const report = [];
-    for (const [name, route, viewport, steps, artboard] of SHOTS) {
+    for (const [name, route, viewport, steps, artboard, init] of SHOTS) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' });
       const page = await context.newPage();
+      if (init) await page.addInitScript(init);
       const errors = [];
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));

@@ -2,6 +2,7 @@ import { useClient, useQuery } from '../../api/hooks';
 import { ErrorNote, Loading } from '../../components/bits';
 import { Icon, SOURCE_ICON } from '../../components/Icon';
 import { Select } from '../../components/Select';
+import { PreviewBadge } from '../../components/PreviewBadge';
 
 const COPY = {
   connectors: {
@@ -24,6 +25,7 @@ export function Connectors({ mode }: { mode: 'connectors' | 'access' }) {
 
   return (
     <>
+      <PreviewBadge area={mode === 'access' ? 'access-defaults' : 'connectors'} />
       <h1 className="h1 h1--sm">{COPY[mode].title}</h1>
       <p className="lede" style={{ maxWidth: 560, marginBottom: 14 }}>
         {COPY[mode].lede}

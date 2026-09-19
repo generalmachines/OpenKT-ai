@@ -4,6 +4,7 @@ import { accessSummary, relativeDayTime } from '../api/format';
 import { useQuery } from '../api/hooks';
 import { ErrorNote, Loading } from '../components/bits';
 import { Icon, SOURCE_ICON } from '../components/Icon';
+import { PreviewBadge } from '../components/PreviewBadge';
 
 /** Page.dc.html — a living page with citations and its sources rail. */
 export function PageView() {
@@ -49,6 +50,7 @@ export function PageView() {
             pages
           </Link>
         </nav>
+        <PreviewBadge area="pages" />
         <div className="titlebar">
           <h1 className="h1">{p.title}</h1>
           <button type="button" className="btn btn--pill" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
