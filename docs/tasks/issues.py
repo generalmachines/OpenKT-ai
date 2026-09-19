@@ -140,10 +140,10 @@ dict(key="J9", who="junior", ms=M01, title="server: Postgres job queue (`jobs` t
 dict(key="J10", who="junior", ms=M01, title="server: `GET /v1/meta` and 404-instead-of-403 audit",
   context="Clients need to know what the server supports, and the API must not reveal that something exists to a user who cannot read it (Spec 04 conventions).",
   read=["docs/specs/04-api-contract.md (top section and Operations)"],
-  steps=["Add `GET /v1/meta` (no auth) returning `{ version, embedding_model, rerank: boolean, features: string[] }`. `version` comes from `server/package.json`; `rerank` is true when `OPENKT_RERANK_URL` is set; `features` starts as `['sessions','grants','hybrid_recall']`.",
+  steps=["`GET /v1/meta` is already built (#68, `server/apps/server/src/modules/health/controllers/meta.controller.ts`, tested in `server/test/unit/meta-endpoint.spec.ts`). Do not add or change it; this task is only the audit below.",
          "Write an e2e test file that, as a user with no access, requests every `GET/PATCH/DELETE` route taking a session id, a project id, a memory id or a grant id, and asserts 404 with error code `not_found` — never 403.", "Fix any route that returns 403 or leaks a different message."],
-  files=["a `meta.controller.ts`", "`server/test/e2e/no-existence-leak.e2e-spec.ts`", "only the controllers/services the test proves wrong"],
-  accept=["`/v1/meta` works without a token.", "The audit test lists every id-taking route (generate the list from the router, do not hand-pick) and passes."], out=[], deps=["S1"]),
+  files=["`server/test/e2e/no-existence-leak.e2e-spec.ts`", "only the controllers/services the test proves wrong"],
+  accept=["The audit test lists every id-taking route (generate the list from the router, do not hand-pick) and passes."], out=[], deps=["S1"]),
 
 dict(key="J11", who="junior", ms=M01, title="`docker compose up` for the whole stack",
   context="Anyone must be able to run OpenKT from a clean clone (PLAN.md, definition of done).",

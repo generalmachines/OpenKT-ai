@@ -539,17 +539,15 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 - `docs/specs/04-api-contract.md (top section and Operations)`
 
 **Do exactly this**
-1. Add `GET /v1/meta` (no auth) returning `{ version, embedding_model, rerank: boolean, features: string[] }`. `version` comes from `server/package.json`; `rerank` is true when `OPENKT_RERANK_URL` is set; `features` starts as `['sessions','grants','hybrid_recall']`.
+1. `GET /v1/meta` is already built (#68, `server/apps/server/src/modules/health/controllers/meta.controller.ts`, tested in `server/test/unit/meta-endpoint.spec.ts`). Do not add or change it; this task is only the audit below.
 2. Write an e2e test file that, as a user with no access, requests every `GET/PATCH/DELETE` route taking a session id, a project id, a memory id or a grant id, and asserts 404 with error code `not_found` — never 403.
 3. Fix any route that returns 403 or leaks a different message.
 
 **Files you may touch**
-- a `meta.controller.ts`
 - `server/test/e2e/no-existence-leak.e2e-spec.ts`
 - only the controllers/services the test proves wrong
 
 **Acceptance — every line must be true and tested**
-- [ ] `/v1/meta` works without a token.
 - [ ] The audit test lists every id-taking route (generate the list from the router, do not hand-pick) and passes.
 
 **Depends on:** #1
