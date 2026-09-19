@@ -52,12 +52,12 @@ capture (region / window / dropped image file)
   ─► Apple Vision OCR                        → visible_text (with line boxes)          [always, ~100 ms]
   ─► `describe_image` (Qwen3.5-4B, image + visible_text + optional typed or spoken caption)
         → { description (≤ 60 words: what this is and why someone would save it),
-            visible_text_key (the ≤ 400 chars of OCR text that matter),
+            visible_text (the ≤ 400 chars of OCR text that matter),
             entities[] (people, companies, products, numbers with units) }
   ─► one session {source:'screenshot'|'image'}, turns:
         1. {role:'note', content: caption}                     (if the user gave one)
         2. {role:'note', content: description}
-        3. {role:'note', content: 'Text in image: ' + visible_text_key}
+        3. {role:'note', content: 'Text in image: ' + visible_text}
   ─► `extract` over those turns                                → facts; quotes point into turn 2 or 3
 ```
 

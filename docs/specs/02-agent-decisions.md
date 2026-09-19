@@ -59,7 +59,7 @@ Guards in code, after the agent answers:
 Runs once per session, per project, over that session's surviving **non-personal** facts.
 
 1. Candidate pages (code): embed each fact; take page sections in the same project with similarity ≥ 0.55; group by page; keep the **8 pages** with the highest summed similarity. Send the agent each page's `id, title, summary, section headings` — never bodies.
-2. The `route` agent returns, per fact, one of: `append {page_id, section_heading}`, `rewrite_section {page_id, section_heading}`, `new_page {title}`, `noop`.
+2. The `route` agent returns, per fact, one of: `append {page_id, section_title}`, `rewrite_section {page_id, section_title}`, `new_page {title}`, `noop`.
 3. Code enforces:
    - `noop` is forced for kinds `action` and `question` older than 30 days, and for any fact with `confidence < 0.4`.
    - `new_page` is allowed only when **at least 3 facts** in this batch (or already unrouted in this project) point to the same new title, or the fact's kind is `decision`. Otherwise the fact stays unrouted and is retried when the next session in that project closes. Unrouted facts are still fully searchable — pages are an improvement, not a gate.
