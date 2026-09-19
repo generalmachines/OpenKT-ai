@@ -53,7 +53,7 @@ describe.each(adapters)('day one — %s adapter', (_kind, make) => {
 
   it('a new space is listed and can be shared by email', async () => {
     const client = make();
-    const space = await client.createSpace('Customer: Otter Logistics');
+    const space = await client.createSpace({ name: 'Customer: Otter Logistics' });
     expect(space.name).toBe('Customer: Otter Logistics');
     expect(space.personal).toBeFalsy();
     expect((await client.listSpaces()).map((s) => s.id)).toContain(space.id);
@@ -67,7 +67,7 @@ describe('http adapter — a teammate recalls what was shared with them', () => 
   it('context in a space shared with them is found with no space named (⌘K "everything you can read")', async () => {
     const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
     const b = new HttpClient({ baseUrl: BASE, token: fake.tokens.b });
-    const space = await a.createSpace('Team Heron');
+    const space = await a.createSpace({ name: 'Team Heron' });
     const session = await a.createSession({ source: 'note', title: 'Heron renewal', spaceId: space.id, text: 'Heron renews in March; they want SSO first.' });
     await a.saveFact({ sessionId: session.id, spaceId: space.id, statement: 'Heron renews in March and wants SSO before signing' });
 
@@ -103,9 +103,16 @@ describe('http adapter — a network blip is not an outage', () => {
   });
 
   it('a write is never sent twice, and a server that is not there fails at once', async () => {
-    const write = flaky(1);
-    await expect(new HttpClient({ baseUrl: BASE, token: 't', fetch: write.impl }).createSpace('X')).rejects.toMatchObject({ kind: 'network' });
-    expect(write.seen.filter((r) => r.startsWith('POST'))).toHaveLength(1);
+    // Reads answer; the first write drops on the floor the way a network change drops it.
+    const seen: string[] = [];
+    const impl = (async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      seen.push(`${method} ${new URL(url).pathname}`);
+      if (method === 'POST') throw new Error('net::ERR_NETWORK_CHANGED');
+      return new Response(JSON.stringify({ data: { user_id: 'u1', email: 'a@b.test', display_name: 'A' }, error: null, meta: null }), { status: 200 });
+    }) as typeof fetch;
+    await expect(new HttpClient({ baseUrl: BASE, token: 't', fetch: impl }).createSpace({ name: 'X' })).rejects.toMatchObject({ kind: 'network' });
+    expect(seen.filter((r) => r.startsWith('POST'))).toEqual(['POST /v1/projects']);
     const down = flaky(9, 'net::ERR_CONNECTION_REFUSED');
     await expect(new HttpClient({ baseUrl: BASE, token: 't', fetch: down.impl }).getMe()).rejects.toMatchObject({ kind: 'network' });
     expect(down.seen).toHaveLength(1);
@@ -115,7 +122,7 @@ describe('http adapter — a network blip is not an outage', () => {
 describe('http adapter — the personal space is the personal space', () => {
   it('when the server’s default points at another private space, notes still go to Personal', async () => {
     const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
-    const team = await a.createSpace('Team Kestrel');
+    const team = await a.createSpace({ name: 'Team Kestrel' });
     await a.inviteByEmail({ type: 'space', id: team.id }, 'ana@openkt.test', 'reader');
     fake.state.personalAmbiguous = true;
     try {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KIND_COLOR } from '../api/format';
+import { KIND_COLOR, sourceLabel } from '../api/format';
 import { useClient } from '../api/hooks';
 import type { RecallHit } from '../api/types';
 import { ErrorNote } from './bits';
@@ -16,6 +16,13 @@ const GROUPS: [RecallHit['type'], string][] = [
   ['page', 'Pages'],
   ['context', 'Context'],
 ];
+
+/** "decision · Ana Reyes · Q4 launch": what it is, who saved it, and which space it lives in. */
+export function hitMeta(h: RecallHit): string {
+  if (h.author === undefined && h.spaceName === undefined) return h.type === 'context' && h.kind ? `${h.kind} · ${h.meta}` : h.meta;
+  const what = h.type === 'context' ? h.kind : h.type === 'page' ? 'page' : h.source ? sourceLabel(h.source) : undefined;
+  return [what, h.author, h.spaceName].filter(Boolean).join(' · ');
+}
 
 /** ⌘K — search over sessions, pages and context through `client.recall`. */
 export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClose: () => void }) {
@@ -135,7 +142,7 @@ export function Palette({ scope, onClose }: { scope: PaletteScope | null; onClos
                       </span>
                       <span className="srow__text">
                         <span className="srow__title">{h.title}</span>
-                        <span className="srow__sub mono">{h.type === 'context' && h.kind ? `${h.kind} · ${h.meta}` : h.meta}</span>
+                        <span className="srow__sub mono">{hitMeta(h)}</span>
                       </span>
                     </div>
                   );

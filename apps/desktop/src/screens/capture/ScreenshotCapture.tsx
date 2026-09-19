@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { describeError } from '../../api';
 import { CaptureError, screenshot, type ScreenshotResult } from '../../api/bridge';
-import { useClient, useQuery } from '../../api/hooks';
+import { useClient } from '../../api/hooks';
 import { fileCapture, modelsPending } from '../../capture/save';
+import { useSaveSpace } from '../../components/useSaveSpace';
 import { EXTRACT_LATER } from './VoiceCapture';
 import { ScreenshotSheet } from './parts';
 
@@ -27,18 +28,13 @@ const fileUrl = (path: string) => (path ? (/^(file|data|blob):/.test(path) ? pat
 /** Capture-Screenshot.dc.html, wired: capture → read on this Mac → title line, space, Save. */
 export function ScreenshotCapture({ request, onClose, lingerMs = 1400 }: ScreenshotCaptureProps) {
   const client = useClient();
-  const spaces = useQuery((c) => c.listSpaces(), []);
+  const { spaceId, setSpaceId, space, options, remember } = useSaveSpace();
   const [shot, setShot] = useState<Captured | null>(null);
   const [title, setTitle] = useState('');
   const [phase, setPhase] = useState<'reading' | 'ready' | 'nothing' | 'saving' | 'saved' | 'failed'>('reading');
   const [note, setNote] = useState<string>();
-  const [spaceId, setSpaceId] = useState('');
   const closed = useRef(false);
   const path = request.mode === 'file' ? request.path : undefined;
-
-  useEffect(() => {
-    if (!spaceId && spaces.data?.length) setSpaceId((spaces.data.find((s) => s.personal) ?? spaces.data[0]!).id);
-  }, [spaceId, spaces.data]);
 
   const close = useCallback(
     (afterMs = 0) => {
@@ -90,6 +86,7 @@ export function ScreenshotCapture({ request, onClose, lingerMs = 1400 }: Screens
       // The title line is the person's own words once they change it: that is the caption turn.
       const caption = title.trim() !== (shot.title || shot.description).trim() ? title : '';
       await fileCapture(client, { source: 'screenshot', title, summary: shot.description, spaceId, turns: screenshotTurns(shot, caption), facts: shot.facts, extractLater: later });
+      remember();
       setPhase('saved');
       setNote(later ? EXTRACT_LATER : 'saved');
       close(later && lingerMs ? lingerMs + 1600 : lingerMs); // longer, so the line about the models can be read
@@ -111,7 +108,8 @@ export function ScreenshotCapture({ request, onClose, lingerMs = 1400 }: Screens
       note={note}
       spaceId={spaceId}
       onSpace={setSpaceId}
-      spaces={(spaces.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+      spaces={options}
+      spaceLabel={space ? (space.personal ? 'Personal' : space.name) : undefined}
       onSave={() => void save()}
     />
   );

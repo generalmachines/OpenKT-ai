@@ -147,6 +147,112 @@ describe.each(adapters)('OpenKTClient behaviour — %s adapter', (kind, make) =>
     expect((await client.listGrants(resource)).some((g) => g.subject.email === email)).toBe(false);
   });
 
+  // ── teams: create, share, move, join ──────────────────────────────────
+
+  it('creates a space from a name: slugged, owned by me, listed, and a second one with that name gets -2', async () => {
+    const client = make();
+    const me = await client.getMe();
+    let notified = 0;
+    client.subscribe(() => (notified += 1));
+    const name = `Launch plan ${kind}`;
+
+    const space = await client.createSpace({ name, description: 'Everything for the Q4 launch' });
+    expect(space).toMatchObject({ name, slug: `launch-plan-${kind}`, personal: false, myRole: 'owner', ownerId: me.id, sessionCount: 0, description: 'Everything for the Q4 launch' });
+    expect(notified).toBeGreaterThanOrEqual(1);
+    expect((await client.listSpaces()).find((s) => s.id === space.id)).toMatchObject({ name, slug: `launch-plan-${kind}`, myRole: 'owner' });
+    expect(await client.getSpace(space.id)).toMatchObject({ id: space.id, name, myRole: 'owner' });
+
+    const again = await client.createSpace({ name });
+    expect(again.slug).toBe(`launch-plan-${kind}-2`);
+    expect(again.id).not.toBe(space.id);
+    await expect(client.createSpace({ name: '   ' })).rejects.toMatchObject({ name: 'ApiError', kind: 'invalid' });
+  });
+
+  it('a new space shared by email: a known person is a member with their role, an unknown email waits as an invitation', async () => {
+    const client = make();
+    const me = await client.getMe();
+    const space = await client.createSpace({ name: `Team room ${kind}` });
+    expect((await client.listSpaceMembers(space.id)).members).toEqual([expect.objectContaining({ id: me.id, role: 'owner', you: true })]);
+
+    const email = kind === 'mock' ? 'ana@example.com' : 'ana@openkt.test';
+    await client.inviteByEmail({ type: 'space', id: space.id }, email, 'editor');
+    await client.inviteByEmail({ type: 'space', id: space.id }, `later-${kind}@elsewhere.test`, 'reader');
+
+    const { members, complete } = await client.listSpaceMembers(space.id);
+    expect(complete).toBe(true);
+    expect(members.map((m) => [m.name, m.role, Boolean(m.pending), Boolean(m.you)])).toEqual([
+      [me.name, 'owner', false, true],
+      ['Ana Reyes', 'editor', false, false],
+      [`later-${kind}@elsewhere.test`, 'reader', true, false],
+    ]);
+    expect((await client.getSpace(space.id)).memberCount).toBe(2);
+  });
+
+  it('the context in a space comes newest first, each with who saved it', async () => {
+    const client = make();
+    const me = await client.getMe();
+    const space = await client.createSpace({ name: `Context list ${kind}` });
+    expect(await client.listSpaceContext(space.id)).toEqual([]);
+    const session = await client.createSession({ source: 'note', title: 'Kickoff', spaceId: space.id, text: 'x' });
+    await client.saveFact({ sessionId: session.id, spaceId: space.id, statement: 'First: the demo runs on the hosted server', kind: 'decision' });
+    await new Promise((r) => setTimeout(r, 5));
+    await client.saveFact({ sessionId: session.id, spaceId: space.id, statement: 'Second: capture stays on the Mac', kind: 'fact' });
+
+    const items = await client.listSpaceContext(space.id);
+    expect(items.map((c) => [c.statement, c.author, c.authorId, c.sessionId])).toEqual([
+      ['Second: capture stays on the Mac', me.name, me.id, session.id],
+      ['First: the demo runs on the hosted server', me.name, me.id, session.id],
+    ]);
+    expect(await client.listSpaceContext(space.id, { limit: 1 })).toHaveLength(1);
+    expect((await client.listSessions({ spaceId: space.id }))[0]).toMatchObject({ id: session.id, authorId: me.id, authorName: me.name });
+  });
+
+  it('moves a session and its context to another space, when the server can', async () => {
+    fake.state.moveSession = true;
+    try {
+      const client = make();
+      expect((await client.capabilities()).moveSession).toBe(true);
+      const from = await client.createSpace({ name: `Move from ${kind}` });
+      const to = await client.createSpace({ name: `Move to ${kind}` });
+      const session = await client.createSession({ source: 'note', title: 'Filed in the wrong place', spaceId: from.id, text: 'x' });
+      await client.saveFact({ sessionId: session.id, spaceId: from.id, statement: 'The Yarrowfield depot closes at six' });
+
+      const moved = await client.moveSession(session.id, to.id);
+      expect(moved).toMatchObject({ id: session.id, spaceId: to.id });
+      expect((await client.listSessions({ spaceId: to.id })).map((s) => s.id)).toEqual([session.id]);
+      expect(await client.listSessions({ spaceId: from.id })).toEqual([]);
+      expect((await client.listContext(session.id)).map((c) => c.spaceId)).toEqual([to.id]);
+      expect((await client.getSpace(to.id)).sessionCount).toBe(1);
+    } finally {
+      fake.state.moveSession = false;
+    }
+  });
+
+  it('join by link: the owner makes a link, someone pastes it (or its code) and the space is theirs to use', async () => {
+    fake.state.joinLinks = true;
+    try {
+      const owner = make();
+      const joiner = kind === 'http' ? new HttpClient({ baseUrl: BASE, token: fake.tokens.b }) : owner;
+      expect((await owner.capabilities()).joinLinks).toBe(true);
+      const space = await owner.createSpace({ name: `Joinable ${kind}` });
+      const link = await owner.createJoinLink(space.id, 'editor');
+      expect(link.code).toMatch(/^[A-Za-z0-9_-]{4,}$/);
+      expect(link.url).toContain(link.code);
+      expect(link.role).toBe('editor');
+
+      const joined = await joiner.joinSpace(`  ${link.url}  `);
+      expect(joined).toMatchObject({ id: space.id, name: `Joinable ${kind}` });
+      expect((await joiner.listSpaces()).map((s) => s.id)).toContain(space.id);
+      if (kind === 'http') expect((await joiner.getSpace(space.id)).myRole).toBe('editor');
+
+      const second = await owner.createJoinLink(space.id, 'reader');
+      expect((await joiner.joinSpace(second.code)).id).toBe(space.id);
+      await expect(joiner.joinSpace('nosuchcode123')).rejects.toMatchObject({ name: 'ApiError', kind: 'not-found' });
+    } finally {
+      fake.state.joinLinks = false;
+    }
+  });
+
   it('an unknown session rejects', async () => {
     await expect(make().getSession(kind === 'mock' ? 's-nope' : '00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(Error);
   });
@@ -416,6 +522,110 @@ describe('http adapter — the edge', () => {
     const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
     await expect(a.listSkills()).rejects.toMatchObject({ name: 'ApiError', kind: 'not-found', status: 404 });
     expect((await a.listSpaces()).length).toBeGreaterThan(0);
+  });
+
+  it('creating a space sends exactly {name, slug}; a 409 for that slug moves on to the next suffix', async () => {
+    const bodies: unknown[] = [];
+    let refused = 0;
+    server.use(
+      http.post(`${BASE}/v1/projects`, async ({ request }) => {
+        const body = (await request.clone().json()) as { slug: string };
+        bodies.push(body);
+        if (body.slug === 'harbour-ops' && refused++ === 0) return HttpResponse.json({ data: null, error: { code: 'slug_taken', message: 'slug already taken' }, meta: null }, { status: 409 });
+        return undefined; // fall through to the fake server
+      }),
+    );
+    const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    const space = await a.createSpace({ name: 'Harbour Ops', description: 'kept on this Mac' });
+    expect(space.slug).toBe('harbour-ops-2');
+    expect(bodies).toEqual([
+      { name: 'Harbour Ops', slug: 'harbour-ops' },
+      { name: 'Harbour Ops', slug: 'harbour-ops-2' },
+    ]);
+  });
+
+  it('the server’s 400 “project slug already exists” is a taken slug too, and a slug this person can already see is never sent', async () => {
+    const seen: string[] = [];
+    server.use(
+      http.post(`${BASE}/v1/projects`, async ({ request }) => {
+        const body = (await request.clone().json()) as { slug: string };
+        seen.push(body.slug);
+        if (body.slug === 'northgate-2') return HttpResponse.json({ data: null, error: { code: 'validation_error', message: 'project slug already exists' }, meta: null }, { status: 400 });
+        return undefined;
+      }),
+    );
+    const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    // "northgate" is already one of Pratham's spaces: it is skipped without asking.
+    expect((await a.createSpace({ name: 'Northgate' })).slug).toBe('northgate-3');
+    expect(seen).toEqual(['northgate-2', 'northgate-3']);
+  });
+
+  it('capabilities: routes production does not have read false (Nest’s “Cannot PATCH …”), and true once the server has them', async () => {
+    expect(await new HttpClient({ baseUrl: BASE, token: fake.tokens.a }).capabilities()).toEqual({ moveSession: false, joinLinks: false });
+    fake.state.moveSession = true;
+    fake.state.joinLinks = true;
+    try {
+      expect(await new HttpClient({ baseUrl: BASE, token: fake.tokens.a }).capabilities()).toEqual({ moveSession: true, joinLinks: true });
+    } finally {
+      fake.state.moveSession = false;
+      fake.state.joinLinks = false;
+    }
+    const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    const space = (await a.listSpaces()).find((s) => !s.personal)!;
+    const session = await a.createSession({ source: 'note', title: 'Stays put', spaceId: space.id });
+    await expect(a.moveSession(session.id, space.id)).rejects.toMatchObject({ kind: 'not-found', status: 404, code: 'http_exception' });
+    await expect(a.joinSpace('abcdef123')).rejects.toMatchObject({ kind: 'not-found', code: 'http_exception' });
+  });
+
+  it('a teammate: the shared space is in their list with their role, they save into it, and everyone sees who saved what', async () => {
+    const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    const b = new HttpClient({ baseUrl: BASE, token: fake.tokens.b });
+    const space = await a.createSpace({ name: 'Kestrel rollout' });
+    const kickoff = await a.createSession({ source: 'note', title: 'Kickoff', spaceId: space.id, text: 'x' });
+    await a.saveFact({ sessionId: kickoff.id, spaceId: space.id, statement: 'Kestrel ships to the first ten stores in March', kind: 'decision' });
+    await a.inviteByEmail({ type: 'space', id: space.id }, 'ana@openkt.test', 'editor');
+
+    const listed = (await b.listSpaces()).find((s) => s.id === space.id);
+    expect(listed).toMatchObject({ name: 'Kestrel rollout', personal: false, myRole: 'editor' });
+    const note = await b.createSession({ source: 'voice', title: 'Store visit', spaceId: space.id, text: 'The Kestrel shelf labels need a bigger font' });
+    await b.saveFact({ sessionId: note.id, spaceId: space.id, statement: 'Kestrel shelf labels need a bigger font', kind: 'issue' });
+
+    // The owner: every session and fact says whose it is.
+    const fresh = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    expect((await fresh.listSessions({ spaceId: space.id })).map((s) => [s.title, s.authorName])).toEqual([
+      ['Store visit', 'Ana Reyes'],
+      ['Kickoff', 'Pratham Bhatnagar'],
+    ]);
+    expect((await fresh.listSpaceContext(space.id)).map((c) => [c.statement, c.author])).toEqual([
+      ['Kestrel shelf labels need a bigger font', 'Ana Reyes'],
+      ['Kestrel ships to the first ten stores in March', 'Pratham Bhatnagar'],
+    ]);
+    expect((await fresh.getSession(note.id)).authorName).toBe('Ana Reyes');
+
+    // The teammate may not list the grants: they see the owner, themselves, and who has saved things — and are told it is not everyone.
+    const view = await new HttpClient({ baseUrl: BASE, token: fake.tokens.b }).listSpaceMembers(space.id);
+    expect(view.complete).toBe(false);
+    expect(view.members.map((m) => [m.name, m.role, Boolean(m.you)])).toEqual([
+      ['Pratham Bhatnagar', 'owner', false],
+      ['Ana Reyes', 'editor', true],
+    ]);
+  });
+
+  it('search everything reaches a space someone shared with me, and each hit says who saved it and where', async () => {
+    const a = new HttpClient({ baseUrl: BASE, token: fake.tokens.a });
+    const space = await a.createSpace({ name: 'Osprey pricing' });
+    const s = await a.createSession({ source: 'note', title: 'Pricing', spaceId: space.id, text: 'x' });
+    await a.saveFact({ sessionId: s.id, spaceId: space.id, statement: 'Osprey tiers are priced per warehouse', kind: 'decision' });
+    await a.inviteByEmail({ type: 'space', id: space.id }, 'ana@openkt.test', 'reader');
+
+    const b = new HttpClient({ baseUrl: BASE, token: fake.tokens.b });
+    const hits = await b.recall('osprey tiers warehouse');
+    expect(hits.map((h) => [h.type, h.title, h.author, h.spaceName, h.kind, h.href])).toEqual([
+      ['context', 'Osprey tiers are priced per warehouse', 'Pratham Bhatnagar', 'Osprey pricing', 'decision', `/sessions/${s.id}/context`],
+    ]);
+    // A session found by its title says whose it is and where, too.
+    const byTitle = (await new HttpClient({ baseUrl: BASE, token: fake.tokens.b }).recall('pricing')).find((h) => h.type === 'session' && h.id === s.id);
+    expect(byTitle).toMatchObject({ author: 'Pratham Bhatnagar', spaceName: 'Osprey pricing' });
   });
 
   it('a teammate sees a granted space’s context; a stranger gets not-found; neither can manage access', async () => {
