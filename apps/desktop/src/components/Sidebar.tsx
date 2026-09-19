@@ -1,7 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { daysAgo, sessionListMeta } from '../api/format';
-import { useQuery } from '../api/hooks';
+import { ApiError } from '../api/errors';
+import { useClient, useQuery } from '../api/hooks';
 import type { SessionListItem, Space } from '../api/types';
+import { useConnection } from '../state/connection';
+import { ErrorNote } from './bits';
 import { Icon, SOURCE_ICON, type IconName } from './Icon';
 import { SetupProgress } from './SetupProgress';
 import { UpdatePill } from './UpdatePill';
@@ -33,20 +36,38 @@ function NavRow({ to, icon, label, active }: { to: string; icon: IconName; label
   );
 }
 
+/** Where the data on screen comes from: the server's host, or sample data. Never a fixed word. */
+function statusLabel(kind: 'mock' | 'http', baseUrl: string, offline: boolean): string {
+  if (kind === 'mock') return 'sample data';
+  if (offline) return 'offline';
+  try {
+    return new URL(baseUrl).host || 'server';
+  } catch {
+    return 'server';
+  }
+}
+
 export function Sidebar({ onSearch }: { onSearch: () => void }) {
   const { pathname } = useLocation();
+  const client = useClient();
+  const { settings } = useConnection();
   const sessions = useQuery((c) => c.listSessions({ mine: true }), []);
   const spaces = useQuery((c) => c.listSpaces(), []);
   const spaceById = new Map<string, Space>((spaces.data ?? []).map((s) => [s.id, s]));
+  const offline = sessions.error instanceof ApiError && sessions.error.kind === 'network';
+  const retry = () => {
+    sessions.reload();
+    spaces.reload();
+  };
 
   return (
     <nav aria-label="Sessions" className="sidebar">
       <div className="sidebar__drag" aria-hidden="true" />
       <div className="sidebar__brand">
         <span className="sidebar__name">OpenKT</span>
-        <span className="sidebar__status mono">
-          <span className="sidebar__dot" />
-          local
+        <span className="sidebar__status mono" title={client.kind === 'http' ? settings.baseUrl : 'Sample data — not signed in to a server'}>
+          <span className={`sidebar__dot${offline || client.kind === 'mock' ? ' sidebar__dot--off' : ''}`} />
+          {statusLabel(client.kind, settings.baseUrl, offline)}
         </span>
       </div>
       <button type="button" className="searchbtn" onClick={onSearch}>
@@ -57,6 +78,12 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
       <div style={{ height: 6, flexShrink: 0 }} />
       <NavRow to="/new" icon="plus" label="New note" active={pathname === '/new'} />
       <div className="sidebar__sessions">
+        {sessions.error && !sessions.data?.length && (
+          <div className="sidebar__note">
+            <ErrorNote error={sessions.error} onRetry={retry} />
+          </div>
+        )}
+        {!sessions.error && !sessions.loading && sessions.data?.length === 0 && <p className="sidebar__note">No sessions yet. Write a note and it lands here — and in ⌘K.</p>}
         {group(sessions.data ?? []).map(([label, rows]) => (
           <div key={label} className="sidebar__group" role="group" aria-label={label}>
             <div className="sidebar__label mono">{label}</div>
