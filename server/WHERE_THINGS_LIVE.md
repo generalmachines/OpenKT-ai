@@ -21,7 +21,8 @@ DATABASE_URL=postgres://… npm run test:e2e   # database tests skip themselves 
 | Facts (T1) — still called memories | `modules/memory/` · table `memories` (keyword column is **`content_tsv`**) |
 | Recall (hybrid search, fusion, rerank hook) | `modules/memory/services/local-memory-engine.service.ts` (class `LocalMemoryEngine`, `search()`), `memory-recall.service.ts` |
 | Who can see what | `modules/access/access-scope.service.ts`, `libs/auth/authorization/src/access-policy.ts` |
-| Grants, share by email | `modules/grants/` · tables `grants`, **`pending_grants`** (a share waiting for its email to sign up; converted in `GrantRepository.convertPendingForEmail`) |
+| Grants, share by email | `modules/grants/` · tables `grants`, **`pending_grants`** (a share waiting for its email to sign up; converted in `GrantRepository.convertPendingForEmail`) · resource types `project`, `session`, `skill` — a new one goes in `GrantRepository.findResourceOwner` and in both tables' `resource_type` CHECK |
+| Skills (shared, versioned folders: a `SKILL.md` + optional text files) | `modules/skills/` — REST `/v1/skills`, access rules in `services/skills-application.service.ts`, folder limits + frontmatter parser `services/skill-files.ts`, the sign-up starter skill `services/starter-skill.ts` · tables **`skills`, `skill_versions`** (one immutable row per save), **`skill_runs`** · MCP tools `kt_list_skills`, `kt_get_skill`, `kt_save_skill` |
 | MCP tools and server instructions | `modules/mcp/services/mcp-server-factory.service.ts` |
 | Sign-up, sign-in, sign-out (email + password, Google) | `modules/accounts/` — `POST /v1/auth/{signup,login,google,logout,password}`, `GET /v1/auth/providers` · tables **`user_credentials`, `login_attempts`** · hashing `services/password-hasher.ts` (Node scrypt) · limits `services/login-attempts.service.ts` |
 | Sessions of signed-in people | there is no session table: a sign-in mints an access token named `session:<client>` through `modules/personal-tokens/` (table `personal_access_tokens`); logout revokes it |
@@ -41,6 +42,7 @@ Rules that bite:
 - **Never name a table `sessions`.** Older databases already have an unrelated table with that name. Ours are `kt_sessions` and `kt_session_turns`.
 - The database says `projects` and `memories`; the product says spaces and facts. Keep the database words in SQL and in API paths.
 - Additive migrations only. Never edit a migration that has been merged.
+- JSON request bodies may be up to 3 MB (a skill carries up to 1 MB of text). The limit is set once in `main.ts` with `app.useBodyParser("json", …)` — globally, never on a path.
 - There is one memory engine, `LocalMemoryEngine` (plain Postgres: pgvector + `tsvector`, fused in SQL). `OPENKT_MEMORY_ENGINE` accepts only `local`.
 - Removed features keep their tables: `memmachine_nodes`, `memory_external_refs`, `waitlist`, `project_code_graphs`, `org_secrets`, `service_health` still exist in the database (migrations are append-only) but have no Drizzle definition and no code. Do not reuse those names.
 - To use `@openkt/pipeline`, `@openkt/recall` or `@openkt/agents` from here, add them as `"file:../packages/<name>"` dependencies and build that package first.

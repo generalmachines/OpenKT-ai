@@ -1,7 +1,7 @@
 // Live proof against the running server over real HTTP (REST + MCP). Exit 1 on any failure.
 // Usage: OPENKT_LIVE_URL=http://host:3300 OPENKT_LIVE_TOKEN=<A> OPENKT_LIVE_TOKEN_B=<teammate> OPENKT_LIVE_TOKEN_C=<stranger> node scripts/live-proof.mjs
 // The three tokens must belong to three different users; B and C must have no access to anything of A's.
-// OPENKT_LIVE_SIGNUP=1 adds the built-in-accounts block (sign up, share by email, log out). With it set and no
+// OPENKT_LIVE_SIGNUP=1 adds the built-in-accounts block (sign up, share by email, shared skills, log out). With it set and no
 // tokens given, A, B and C are signed up through the API too — a fresh server needs no seeding at all.
 // (Sign-ups are limited to 10 per address per 15 minutes; one run uses 5 without tokens, 2 with.)
 const BASE = process.env.OPENKT_LIVE_URL ?? "http://127.0.0.1:3300";
@@ -99,6 +99,25 @@ if (SIGNUP) {
   r = await api("S2", "POST", "/v1/memories/recall", { query: "how many shifts will the Harbour warehouse run?", project_id: SP, limit: 5 }); const sItems = Array.isArray(r.data) ? r.data : (r.data?.items ?? r.data?.memories ?? []);
   check("S2 recalls S1's fact from the space shared by email", r.status === 200 && /two shifts/i.test(sItems[0]?.content ?? sItems[0]?.text ?? ""), (sItems[0]?.content ?? "").slice(0, 60));
   r = await api("S2", "GET", `/v1/projects/${SP}/grants`); check("S2 (a reader) cannot list the grants or see S1's email", (r.status === 403 || r.status === 404) && !JSON.stringify(r).includes(T.S1.email), `status ${r.status}`);
+
+  // skills: shared through the space, versioned, readable by its readers, editable only by editors
+  r = await api("S1", "GET", "/v1/skills"); check("S1 starts with the starter skill 'How to use OpenKT'", r.status === 200 && (r.data ?? []).some((s) => s.slug === "how-to-use-openkt" && s.my_role === "owner"), `skills ${(r.data ?? []).length}`);
+  const skillV1 = "---\nname: harbour-shift-handover\ndescription: How the Harbour warehouse hands over between shifts. Use when planning or running a shift change.\n---\n\n# Harbour shift handover\n\n1. Walk the dock with the next lead.\n2. Hand over the open pick list.\n";
+  r = await api("S1", "POST", "/v1/skills", { title: "Harbour shift handover", project_id: SP, files: [{ path: "SKILL.md", content: skillV1 }, { path: "references/checklist.md", content: "# Checklist\n\n- Forklift keys\n- Radio\n" }], change_note: "first draft" });
+  check("S1 creates a skill in the shared space (v1, two files)", r.status === 201 && r.data?.current_version === 1 && r.data?.files?.length === 2, `status ${r.status} ${r.error?.code ?? ""}`); const SK = r.data?.id;
+  r = await api("S2", "GET", `/v1/skills?project_id=${SP}`); check("S2 (space reader) lists it with role reader", r.status === 200 && (r.data ?? []).some((s) => s.id === SK && s.my_role === "reader"), `status ${r.status}`);
+  r = await api("S2", "GET", `/v1/skills/${SK}`); check("S2 opens it and reads the SKILL.md content", r.status === 200 && r.data?.files?.[0]?.path === "SKILL.md" && /Walk the dock/.test(r.data.files[0].content), `status ${r.status}`);
+  r = await api("S2", "PUT", `/v1/skills/${SK}`, { files: [{ path: "SKILL.md", content: skillV1 + "3. S2 was here.\n" }], base_version: 1 }); check("S2 cannot save a new version (403/404)", r.status === 403 || r.status === 404, `status ${r.status}`);
+  r = await api("S1", "PUT", `/v1/skills/${SK}`, { files: [{ path: "SKILL.md", content: skillV1 + "3. Sign the handover sheet.\n" }, { path: "references/checklist.md", content: "# Checklist\n\n- Forklift keys\n- Radio\n" }], change_note: "add the sign-off", base_version: 1 });
+  check("S1 saves v2", r.status === 200 && r.data?.current_version === 2 && r.data?.versions?.[0]?.change_note === "add the sign-off", `status ${r.status}`);
+  r = await api("S1", "PUT", `/v1/skills/${SK}`, { files: [{ path: "SKILL.md", content: skillV1 }], base_version: 1 }); check("A save from a stale base_version is a 409 version_conflict", r.status === 409 && r.error?.code === "version_conflict", `status ${r.status}`);
+  r = await api("S2", "GET", `/v1/skills/${SK}`); check("S2 sees v2", r.status === 200 && r.data?.current_version === 2 && /Sign the handover sheet/.test(r.data?.files?.[0]?.content ?? ""), `v${r.data?.current_version}`);
+  r = await mcp("S2", "kt_get_skill", { skill: "harbour-shift-handover", project: SP }); check("S2 reads it over MCP (kt_get_skill), reference files included", !r.error && !r.result?.isError && /Sign the handover sheet/.test(r.text) && r.text.includes("--- references/checklist.md ---"), r.text.slice(0, 40).replace(/\n/g, " "));
+  r = await api("C", "GET", `/v1/skills/${SK}`); check("Stranger C cannot open the skill (404)", r.status === 404, `status ${r.status}`);
+  r = await api("C", "GET", "/v1/skills"); check("Stranger C does not see it in their list", r.status === 200 && !(r.data ?? []).some((s) => s.id === SK), `skills ${(r.data ?? []).length}`);
+  r = await mcp("C", "kt_get_skill", { skill: "harbour-shift-handover" }); check("Stranger C gets nothing over MCP", !!(r.error || r.result?.isError) && !/Walk the dock/.test(r.text));
+  r = await api("S1", "GET", `/v1/skills/${SK}`); check("The MCP read counted as one use", r.data?.run_count === 1 && r.data?.run_count_30d === 1, `runs ${r.data?.run_count}`);
+
   h = await raw(null, "POST", "/v1/auth/login", { email: T.S1.email, password: "definitely-the-wrong-one" }); j = await h.json().catch(() => null); check("A wrong password is a generic 401", h.status === 401 && j?.error?.code === "invalid_credentials", j?.error?.message);
   h = await raw(null, "POST", "/v1/auth/login", { email: T.S1.email, password: T.S1.password, client: "cli" }); j = await h.json().catch(() => null); check("S1 logs in again with the password → a second session", h.status === 200 && /^okt_pat_/.test(j?.data?.token ?? "") && j.data.token !== T.S1.token);
   const second = j?.data?.token;
