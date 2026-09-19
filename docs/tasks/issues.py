@@ -25,6 +25,11 @@ dict(key="S4", who="senior", ms=M02, title="Review and tune agent prompts agains
   context="Prompts and schemas in `packages/agents` are senior-owned (AGENTS.md rule 5).",
   steps=["Run `npm run eval -w @openkt/agents` against Qwen3.5-4B.", "Tune until valid-JSON ≥ 99 % and quote-gate drops < 15 %.", "Record the table in `packages/agents/EVAL.md`."], accept=["EVAL.md committed with the table and the model id used."], deps=[]),
 
+dict(key="S5", who="senior", ms=M02, title="Server cleanup phase B: remove the broker plumbing and the old worker pipeline",
+  context="Phase A removed what the new product never uses (graph, MemMachine, waitlist, spikes). Phase B removes what the new job queue and pipeline replace: RabbitMQ, SQS, the outbox relay, and the old worker stages (preprocess, embed, triage, episode, synthesize, briefing, member knowledge). It can only happen once their replacements run, because today the old embed stage is what gives new facts their vectors.",
+  steps=["Confirm the Postgres job queue and job handlers J1–J8 are merged and the proof test passes with `OPENKT_QUEUE_BACKEND=postgres` and no broker configured.", "Delete `apps/worker/src/modules/{mq,outbox,memory-engine}` and the server-side publishers; drop `amqplib` and the AWS SQS client from dependencies; remove every `RABBITMQ_*`, `RMQ_*`, `OPENKT_SQS_*`, `OUTBOX_*` variable.", "Fold `briefing`, `briefings` and `member-knowledge` into the new brief (T3) code; delete what is left.", "Add one migration that drops the tables of removed features (`memmachine_nodes`, `project_code_graphs`, `waitlist`, `outbox`, `episodes`, `episode_memories`, `memory_neighbors`, `service_health`, legacy briefing caches) after checking nothing reads them.", "Replace Supabase-bound auth paths once built-in sign-in has shipped."],
+  accept=["`docker compose up` works with Postgres as the only stateful service.", "Proof test, unit and e2e suites pass.", "`grep -ri 'rabbit\\|amqp\\|sqs\\|outbox\\|memmachine\\|neo4j' server/apps server/libs` returns nothing."], deps=["J9", "J31", "J32", "S2"]),
+
 # ───────────────────────────── 0.1 · recall ─────────────────────────────
 dict(key="J1", who="junior", ms=M01, title="recall: reciprocal rank fusion `fuse()`",
   context="Recall merges a vector list and a keyword list into one ranking (Spec 01 §4 step 3).",

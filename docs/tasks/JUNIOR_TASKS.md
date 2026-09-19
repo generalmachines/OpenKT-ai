@@ -101,6 +101,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
 | #4 S4 | senior | Review and tune agent prompts against the evaluation set | — |
+| #48 S5 | senior | Server cleanup phase B: remove the broker plumbing and the old worker pipeline | #13, #26, #27, #2 |
 | #17 J20 | junior | pipeline: `chunkTurns()` | — |
 | #18 J21 | junior | pipeline: `quoteGate()` | #10 |
 | #19 J22 | junior | pipeline: `capFacts()` and `mapKind()` | — |
@@ -132,6 +133,27 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] EVAL.md committed with the table and the model id used.
 
 **Depends on:** nothing — can start now
+
+
+### S5 · Server cleanup phase B: remove the broker plumbing and the old worker pipeline  #48
+
+`senior` `blocked`
+
+**Context.** Phase A removed what the new product never uses (graph, MemMachine, waitlist, spikes). Phase B removes what the new job queue and pipeline replace: RabbitMQ, SQS, the outbox relay, and the old worker stages (preprocess, embed, triage, episode, synthesize, briefing, member knowledge). It can only happen once their replacements run, because today the old embed stage is what gives new facts their vectors.
+
+**Do exactly this**
+1. Confirm the Postgres job queue and job handlers J1–J8 are merged and the proof test passes with `OPENKT_QUEUE_BACKEND=postgres` and no broker configured.
+2. Delete `apps/worker/src/modules/{mq,outbox,memory-engine}` and the server-side publishers; drop `amqplib` and the AWS SQS client from dependencies; remove every `RABBITMQ_*`, `RMQ_*`, `OPENKT_SQS_*`, `OUTBOX_*` variable.
+3. Fold `briefing`, `briefings` and `member-knowledge` into the new brief (T3) code; delete what is left.
+4. Add one migration that drops the tables of removed features (`memmachine_nodes`, `project_code_graphs`, `waitlist`, `outbox`, `episodes`, `episode_memories`, `memory_neighbors`, `service_health`, legacy briefing caches) after checking nothing reads them.
+5. Replace Supabase-bound auth paths once built-in sign-in has shipped.
+
+**Acceptance — every line must be true and tested**
+- [ ] `docker compose up` works with Postgres as the only stateful service.
+- [ ] Proof test, unit and e2e suites pass.
+- [ ] `grep -ri 'rabbit\|amqp\|sqs\|outbox\|memmachine\|neo4j' server/apps server/libs` returns nothing.
+
+**Depends on:** #13, #26, #27, #2
 
 
 ### J1 · recall: reciprocal rank fusion `fuse()`  #5
