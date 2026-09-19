@@ -82,14 +82,32 @@ export class MemoryQueriesApplicationService {
     context: ActorContext,
     input: MemorySearchRequest,
   ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: MemorySearchMeta }> {
-    const primaryProjectId = input.filters.project_ids?.[0];
+    const requested = [...new Set(input.filters.project_ids ?? [])];
+    const primaryProjectId = requested[0];
     if (!primaryProjectId) {
       throw new ValidationDomainError(
         "search requires filters.project_ids with at least one project",
       );
     }
 
-    await requireProjectAccess(context, primaryProjectId, "read");
+    // The engine searches EVERY id in the list, so every id is authorised —
+    // not just the first. One unreadable id makes the whole request a 404
+    // (Spec 04: a resource the caller cannot read is 404). The error is the
+    // same whichever id failed and whether or not that space exists, so the
+    // response never tells a caller which of their ids names a real space.
+    const denied = await Promise.all(
+      requested.map((projectId) =>
+        requireProjectAccess(context, projectId, "read").then(
+          () => false,
+          (err: unknown) => {
+            if (err instanceof NotFoundDomainError) return true;
+            throw err;
+          },
+        ),
+      ),
+    );
+    if (denied.some(Boolean)) throw new NotFoundDomainError("project");
+
     const workspaceIds = await this.projectScopeService.workspaceRing(context, primaryProjectId);
     const scope = await this.accessScopeService.visibleScope(context);
     const result = await this.memoryEngine.search(context, input, workspaceIds, scope.sessionIds);

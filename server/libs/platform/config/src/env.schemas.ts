@@ -85,6 +85,21 @@ const baseEnvironmentSchema = z.object({
   // come from the proxy's address and the per-IP sign-in limit is shared by
   // everyone. Leave unset when clients connect directly.
   OPENKT_TRUST_PROXY: z.string().min(1).optional(),
+  // Signs the CSRF token on the OAuth sign-in page (/oauth/authorize). Optional:
+  // unset, the key is derived from OPENKT_INTERNAL_SERVICE_TOKEN, then
+  // OPENKT_MCP_SERVICE_KEY, then DATABASE_URL — values every replica shares.
+  OPENKT_FORM_SECRET: z.string().min(16).optional(),
+  // Sign-in limits (LoginAttemptsService). Failed logins: per email and per IP
+  // in 15 minutes. Sign-ups: per IP in an hour — generous, because a whole
+  // venue can share one address. Successful logins and sign-ups never count
+  // against an email.
+  OPENKT_AUTH_MAX_FAILED_LOGINS_PER_EMAIL: z.coerce.number().int().min(1).default(10),
+  OPENKT_AUTH_MAX_FAILED_LOGINS_PER_IP: z.coerce.number().int().min(1).default(100),
+  OPENKT_AUTH_MAX_SIGNUPS_PER_IP: z.coerce.number().int().min(1).default(300),
+  // Public addresses written into join links (`<OPENKT_PUBLIC_URL>/join/<code>`)
+  // and shown on the /connect page as the MCP server URL.
+  OPENKT_PUBLIC_URL: z.string().url().default("https://api.openkt.ai"),
+  OPENKT_MCP_URL: z.string().url().default("https://mcp.openkt.ai/mcp"),
   // Supabase sign-in — optional, all-or-nothing (see ensureSupabaseIsAllOrNothing).
   SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL").optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),

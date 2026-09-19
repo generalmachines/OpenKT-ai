@@ -56,10 +56,19 @@ const PATHS = {
     </>
   ),
   down: <path d="M6 9l6 6 6-6" />,
+  /** Not on the canvas: the Accessibility permission row (a pointer). */
+  cursor: <path d="M6 3.5l12 7.2-5.3 1.3 3.1 6.1-2.4 1.2-3.1-6.1L6.5 17z" />,
   agent: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="3" />
       <path d="M12 8V4M9 13v1.5M15 13v1.5" />
+    </>
+  ),
+  x: <path d="M6 6l12 12M18 6L6 18" />,
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a1 1 0 0 1 1-1h9" />
     </>
   ),
 } as const;

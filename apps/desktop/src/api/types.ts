@@ -63,6 +63,51 @@ export interface Space {
   sessionCount: number;
   /** ISO timestamp of the last change to any page or session. */
   updatedAt: string;
+  /** Who made it. */
+  ownerId?: Id;
+  /** What the signed-in person may do here: an owner shares it, an editor saves into it, a reader only reads. */
+  myRole?: Role;
+}
+
+/** New space: a name (the slug is made from it), and an optional line about what goes in it. */
+export interface NewSpaceInput {
+  name: string;
+  description?: string;
+}
+
+/** Someone with access to a space, as its page lists them. */
+export interface SpaceMember {
+  id: Id;
+  name: string;
+  initials: string;
+  email?: string;
+  /** Unknown when the server does not tell a non-owner who else is in the space. */
+  role?: Role;
+  /** Invited by email and not signed up yet. */
+  pending?: boolean;
+  team?: boolean;
+  you?: boolean;
+}
+
+export interface SpaceMembers {
+  members: SpaceMember[];
+  /** False when only the owner may see the whole list, and this is what the signed-in person could piece together. */
+  complete: boolean;
+}
+
+/** A link that lets anyone who has it join a space with `role`. */
+export interface JoinLink {
+  code: string;
+  url: string;
+  role: Role;
+}
+
+/** What this server can do beyond the basics. A route it does not have reads as false, and the screens hide that control. */
+export interface Capabilities {
+  /** `PATCH /v1/sessions/:id {project_id}` */
+  moveSession: boolean;
+  /** `POST /v1/projects/:id/join-links` and `POST /v1/join` */
+  joinLinks: boolean;
 }
 
 export interface Turn {
@@ -81,11 +126,14 @@ export interface Session {
   status: SessionStatus;
   spaceId: Id;
   authorId: Id;
+  /** Who saved it, as a name. Empty when the server does not say. */
+  authorName?: string;
   createdAt: string;
   /** Seconds; only meaningful for meetings and voice notes. */
   durationSec?: number;
   /** Where extraction ran. */
-  extractedOn: 'device' | 'server';
+  /** Where the context was pulled out: this Mac, the server, or nowhere (saved as written). */
+  extractedOn: 'device' | 'server' | 'none';
   turns: Turn[];
 }
 
@@ -100,6 +148,8 @@ export interface ContextItem {
   quote?: string;
   /** Attribution as shown: people who said it, or "open" for questions. */
   author: string;
+  /** The person who saved it, when known. */
+  authorId?: Id;
   sessionId: Id;
   spaceId: Id;
   tags: string[];
@@ -143,7 +193,7 @@ export interface Page {
 
 export type PageListItem = Pick<Page, 'id' | 'spaceId' | 'title' | 'summary' | 'sessionCount' | 'updatedAt'>;
 
-export type ResourceRef = { type: 'session' | 'space'; id: Id };
+export type ResourceRef = { type: 'session' | 'space' | 'skill'; id: Id };
 
 export interface GrantSubject {
   type: 'user' | 'team';
@@ -183,21 +233,61 @@ export interface Connector {
   defaultAccess: Id;
 }
 
-export interface Skill {
-  id: Id;
-  name: string;
-  description: string;
-  /** "v4 · used 31 times this month" */
-  meta: string;
-  /** "marketing · sales" | "only me" */
-  sharedWith: string;
-  version: number;
+/** One text file inside a skill. `SKILL.md` is always there; the rest are references it points at. */
+export interface SkillFile {
+  /** Relative, forward slashes: "SKILL.md", "references/voice.md". */
+  path: string;
+  content: string;
+  bytes: number;
 }
 
-export interface SkillRun {
-  skillId: Id;
-  output: string;
-  model: string;
+export type SkillFileInput = Pick<SkillFile, 'path' | 'content'>;
+
+export interface SkillVersion {
+  version: number;
+  /** One line from whoever saved it; may be empty. */
+  changeNote: string;
+  createdBy: { id: Id; name: string };
+  createdAt: string;
+}
+
+/** A row in the library. */
+export interface SkillSummary {
+  id: Id;
+  /** What connected tools call it: "sharpen-marketing-message". */
+  slug: string;
+  title: string;
+  description: string;
+  /** Empty for a skill that lives in nobody's space but the owner's personal one. */
+  spaceId: Id;
+  spaceName: string;
+  owner: { id: Id; name: string };
+  currentVersion: number;
+  updatedAt: string;
+  runCount30d: number;
+  /** What the signed-in person may do with it. A skill they cannot read does not exist for them. */
+  myRole: Role;
+}
+
+/** A skill opened: its current files and its history, newest first. */
+export interface Skill extends SkillSummary {
+  files: SkillFile[];
+  versions: SkillVersion[];
+}
+
+export interface NewSkillInput {
+  title: string;
+  /** None → the personal space. */
+  spaceId?: Id;
+  /** None → the server writes a starter SKILL.md. */
+  files?: SkillFileInput[];
+}
+
+export interface SaveSkillInput {
+  files: SkillFileInput[];
+  changeNote?: string;
+  /** The version this edit started from. Someone else saving first makes the save a conflict. */
+  baseVersion: number;
 }
 
 export type ModelJob = 'dictation' | 'meetings' | 'understanding' | 'images' | 'search' | 'reranking';
@@ -225,6 +315,10 @@ export interface RecallHit {
   meta: string;
   kind?: ContextKind;
   source?: SessionSource;
+  /** Who saved it. */
+  author?: string;
+  /** The space it lives in. */
+  spaceName?: string;
   /** Route inside the app. */
   href: string;
 }
@@ -256,4 +350,6 @@ export interface NewSessionInput {
   text?: string;
   /** Or several turns, in order (a screenshot: caption, description, text in image). Wins over `text`. */
   turns?: string[];
+  /** `none`: nothing was extracted on this Mac; the session must not say it was. Default `device`. */
+  extractedOn?: 'device' | 'none';
 }

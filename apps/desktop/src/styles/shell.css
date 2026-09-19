@@ -59,6 +59,20 @@
   background: var(--ok-dot);
   display: inline-block;
 }
+.sidebar__dot--off {
+  background: var(--ink-3);
+}
+/* The session list's own states: nothing yet, or the server did not answer. */
+.sidebar__note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+  padding: 14px 10px 6px;
+}
+.sidebar__note .errornote {
+  padding: 0;
+  gap: 8px;
+}
 .searchbtn {
   display: flex;
   gap: 10px;

@@ -1,6 +1,8 @@
 node_modules
 **/node_modules
 **/dist
+# …except the built MCP Apps cards bundle, which the API image serves as ui://openkt/cards.html.
+!packages/mcp-cards/dist/openkt-cards.html
 .git
 apps/desktop
 design

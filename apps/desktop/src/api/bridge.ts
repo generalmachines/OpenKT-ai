@@ -42,7 +42,11 @@ interface LooseBridge {
   auth?: { google?: { start?(input: { clientId: string; clientSecret?: string }): Promise<unknown>; cancel?(): Promise<unknown> } };
   secureStore?: { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void>; delete(k: string): Promise<void> };
   models?: { status?(): Promise<unknown>; ensure?(): Promise<unknown>; onProgress?(listener: (p: unknown) => void): () => void };
-  localAi?: { extractNote?(input: { text: string; source?: string }): Promise<unknown> };
+  localAi?: {
+    extractNote?(input: { text: string; source?: string }): Promise<unknown>;
+    /** Not in main yet. When a generic chat call lands under this name, running a skill on this Mac lights up. */
+    chat?(input: { system: string; user: string }): Promise<unknown>;
+  };
   voice?: {
     begin?(): Promise<unknown>;
     chunk?(id: string, pcm16: ArrayBuffer): unknown;
@@ -139,6 +143,17 @@ function toNote(v: unknown): ExtractedNote | null {
 
 export const localAi = {
   available: (): boolean => typeof bridge()?.localAi?.extractNote === 'function',
+  /** True only when main offers a generic chat call. Today it does not, and the Run sheet says so instead of pretending. */
+  canChat: (): boolean => typeof bridge()?.localAi?.chat === 'function',
+  /** Runs `user` under `system` on the local model. Throws when there is no chat call, when it fails, or when it says nothing. */
+  async chat(system: string, user: string): Promise<string> {
+    const ai = bridge()?.localAi;
+    if (typeof ai?.chat !== 'function') throw new Error('Local AI has no chat call on this build.');
+    const r = await ai.chat({ system, user });
+    const text = typeof r === 'string' ? r : r && typeof r === 'object' && typeof (r as { text?: unknown }).text === 'string' ? (r as { text: string }).text : '';
+    if (!text.trim()) throw new Error('The local model returned nothing.');
+    return text;
+  },
   /** null when local AI is absent, not ready, has nothing to say, or fails — the caller saves the note as written. */
   async extractNote(text: string): Promise<ExtractedNote | null> {
     const ai = bridge()?.localAi;

@@ -119,6 +119,25 @@ describe('voice pill', () => {
     expect(readPending()).toEqual([]);
   });
 
+  it('files into the space saved into last, and a space picked here becomes the next default', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('openkt.last-space', 'sp-northgate');
+    const { client, onClose, toggle, recorder } = mountVoice();
+    await waitFor(() => expect(recorder.start).toHaveBeenCalled());
+    toggle();
+    await screen.findByText(TRANSCRIPT);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('sales / northgate'));
+
+    await user.click(screen.getByRole('button', { name: /Save to/ }));
+    await user.click(screen.getByRole('option', { name: /engineering \/ openkt/ }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    const [s] = await voiceSessions(client);
+    expect(s).toMatchObject({ source: 'voice', spaceId: 'sp-openkt' });
+    expect(localStorage.getItem('openkt.last-space')).toBe('sp-openkt');
+  });
+
   it('an empty clip saves nothing and says so', async () => {
     fake.voice.end.mockResolvedValue({ empty: true });
     const { client, onClose, toggle, recorder } = mountVoice();
@@ -160,7 +179,7 @@ describe('voice pill', () => {
     expect(await voiceSessions(client)).toEqual([]);
   });
 
-  it('models not downloaded yet: saves without facts, says why, and files the facts once the models are ready', async () => {
+  it('models not downloaded yet: saves the words as written, says why, and files the facts once the models are ready', async () => {
     const user = userEvent.setup();
     fake.models.status.mockResolvedValue(modelRows('downloading'));
     const { client, onClose, toggle, recorder } = mountVoice();
@@ -174,7 +193,8 @@ describe('voice pill', () => {
     const [s] = await voiceSessions(client);
     expect(s).toMatchObject({ source: 'voice', status: 'closed' });
     expect(fake.voice.toSession).not.toHaveBeenCalled();
-    expect(await client.listContext(s!.id)).toEqual([]);
+    // Recallable at once: what was said is the context until the facts arrive.
+    expect((await client.listContext(s!.id)).map((c) => c.statement)).toEqual([TRANSCRIPT]);
     expect(readPending()).toEqual([{ sessionId: s!.id, spaceId: 'sp-personal', text: TRANSCRIPT }]);
 
     expect(await drainPending(client)).toBe(0); // still downloading: nothing happens
@@ -221,6 +241,19 @@ describe('screenshot sheet', () => {
     expect(s).toMatchObject({ source: 'screenshot', status: 'closed', title: SHOT.title, summary: SHOT.description, spaceId: 'sp-personal' });
     expect((await client.getSession(s!.id)).turns.map((t) => t.text)).toEqual([SHOT.description, `Text in image: ${SHOT.visible_text}`]);
     expect((await client.listContext(s!.id)).map((c) => c.statement)).toEqual([SHOT.facts[0]!.statement]);
+  });
+
+  it('the screenshot goes to the space saved into last', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('openkt.last-space', 'sp-ideas');
+    fake.screenshot.capture.mockResolvedValue(SHOT);
+    const { client, onClose } = mountShot();
+    await screen.findByRole('textbox', { name: 'Title' });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save to/ })).toHaveTextContent('ideas'));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const [s] = await voiceSessions(client);
+    expect(s).toMatchObject({ source: 'screenshot', spaceId: 'sp-ideas' });
   });
 
   it('a typed title becomes the caption turn, first (Spec 03 §4)', async () => {

@@ -1,0 +1,404 @@
+/* ── first run: permissions, on-device AI setup, try it ───────────────────
+   Not on the canvas as separate artboards: built in the Onboarding.dc.html frame
+   (rail left, step right) and the Models.dc.html rows, with the same tokens. */
+
+/* rail: a step put off for later, and the quiet way to put one off */
+.step--later .step__mark {
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+.step--later .step__title {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.onb__later {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+.onb__later:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+}
+
+/* ── permissions ── */
+.perms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 680px;
+}
+.perm {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.perm__icon {
+  color: var(--ink-2);
+  display: flex;
+}
+.perm .person__sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.perm__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.perm__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.perm__pill--granted .perm__dot {
+  background: var(--ok-dot);
+}
+.perm__pill--denied .perm__dot {
+  background: var(--accent);
+}
+.perm__pill--restricted .perm__dot,
+.perm__pill--unsupported .perm__dot {
+  background: var(--ink-3);
+}
+.perm .btn,
+.perm__done {
+  width: 172px;
+  flex-shrink: 0;
+}
+.perm__done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: center;
+  line-height: 1.4;
+}
+.perm--granted .perm__done {
+  color: var(--ok);
+}
+.perm--audio {
+  background: var(--side);
+}
+.perm__soon {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  font-size: 10.5px;
+  line-height: 17px;
+  color: var(--ink-3);
+  vertical-align: 1px;
+}
+.perm__relaunch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: var(--accent-wash);
+}
+.perm__relaunch .person__sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.perms__help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 600px;
+  margin-top: 10px;
+}
+.perms__how {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.perms__privacy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* settings nav: the reminder chip */
+.setnav__chip {
+  float: right;
+  margin-top: 1px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 83, 42, 0.25);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 17px;
+}
+
+/* ── on-device AI ── */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 680px;
+}
+.setup__summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.setup__total {
+  font-size: 14.5px;
+  font-weight: 500;
+}
+.setup__note {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--side);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.setup__card--warn {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.setup__row .person__sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.setup__row--error .person__sub {
+  color: var(--accent);
+}
+.setup__row--error .dl__bar span {
+  background: var(--accent);
+}
+.setup__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+}
+.setup__progress {
+  flex-grow: 1;
+}
+.setup__bundled {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.setup__inside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.setup__inside li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.setup__inside svg {
+  color: var(--ok);
+}
+.setup__inside .is-missing {
+  color: var(--ink-3);
+}
+.setup__inside-note {
+  font-size: 12.5px;
+}
+
+/* ── try it ── */
+.tryits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 680px;
+}
+.tryit {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.tryit--done {
+  background: var(--side);
+}
+.tryit__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tryit__how {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.tryit__status {
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.tryit__keys {
+  gap: 4px;
+  flex-shrink: 0;
+}
+.tryit__done {
+  width: auto;
+}
+.tryit__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0 32px;
+}
+.tryit__text {
+  height: auto;
+  min-height: 76px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.tryit__formfoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── sidebar footer: the download, until it is done ── */
+.sidesetup {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 10px 10px 9px;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.sidesetup:hover {
+  background: #f0efeb;
+  border-radius: 8px;
+}
+.sidesetup__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.sidesetup--attention .sidesetup__label {
+  color: var(--accent);
+}
+.sidesetup__pct {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.sidesetup__bar {
+  position: relative;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line);
+  overflow: hidden;
+}
+.sidesetup__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ink);
+  transition: width 200ms linear;
+}
+
+/* ── on-device AI as a choice: which open-source models, and the offer ── */
+.setup__promise {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.setup__model {
+  margin-top: 2px;
+}
+.setup__model a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+}
+.setup__model a:hover {
+  color: var(--ink);
+  text-decoration-color: var(--accent);
+}
+.setup__offer {
+  margin-bottom: 4px;
+}
+.setup__inside .small-meta {
+  margin-left: 2px;
+}
+.onb__foot .btn--ghost {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 22px;
+  font-size: 14px;
+}
+.offer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.offer .btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 12px;
+}
+.sheet__action {
+  align-self: flex-start;
+}

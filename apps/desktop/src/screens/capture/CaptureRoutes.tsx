@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { screenshot as screenshotIpc, voice as voiceIpc } from '../../api/bridge';
+import { useClient } from '../../api/hooks';
+import { useSaveSpace } from '../../components/useSaveSpace';
 import { MeetingPrompt, RecordingPill, ScreenshotSheet, VoiceSheet } from './parts';
 import { ScreenshotCapture } from './ScreenshotCapture';
 import { VoiceCapture } from './VoiceCapture';
@@ -77,7 +79,13 @@ export function CaptureOverlay() {
   const [voice, setVoice] = useState({ text: '', tentative: '', elapsedSec: 0, state: 'listening' as 'listening' | 'saved' });
   const [shot, setShot] = useState<string | null>(null);
   const [rec, setRec] = useState({ title: 'Meeting', elapsedSec: 0 });
-  const [space, setSpace] = useState(kind === 'screenshot' ? 'sp-northgate' : 'sp-ideas');
+  const [sampleSpace, setSampleSpace] = useState(kind === 'screenshot' ? 'sp-northgate' : 'sp-ideas');
+  // Signed in, even the simulated overlay lists the person's own spaces — never the artboard's sample ones.
+  const real = useClient().kind !== 'mock';
+  const saveSpace = useSaveSpace();
+  const picker = real
+    ? { spaceId: saveSpace.spaceId, onSpace: saveSpace.setSpaceId, spaces: saveSpace.options, spaceLabel: saveSpace.space?.personal ? 'Personal' : saveSpace.space?.name }
+    : { spaceId: sampleSpace, onSpace: setSampleSpace };
 
   useEffect(() => {
     document.documentElement.classList.add('is-overlay');
@@ -117,9 +125,8 @@ export function CaptureOverlay() {
   }
 
   let body: ReactNode = null;
-  if (kind === 'voice') body = <VoiceSheet {...voice} live hint="press the shortcut again to save" spaceId={space} onSpace={setSpace} />;
-  else if (kind === 'screenshot')
-    body = <ScreenshotSheet description={shot ?? ''} reading={shot === null} spaceId={space} onSpace={setSpace} onSave={() => void bridge?.overlay.close('screenshot')} />;
+  if (kind === 'voice') body = <VoiceSheet {...voice} live hint="press the shortcut again to save" {...picker} />;
+  else if (kind === 'screenshot') body = <ScreenshotSheet description={shot ?? ''} reading={shot === null} {...picker} onSave={() => void bridge?.overlay.close('screenshot')} />;
   else if (kind === 'meeting')
     body = <MeetingPrompt app="Google Meet" onRecord={() => void bridge?.capture.respondToMeeting(true)} onDecline={() => void bridge?.capture.respondToMeeting(false)} />;
   else if (kind === 'recording') body = <RecordingPill title={rec.title} elapsedSec={rec.elapsedSec} onStop={() => void bridge?.capture.stopMeeting()} />;

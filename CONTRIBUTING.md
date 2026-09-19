@@ -65,6 +65,16 @@ npm run typecheck
 npm run test:unit
 ```
 
+To see your changes:
+
+```
+npm run dev -w @openkt/desktop         # the app's UI in a browser with sample data, http://localhost:5173
+npm run start -w @openkt/desktop       # build and open the Electron app
+npm run preview -w @openkt/mcp-cards   # the MCP cards in a fake host, http://127.0.0.1:4180/preview.html
+```
+
+To run the server locally you need Postgres 16 with pgvector; [`server/README.md`](server/README.md) has the steps.
+
 Continuous integration runs the same commands on every pull request. A red check means the pull request is not done. Do not make a check pass by deleting tests, loosening types or ignoring errors.
 
 Two files are generated; edit the source, not the output:

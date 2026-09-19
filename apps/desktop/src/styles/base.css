@@ -114,6 +114,16 @@ p {
 .state {
   font-size: 11px;
 }
+/* A failed read: what went wrong in words, and Retry. */
+.errornote {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.errornote__retry {
+  font-family: inherit;
+}
 
 .rule {
   height: 1px;

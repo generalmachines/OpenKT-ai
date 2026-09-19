@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { projectVisibility } from "./enums";
 
@@ -17,11 +17,17 @@ export const projects = pgTable(
     // existing project. The redaction layer (separate agent) reads this
     // flag on every write into memories / episodes.
     allowSecrets: boolean("allow_secrets").notNull().default(false),
+    // THE personal space (migration 0043): one per person, made at sign-up or
+    // on first use. Never inferred from slug, visibility or age.
+    isPersonal: boolean("is_personal").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     orgSlug: unique("projects_org_slug_unique").on(t.orgId, t.slug),
+    onePersonalPerOwner: uniqueIndex("projects_one_personal_per_owner")
+      .on(t.ownerUserId)
+      .where(sql`${t.isPersonal}`),
   }),
 );
 

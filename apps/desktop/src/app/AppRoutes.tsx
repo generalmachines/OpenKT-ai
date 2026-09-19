@@ -1,5 +1,8 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { onboarding } from '../api';
 import { useQuery } from '../api/hooks';
+import { permissions } from '../api/setup-bridge';
+import { ErrorNote } from '../components/bits';
 import { Shell } from '../components/Shell';
 import { CaptureOverlay, CapturePreview } from '../screens/capture/CaptureRoutes';
 import { NewNote } from '../screens/NewNote';
@@ -7,16 +10,30 @@ import { Onboarding } from '../screens/Onboarding';
 import { PageView } from '../screens/PageView';
 import { SessionView } from '../screens/SessionView';
 import { Settings } from '../screens/settings/Settings';
+import { SkillEdit } from '../screens/skill/SkillEditor';
+import { SkillView } from '../screens/skill/SkillView';
 import { Skills } from '../screens/Skills';
 import { SpaceView } from '../screens/SpaceView';
 import { SpacesList } from '../screens/SpacesList';
 import { Welcome } from '../screens/Welcome';
+import { resumeStep } from '../onboarding/state';
 import { useConnection } from '../state/connection';
 
 /** "/" opens the most recent session, like a mail client opens the inbox. */
 function Home() {
   const sessions = useQuery((c) => c.listSessions({ mine: true }), []);
+  // ── first run (begin) ── an unfinished first run on this Mac (a relaunch, a sign-in rather than a sign-up) picks up where it stopped.
+  const resume = resumeStep(onboarding.done(), permissions.available());
+  if (resume !== null) return <Navigate to={`/onboarding/${resume}`} replace />;
+  // ── first run (end) ──
   if (sessions.loading) return <main className="main" aria-busy="true" />;
+  // A failed list is not an empty account: say so, rather than opening a blank note that cannot be saved.
+  if (sessions.error)
+    return (
+      <main className="main">
+        <ErrorNote error={sessions.error} onRetry={sessions.reload} />
+      </main>
+    );
   const first = sessions.data?.[0];
   return <Navigate to={first ? `/sessions/${first.id}` : '/new'} replace />;
 }
@@ -46,6 +63,9 @@ export function AppRoutes() {
           <Route path="/spaces/:id/:tab?" element={<SpaceView />} />
           <Route path="/pages/:id" element={<PageView />} />
           <Route path="/skills" element={<Skills />} />
+          <Route path="/skills/:id" element={<SkillView />} />
+          <Route path="/skills/:id/edit" element={<SkillEdit />} />
+          <Route path="/skills/:id/versions/:version" element={<SkillView />} />
           <Route path="/settings/:section?" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
