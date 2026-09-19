@@ -111,7 +111,6 @@ export class DrizzleOrgRepository implements OrgRepository {
         userId: orgMembers.userId,
         role: orgMembers.role,
         joinedAt: orgMembers.joinedAt,
-        email: profiles.email,
         displayName: profiles.displayName,
       })
       .from(orgMembers)
@@ -122,7 +121,7 @@ export class DrizzleOrgRepository implements OrgRepository {
       userId: r.userId,
       role: r.role as OrgMemberRecord["role"],
       joinedAt: this.iso(r.joinedAt),
-      email: r.email,
+      email: null, // never another person's email (Spec 04)
       displayName: r.displayName,
       // profiles.avatar_url doesn't exist yet; users.avatar_url does
       // but isn't joined here. Returning null matches the legacy shape

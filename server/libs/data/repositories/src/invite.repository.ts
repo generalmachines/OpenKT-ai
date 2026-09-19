@@ -40,7 +40,8 @@ export interface OrgInvitePreview {
   orgId: string;
   orgName: string;
   role: OrgRole;
-  invitedByEmail: string | null;
+  // The inviter's display name — never their email (the preview is public).
+  invitedByName: string | null;
   mode: InviteMode;
   expiresAt: string;
   remainingUses: number | null;

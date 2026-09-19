@@ -374,7 +374,6 @@ export class LocalMemoryEngine implements MemoryEngine {
         projectSlug: projects.slug,
         projectName: projects.name,
         projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
         ownerDisplayName: profiles.displayName,
       })
       .from(memories)
@@ -424,7 +423,6 @@ export class LocalMemoryEngine implements MemoryEngine {
       projectSlug: string;
       projectName: string;
       projectVisibility: string;
-      ownerEmail: string | null;
       ownerDisplayName: string | null;
     },
     rowTags: { id: string; slug: string; display_name: string }[],
@@ -441,7 +439,7 @@ export class LocalMemoryEngine implements MemoryEngine {
       project_id: m.projectId,
       owner: {
         user_id: m.ownerUserId,
-        email: row.ownerEmail,
+        email: null, // never another person's email (Spec 04)
         display_name: row.ownerDisplayName,
       },
       content: m.content,
