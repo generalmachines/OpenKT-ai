@@ -21,7 +21,7 @@ import type {
   MemoryWithSimilarityRecord,
   RecallMeta,
 } from "../contracts/memory.contract";
-import type { MemoryEngine } from "./memory-engine";
+import type { MemoryEngine, MemorySearchScopeOptions } from "./memory-engine";
 import { decayFieldsFromRecord } from "./memory-decay";
 import { embed, toPgVector } from "../repositories/embedding-bge";
 
@@ -48,6 +48,7 @@ export class LocalMemoryEngine implements MemoryEngine {
     request: MemorySearchRequest,
     workspaceIds: string[],
     grantedSessionIds: string[] = [],
+    options: MemorySearchScopeOptions = {},
   ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: MemorySearchMeta }> {
     const startedAt = Date.now();
 
@@ -103,6 +104,14 @@ export class LocalMemoryEngine implements MemoryEngine {
     const sessionIdList = grantedSessionIds.length
       ? sql.join(grantedSessionIds.map((id) => sql`${id}::uuid`), sql`, `)
       : null;
+    // Session-only access (MemorySearchScopeOptions): an empty list means
+    // "no session", so it matches nothing rather than everything.
+    const onlySessionIds = options.onlySessionIds;
+    const onlySessionFilter = onlySessionIds
+      ? onlySessionIds.length
+        ? sql`AND m.session_id IN (${sql.join(onlySessionIds.map((id) => sql`${id}::uuid`), sql`, `)})`
+        : sql`AND false`
+      : sql``;
 
     // Access enforced INSIDE the SQL, before ranking (architecture.md
     // §2 "Read path"). `visibility = 'personal'` memories are excluded
@@ -121,6 +130,7 @@ export class LocalMemoryEngine implements MemoryEngine {
       ${includeSuperseded ? sql`` : sql`AND m.superseded_by IS NULL`}
       ${kindList ? sql`AND m.kind IN (${kindList})` : sql``}
       ${minConfidence > 0 ? sql`AND m.confidence >= ${minConfidence}` : sql``}
+      ${onlySessionFilter}
       AND ${visibilityGuard}
     `;
 

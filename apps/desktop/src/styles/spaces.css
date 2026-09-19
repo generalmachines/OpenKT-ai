@@ -1,0 +1,253 @@
+/* Spaces for teams: the list's actions, the New space and Join dialogs, and
+   the people and context on a space page. Built from the Space and Access
+   artboards' parts: hairline rows, mono meta lines, the pill buttons. */
+
+.titlebar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.spaces__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 600px;
+  padding: 16px 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* ── New space / Join ─────────────────────────────────────────────────── */
+.field__optional {
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 4px;
+}
+.choices {
+  display: flex;
+  gap: 8px;
+}
+.choice {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.choice:hover {
+  border-color: var(--line-strong);
+}
+.choice.is-on {
+  border-color: var(--ink);
+}
+.choice input {
+  margin: 2px 0 0;
+  accent-color: var(--ink);
+  flex-shrink: 0;
+}
+.choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.choice__title {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.choice__sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.form__emails {
+  height: 72px;
+  padding: 10px 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.form__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.form__row-label {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.form__done {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.form__failed li {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--accent-hover);
+}
+
+/* ── space page ───────────────────────────────────────────────────────── */
+.space__about {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 640px;
+}
+.space__note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: flex-start;
+  max-width: 640px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.space__note--error {
+  color: var(--accent-hover);
+}
+.space__link {
+  height: 36px;
+  font-size: 12px;
+  width: 460px;
+  max-width: 100%;
+}
+.space__ask {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.space__ask .askbar {
+  flex-grow: 1;
+  min-width: 0;
+}
+.space__new {
+  height: 48px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.space__block {
+  margin-bottom: 22px;
+}
+.space__fine {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  padding: 8px 0 0;
+}
+.space__fine-btn {
+  align-self: flex-start;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.space__recent .space__block + .space__fine,
+.space__recent .space__fine-btn {
+  margin-bottom: 22px;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.member__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.member__name {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member__sub {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.member--pending .avatar {
+  background: var(--bg);
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-3);
+}
+.member--pending .member__name {
+  color: var(--ink-2);
+}
+
+/* context in a space: kind, the statement, and who saved it */
+.sctx {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--ink);
+}
+.sctx .chip {
+  padding-top: 3px;
+}
+.sctx__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sctx__statement {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.sctx:hover .sctx__statement {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.sctx__meta {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+/* sidebar: "+" beside Spaces */
+.navrow-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.navrow-wrap > .navrow {
+  flex-grow: 1;
+}
+.navrow__add {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.navrow__add:hover {
+  background: #f0efeb;
+  color: var(--ink);
+}
+
+/* Move a session */
+.move__hint {
+  margin-top: 4px;
+}

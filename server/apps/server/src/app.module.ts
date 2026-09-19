@@ -1,4 +1,5 @@
-import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from "@nestjs/common";
+import type { RouteInfo } from "@nestjs/common/interfaces";
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
@@ -39,6 +40,30 @@ import { SessionsModule } from "./modules/sessions/sessions.module";
 import { GrantsModule } from "./modules/grants/grants.module";
 import { AccessModule } from "./modules/access/access.module";
 import { AccountsModule } from "./modules/accounts/accounts.module";
+import { SkillsModule } from "./modules/skills/skills.module";
+import { TeamsModule } from "./modules/teams/teams.module";
+import { WebModule } from "./modules/web/web.module";
+
+// Routes that live outside the global /v1 prefix (main.ts, and the e2e tests
+// that boot AppModule). Wildcards use path-to-regexp v8 syntax (`{*path}`):
+// Nest 11 no longer accepts `(.*)`.
+//   /mcp, /v1/mcp          MCP (Streamable HTTP); /v1/mcp is the legacy alias older configs still use
+//   /.well-known/*, /oauth/*  OAuth discovery and endpoints, anchored at the host root (RFC 8414 / 9728)
+//   /, /connect, /connect.html, /connect/*, /llms.txt, /join/<code>   the zero-install pages (modules/web)
+export const UNPREFIXED_ROUTES: RouteInfo[] = [
+  { path: "mcp", method: RequestMethod.ALL },
+  { path: "v1/mcp", method: RequestMethod.ALL },
+  { path: "/", method: RequestMethod.GET },
+  // `join/:code` exactly — /v1/join and /v1/join/:code/preview stay under /v1.
+  { path: "join/:code", method: RequestMethod.GET },
+  { path: "join/:code", method: RequestMethod.POST },
+  { path: "connect", method: RequestMethod.GET },
+  { path: "connect.html", method: RequestMethod.GET },
+  { path: "llms.txt", method: RequestMethod.GET },
+  { path: "connect/{*path}", method: RequestMethod.POST },
+  { path: ".well-known/{*path}", method: RequestMethod.ALL },
+  { path: "oauth/{*path}", method: RequestMethod.ALL },
+];
 
 @Module({
   imports: [
@@ -75,8 +100,11 @@ import { AccountsModule } from "./modules/accounts/accounts.module";
     OauthModule,
     SessionsModule,
     GrantsModule,
+    SkillsModule,
     AccessModule,
     AccountsModule,
+    TeamsModule,
+    WebModule,
   ],
   providers: [
     {

@@ -92,6 +92,20 @@
    "w": 760,
    "h": 620,
    "title": "13 \u00b7 What your team knows"
+  },
+  "Skill.dc.html": {
+   "x": 0,
+   "y": 4240,
+   "w": 1280,
+   "h": 800,
+   "title": "14 \u00b7 A skill, opened"
+  },
+  "Skill-Edit.dc.html": {
+   "x": 1360,
+   "y": 4240,
+   "w": 1280,
+   "h": 800,
+   "title": "15 \u00b7 Editing a skill"
   }
  },
  "createdOnFiles": {
@@ -132,6 +146,13 @@
    "text": "In other tools \u2014 cards over MCP",
    "kind": "title1",
    "maxW": 1600
+  },
+  "t-skills": {
+   "x": 0,
+   "y": 3940,
+   "text": "Skills \u2014 open, read, edit, share",
+   "kind": "title1",
+   "maxW": 2640
   }
  },
  "order": [
@@ -147,7 +168,9 @@
   "Page.dc.html",
   "Models.dc.html",
   "MCP-Save.dc.html",
-  "MCP-Search.dc.html"
+  "MCP-Search.dc.html",
+  "Skill.dc.html",
+  "Skill-Edit.dc.html"
  ],
  "pages": [],
  "title": "OpenKT desktop app mocks"

@@ -32,6 +32,7 @@ export const isUnauthorized = (e: unknown): boolean => e instanceof ApiError && 
 
 /** One calm sentence per failure, for notes inside the app. (The sign-in form has its own: `describeAuthError`.) */
 export function describeError(e: unknown): string {
+  if (e instanceof Error && e.name === 'NotFoundError') return 'That couldn’t be found. It may have been removed, or you may not have access.';
   if (!(e instanceof ApiError)) return e instanceof Error ? e.message : String(e);
   switch (e.kind) {
     case 'unauthorized':
@@ -41,7 +42,7 @@ export function describeError(e: unknown): string {
     case 'not-found':
       return 'That couldn’t be found. It may have been removed, or you may not have access.';
     case 'network':
-      return 'Can’t reach OpenKT right now. Check your connection.';
+      return 'Can’t reach the OpenKT server. Check your connection, then retry.';
     case 'rate-limited':
       return 'Too many requests. Wait a moment and try again.';
     case 'invalid':

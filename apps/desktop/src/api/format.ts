@@ -89,3 +89,24 @@ export function accessSummary(grants: Grant[]): string {
 export function roleLabel(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
+
+/** "today" · "yesterday" · "2 days ago" · "3 weeks ago" · "4 months ago" — for version history. */
+export function timeAgo(iso: string, now: Date = new Date()): string {
+  const n = daysAgo(iso, now);
+  if (n <= 0) return 'today';
+  if (n === 1) return 'yesterday';
+  if (n < 14) return `${n} days ago`;
+  if (n < 63) return `${Math.round(n / 7)} weeks ago`;
+  if (n < 365) return `${Math.round(n / 30)} months ago`;
+  const years = Math.round(n / 365);
+  return `${years} ${years === 1 ? 'year' : 'years'} ago`;
+}
+
+export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
+
+/** "used 31 times this month" */
+export function usedThisMonth(count: number): string {
+  if (count <= 0) return 'not used yet this month';
+  if (count === 1) return 'used once this month';
+  return `used ${count} times this month`;
+}

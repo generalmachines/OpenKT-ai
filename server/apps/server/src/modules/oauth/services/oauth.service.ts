@@ -47,13 +47,15 @@ export class OauthError extends Error {
 export interface RegisteredClient {
   clientId: string;
   // Only present for confidential clients (token_endpoint_auth_method =
-  // "client_secret_post"). Undefined for public clients ("none").
+  // "client_secret_post" / "client_secret_basic"). Undefined for public clients ("none").
   clientSecret: string | undefined;
-  tokenEndpointAuthMethod: "client_secret_post" | "none";
+  tokenEndpointAuthMethod: TokenEndpointAuthMethod;
   clientIdIssuedAt: number;
   name: string;
   redirectUris: string[];
 }
+
+export type TokenEndpointAuthMethod = "client_secret_post" | "client_secret_basic" | "none";
 
 export interface IssuedTokenPair {
   accessToken: string;
@@ -86,7 +88,7 @@ export class OauthService {
     clientName?: string;
     redirectUris: string[];
     createdBy?: string | null;
-    tokenEndpointAuthMethod?: "client_secret_post" | "none";
+    tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
   }): Promise<RegisteredClient> {
     if (!Array.isArray(input.redirectUris) || input.redirectUris.length === 0) {
       throw new OauthError(

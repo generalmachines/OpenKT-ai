@@ -3,6 +3,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { LlmGatewayService } from "@openkt/platform-llm";
 import type { ActorContext } from "@openkt/core-context";
 
+import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { MemoryCommandsApplicationService } from "../../memory/services/memory-commands.application.service";
 import { CreateMemorySchema } from "../../memory/contracts/memory.contract";
 
@@ -131,6 +132,8 @@ export class CaptureService {
     // belt-and-suspenders 8000 leaves headroom for future bumps but
     // caps the worst-case cost per call.
     const prompt = input.prompt.slice(0, 8000);
+    // Refused before the prompt reaches any model, not only at the save.
+    refuseSecrets("prompt", prompt);
 
     // Light LLM classification. Output is constrained to 800 tokens
     // — the JSON object we want is <300, and 800 is a safety net.
