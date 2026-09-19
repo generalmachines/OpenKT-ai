@@ -5,7 +5,33 @@ import { PreviewBadge } from '../../components/PreviewBadge';
 import { ErrorNote, Loading } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Select } from '../../components/Select';
+import { modelsSetup } from '../../api/setup-bridge';
 import { useModelsSetup } from '../../onboarding/models';
+
+/**
+ * The reminder next to "Models" in the settings nav while the on-device AI is not on this Mac and
+ * nothing is downloading (the person chose Later, or paused). Re-read on every section change.
+ */
+export function ModelsChip({ section }: { section: string }) {
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void modelsSetup.status().then((rows) => {
+      if (!live) return;
+      const moving = rows?.some((r) => r.state === 'downloading' || r.state === 'verifying');
+      setWaiting(Boolean(rows?.length && !moving && rows.some((r) => r.state !== 'ready')));
+    });
+    return () => {
+      live = false;
+    };
+  }, [section]);
+  if (!waiting) return null;
+  return (
+    <span className="setnav__chip mono" aria-label="On-device AI not downloaded">
+      not set up
+    </span>
+  );
+}
 
 /** Models.dc.html, with the decided model line-up (docs/architecture.md §5). */
 export function Models() {

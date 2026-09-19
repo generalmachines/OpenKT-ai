@@ -38,7 +38,7 @@ const VOICE_STATUS: Record<VoiceState, (t: string) => string> = {
   empty: () => 'nothing heard',
   permission: () => 'microphone blocked',
   failed: () => 'could not transcribe',
-  setup: () => 'finishing setup',
+  setup: () => 'speech not on this Mac yet',
 };
 
 export interface VoiceProps {
@@ -59,12 +59,14 @@ export interface VoiceProps {
   /** One calm line under the text: why there are no facts yet, or what went wrong. */
   notice?: string;
   onSave?: () => void;
+  /** One button under the notice — e.g. "Download the speech model (574 MB)" when voice needs it. */
+  action?: { label: string; onClick: () => void; disabled?: boolean };
 }
 
 const VOICE_HINT: Partial<Record<VoiceState, string>> = { transcribing: 'one moment', review: 'esc to discard', saving: '', saved: 'filed', empty: '', permission: 'esc to close', failed: 'esc to close', setup: 'esc to close' };
 
 /** Capture-Voice.dc.html */
-export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, accessNote, notice, onSave }: VoiceProps) {
+export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpace, live, hint = 'release fn to save', levels, spaces, accessNote, notice, onSave, action }: VoiceProps) {
   const listening = state === 'listening';
   return (
     <div className="sheet sheet--voice" role="status" aria-label="Voice capture">
@@ -93,6 +95,11 @@ export function VoiceSheet({ text, tentative, elapsedSec, state, spaceId, onSpac
         <p className="sheet__notice mono" role={state === 'permission' || state === 'failed' ? 'alert' : undefined}>
           {notice}
         </p>
+      )}
+      {action && (
+        <button type="button" className="btn btn--dark btn--pill-sm sheet__action" disabled={action.disabled} onClick={action.onClick}>
+          {action.label}
+        </button>
       )}
       {state !== 'empty' && state !== 'permission' && state !== 'failed' && state !== 'setup' && (
         <div className="sheet__row">

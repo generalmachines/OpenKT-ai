@@ -70,6 +70,7 @@ function toSetupInfo(v: unknown): ModelsSetupInfoDto | null {
     totalMemBytes: typeof j.totalMemBytes === 'number' ? j.totalMemBytes : 0,
     smallModel: j.smallModel === true,
     paused: j.paused === true,
+    chosen: j.chosen === true,
     bundled: { runtime: b.runtime === true, transcriber: b.transcriber === true, textReader: b.textReader === true },
   };
 }
@@ -88,6 +89,11 @@ export interface ModelRow {
   /** Only while this file is transferring; 0 otherwise. */
   bytesPerSec: number;
   error?: string;
+  /** The open-source model: its name, licence (SPDX), original model card, and where the file comes from. */
+  name?: string;
+  license?: string;
+  card?: string;
+  source?: string;
 }
 
 const ROLES = new Set<ModelRole>(['embed', 'llm', 'whisper', 'mmproj']);
@@ -108,6 +114,11 @@ export function toModelRow(v: unknown): ModelRow | null {
     state,
     bytesPerSec: state === 'downloading' ? n(j['bytesPerSec']) : 0,
     ...(typeof j['error'] === 'string' && j['error'] ? { error: j['error'] } : {}),
+    // Progress events carry none of these; leaving them out keeps what status() said when the two are merged.
+    ...(typeof j['name'] === 'string' ? { name: j['name'] } : {}),
+    ...(typeof j['license'] === 'string' ? { license: j['license'] } : {}),
+    ...(typeof j['card'] === 'string' && j['card'].startsWith('https://huggingface.co/') ? { card: j['card'] } : {}),
+    ...(typeof j['source'] === 'string' && j['source'].startsWith('https://huggingface.co/') ? { source: j['source'] } : {}),
   };
 }
 
@@ -133,12 +144,16 @@ export const modelsSetup = {
       if (row) listener(row);
     });
   },
-  /** Starts the download, or joins the one in flight. Resolves with why it stopped (`paused`, `low_disk`, a message) or null once search + understanding are on disk. */
-  async ensure(): Promise<string | null> {
+  /**
+   * The person's choice to download: everything, or just the models a feature needs (they go first).
+   * Joins a run in flight. Resolves with why it stopped (`paused`, `low_disk`, a message), or null once
+   * those models (search + understanding, for everything) are on disk.
+   */
+  async ensure(roles?: ModelRole[]): Promise<string | null> {
     const m = bridge()?.models;
     if (typeof m?.ensure !== 'function') return 'unavailable';
     try {
-      const r = (await m.ensure()) as { ok?: boolean; error?: unknown } | null;
+      const r = (await m.ensure(roles)) as { ok?: boolean; error?: unknown } | null;
       return r && r.ok === false ? (typeof r.error === 'string' && r.error ? r.error : 'failed') : null;
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
