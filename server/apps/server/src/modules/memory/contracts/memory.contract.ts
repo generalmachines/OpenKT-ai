@@ -41,6 +41,8 @@ export type SourceRefRecord = z.infer<typeof SourceRefSchema>;
 
 export const MemoryAuthorSchema = z.object({
   user_id: UUID,
+  // Always null: a fact goes to teammates, and other people's emails appear
+  // only in a resource owner's grants list (Spec 04). Kept for the shape.
   email: z.string().email().nullable(),
   display_name: z.string().nullable(),
 });

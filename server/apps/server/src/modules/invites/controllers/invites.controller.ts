@@ -170,7 +170,7 @@ export class InvitesController {
       org_id: preview.orgId,
       org_name: preview.orgName,
       role: preview.role,
-      invited_by_email: preview.invitedByEmail,
+      invited_by_name: preview.invitedByName,
       mode: preview.mode,
       expires_at: preview.expiresAt,
       remaining_uses: preview.remainingUses,

@@ -23,6 +23,7 @@ export interface OrgMemberRecord {
   userId: string;
   role: OrgSummaryRecord["role"];
   joinedAt: string;
+  // Always null: members see names and roles, never each other's emails (Spec 04).
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;

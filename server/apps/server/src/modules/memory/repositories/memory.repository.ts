@@ -132,7 +132,6 @@ export class MemoryRepository {
         projectSlug: projects.slug,
         projectName: projects.name,
         projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
         ownerDisplayName: profiles.displayName,
       })
       .from(memories)
@@ -180,7 +179,6 @@ export class MemoryRepository {
             projectSlug: projects.slug,
             projectName: projects.name,
             projectVisibility: projects.visibility,
-            ownerEmail: profiles.email,
             ownerDisplayName: profiles.displayName,
           })
           .from(memories)
@@ -212,7 +210,6 @@ export class MemoryRepository {
         projectSlug: projects.slug,
         projectName: projects.name,
         projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
         ownerDisplayName: profiles.displayName,
       })
       .from(memories)
@@ -478,7 +475,6 @@ export class MemoryRepository {
         projectSlug: projects.slug,
         projectName: projects.name,
         projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
         ownerDisplayName: profiles.displayName,
         similarity: queryVector
           ? sql<number>`1 - (embedding <=> ${queryVector}::vector)`
@@ -500,7 +496,6 @@ export class MemoryRepository {
           projectSlug: r.projectSlug,
           projectName: r.projectName,
           projectVisibility: r.projectVisibility,
-          ownerEmail: r.ownerEmail,
           ownerDisplayName: r.ownerDisplayName,
         },
         tagMap.get(r.m.id) ?? [],
@@ -792,7 +787,6 @@ export class MemoryRepository {
       projectSlug: string;
       projectName: string;
       projectVisibility: string;
-      ownerEmail: string | null;
       ownerDisplayName: string | null;
     },
     rowTags: { id: string; slug: string; display_name: string }[],
@@ -809,7 +803,7 @@ export class MemoryRepository {
       project_id: m.projectId,
       owner: {
         user_id: m.ownerUserId,
-        email: row.ownerEmail,
+        email: null, // never another person's email (Spec 04)
         display_name: row.ownerDisplayName,
       },
       content: m.content,
@@ -858,7 +852,6 @@ export class MemoryRepository {
         projectSlug: projects.slug,
         projectName: projects.name,
         projectVisibility: projects.visibility,
-        ownerEmail: profiles.email,
         ownerDisplayName: profiles.displayName,
       })
       .from(memories)

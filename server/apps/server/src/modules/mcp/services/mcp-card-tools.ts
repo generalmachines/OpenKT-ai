@@ -224,7 +224,7 @@ export function registerCardTools(server: McpServer, context: ActorContext, deps
         id: m.id,
         kind: m.kind,
         content: m.content,
-        author: m.owner.display_name ?? m.owner.email ?? null,
+        author: m.owner.display_name ?? null,
         source: m.source,
         date: m.created_at,
         space: m.project.name,
