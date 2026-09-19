@@ -20,15 +20,19 @@ sha="$(git rev-parse --verify "${sha}^{commit}")"
 built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 build_info="$(jq -cn --arg commit "${sha}" --arg built_at "${built_at}" '{commit: $commit, built_at: $built_at}')"
 archive="$(mktemp -t openkt-next.XXXXXX.tar)"
+extra="$(mktemp -d)"
 artifact_uri="s3://${DEPLOY_ARTIFACT_BUCKET}/ci/${sha}/openkt-next.tar"
 cleanup() {
-  rm -f "${archive}"
+  rm -rf "${archive}" "${extra}"
   aws s3 rm "${artifact_uri}" --region "${AWS_REGION}" --only-show-errors 2>/dev/null || true
 }
 trap cleanup EXIT
 # Only what the images need — keeps the archive small. The API image also serves the MCP Apps cards bundle.
-git archive --format=tar --output="${archive}" --add-virtual-file="build-info.json:${build_info}" \
+# build-info.json is appended with tar rather than `git archive --add-virtual-file`, which older git lacks.
+git archive --format=tar --output="${archive}" \
   "${sha}" server docker .dokku .dockerignore packages/mcp-cards/dist/openkt-cards.html plugin/SETUP-PROMPT.md
+printf '%s\n' "${build_info}" >"${extra}/build-info.json"
+tar --append --file="${archive}" --owner=0 --group=0 -C "${extra}" build-info.json
 aws s3 cp "${archive}" "${artifact_uri}" --region "${AWS_REGION}" --only-show-errors
 echo "Uploaded ${artifact_uri} (${build_info})"
 

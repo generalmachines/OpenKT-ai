@@ -1,6 +1,14 @@
 # Deploying the hosted server
 
-The hosted OpenKT server runs on a Dokku host in AWS and is deployed by `.github/workflows/deploy-dokku.yml` on every push to `main` that touches `server/`, `docker/` or `.dokku/`. The deployment path and host layout follow the design Ojas Sinha built for the original backend; this repository reuses it unchanged in shape.
+The hosted OpenKT server runs on a Dokku host in AWS. **CI runs on AWS CodeBuild, not GitHub Actions** (Actions is disabled for this repository; GitHub only hosts the code). CodeBuild project `openkt-ai-deploy` (us-east-1) deploys on every push to `main` that touches `server/`, `docker/`, `.dokku/`, `deploy/dokku/`, `scripts/deploy-from-box.sh` or `.codebuild/deploy.yml`. It runs `scripts/deploy-from-box.sh <pushed commit>` (buildspec `.codebuild/deploy.yml`). A person runs the same script by hand when needed. The deployment path and host layout follow the design Ojas Sinha built for the original backend.
+
+| CodeBuild project | Trigger | Buildspec | Service role (least privilege) |
+|---|---|---|---|
+| `openkt-ai-deploy` | push to `main`, paths above | `.codebuild/deploy.yml` | `codebuild-openkt-ai-deploy`: its log group, `ci/*` in the artifact bucket, `ssm:SendCommand` to the one instance + `AWS-RunShellScript`, read command results, the GitHub connection |
+| `openkt-ai-pr-checks` | pull request opened / updated / reopened; from a fork only after a maintainer approves | `.codebuild/pr-checks.yml` | `codebuild-openkt-ai-pr-checks`: its log group and the GitHub connection, nothing else |
+| `openkt-ai-site` | push to `main` touching `apps/site/` or `.codebuild/site.yml` | `.codebuild/site.yml`: `wrangler pages deploy` to Cloudflare Pages `openkt-landing`, then checks openkt.ai serves `apps/site/index.html` | `codebuild-openkt-ai-site`: its log group, the GitHub connection, SSM parameter `/openkt-ai/cloudflare-pages-token` |
+
+All three check out the code through the CodeConnections GitHub connection `openkt-github` (us-east-1) and report a commit status on GitHub (`openkt-ai-deploy`, `openkt-ai-pr-checks`, `openkt-ai-site`). Logs: CloudWatch `/aws/codebuild/<project>`; the console lists every build. `scripts/deploy-from-box.sh` never deploys backwards: when production already runs the commit or a newer one it stops (`FORCE_DEPLOY=1` overrides). Desktop builds need a macOS machine and are not connected yet; see `docs/ci/README.md`.
 
 ## Why it is built this way
 
@@ -10,9 +18,8 @@ The hosted OpenKT server runs on a Dokku host in AWS and is deployed by `.github
 | A private Docker network; internal apps set `NO_VHOST` and are reached as `<app>.web` | Only the API is reachable from the internet. |
 | Migrations run in the Dokku **release** phase (`.dokku/Procfile.api`) | A failed migration stops the deploy before the new web process takes traffic. |
 | State lives off the host (managed Postgres) | The host is disposable; rebuilding it loses nothing. |
-| GitHub OIDC → short-lived role → source archive in S3 → Systems Manager → `dokku git:from-archive` | No SSH port, no long-lived AWS keys in GitHub. The role can only write `ci/*` artifacts and send the AWS-managed shell document to the one instance; the archive is deleted after the deploy. |
-| Deployments are serialized (`concurrency`, no cancel-in-progress) | A newer push waits rather than interrupting a half-finished release. |
-| Actions pinned by commit SHA | A compromised tag cannot change what runs with deploy rights. |
+| CodeBuild role → source archive in S3 → Systems Manager → `dokku git:from-archive` | No SSH port and no AWS keys anywhere. The role can only write `ci/*` artifacts and send the AWS-managed shell document to the one instance; the archive is deleted after the deploy. |
+| Deployments are serialized (one build at a time, plus a lock on the host) and never go backwards | A newer push waits rather than interrupting a half-finished release; a late older build is skipped. |
 
 ## Apps
 
@@ -23,21 +30,24 @@ The hosted OpenKT server runs on a Dokku host in AWS and is deployed by `.github
 
 There is no worker app yet: facts are embedded when saved (`OPENKT_INLINE_EMBED`). It returns with the Postgres job queue.
 
-## GitHub environment `production` (restricted to `main`)
+## Settings
 
-| Variable | Purpose |
+`scripts/deploy-from-box.sh` needs four values. CodeBuild sets them in the project environment. On a workstation, export them, or let the script read them with `gh` from the GitHub environment `production` (a plain settings store now that Actions is off):
+
+| Variable | Value |
 |---|---|
-| `AWS_REGION` | Region of the instance and the SSM endpoint |
-| `AWS_ROLE_ARN` | The OIDC deploy role, trusted only for the immutable subject `repo:masti-ai@267711818/OpenKT-ai@1376876585:environment:production` (the repository id stays when the repository is renamed; the old name `openkt-next` stays in the trust policy until a deploy under the new name has passed) |
-| `DOKKU_INSTANCE_ID` | The SSM-managed Dokku instance |
-| `DEPLOY_ARTIFACT_BUCKET` | Temporary source-archive bucket |
-| `PUBLIC_URL` | Where the post-deploy smoke test looks, e.g. `https://api.openkt.ai` |
+| `AWS_REGION` | `ap-south-1`: region of the instance, the SSM endpoint and the artifact bucket |
+| `DOKKU_INSTANCE_ID` | the SSM-managed Dokku instance |
+| `DEPLOY_ARTIFACT_BUCKET` | temporary source-archive bucket (`ci/<sha>/…`, deleted after each deploy) |
+| `PUBLIC_URL` | where the smoke test looks: `https://api.openkt.ai` |
+
+The old GitHub OIDC role `openkt-next-github-dokku-deploy` still trusts `repo:masti-ai@267711818/OpenKT-ai@1376876585:environment:production`. Nothing uses it while Actions is disabled.
 
 ## Deploying by hand, and proving what runs
 
 `GET /v1/meta` (public) answers `{version, commit, built_at, …}`. The commit comes from `build-info.json`, which `deploy/dokku/ship.sh` writes into the source archive, so it is baked into the image and cannot drift from the running code. The post-deploy smoke test (`deploy/dokku/smoke.sh`) passes only when `/v1/meta` reports the commit just shipped and `/v1/projects` still refuses a tokenless call with 401.
 
-When GitHub Actions cannot run, deploy from a workstation with `scripts/deploy-from-box.sh [git-ref]` (default: exactly `origin/main`). It runs the same `ship.sh` and `smoke.sh` as the workflow, refuses a dirty tree, and takes a local lock; the host takes its own lock, so two deploys never overlap. Full build logs stay on the host in `/var/log/openkt-next-deploy/` (SSM only returns the last 24 000 characters); the deploy prints their tail.
+By hand: `scripts/deploy-from-box.sh [git-ref]` (default: exactly `origin/main`). It runs the same `ship.sh` and `smoke.sh` as CodeBuild, refuses a dirty tree, and takes a local lock; the host takes its own lock, so two deploys never overlap. Full build logs stay on the host in `/var/log/openkt-next-deploy/` (SSM only returns the last 24 000 characters); the deploy prints their tail.
 
 Each release runs its migrations (release phase), then Dokku waits for the `.dokku/app.json` startup healthcheck (`/v1/health` on port 4100) before it moves traffic; a failed check leaves the previous release serving.
 

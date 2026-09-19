@@ -1,0 +1,14 @@
+# CodeBuild project openkt-ai-deploy (us-east-1): deploys the server on every push to main that touches
+# server/, docker/, .dokku/ or deploy/dokku/ (webhook filter). It runs the same script a person would run
+# by hand, with the pushed commit, so there is one deploy path. Settings (AWS_REGION, DOKKU_INSTANCE_ID,
+# DEPLOY_ARTIFACT_BUCKET, PUBLIC_URL) come from the project environment. See docs/DEPLOY.md.
+version: 0.2
+env:
+  shell: bash
+phases:
+  install:
+    commands:
+      - git --version && jq --version && aws --version && flock --version | head -1
+  build:
+    commands:
+      - scripts/deploy-from-box.sh "${CODEBUILD_RESOLVED_SOURCE_VERSION}"
