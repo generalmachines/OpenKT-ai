@@ -25,6 +25,8 @@ dokku apps:exists "$API" 2>/dev/null || dokku apps:create "$API"
 dokku builder:set "$API" selected dockerfile
 dokku builder-dockerfile:set "$API" dockerfile-path docker/Dockerfile.api
 dokku ps:set "$API" procfile-path .dokku/Procfile.api
+dokku app-json:set "$API" appjson-path .dokku/app.json   # startup healthcheck on /v1/health
+dokku nginx:set "$API" client-max-body-size 4m          # skill saves go up to 1 MB of JSON
 dokku network:set "$API" attach-post-create "$NET"
 dokku ports:set "$API" http:80:4100
 
@@ -35,7 +37,7 @@ fi
 
 if [ -z "$(dokku config:get "$API" OPENKT_INTERNAL_SERVICE_TOKEN 2>/dev/null)" ] && [ -n "${DATABASE_URL:-}" ]; then
   dokku config:set --no-restart "$API" \
-    NODE_ENV=production HOST=0.0.0.0 PORT=4100 LOG_LEVEL=info \
+    NODE_ENV=production HOST=0.0.0.0 PORT=4100 LOG_LEVEL=info OPENKT_TRUST_PROXY=1 \
     DATABASE_URL="$DATABASE_URL" DATA_POSTGRES_URL="$DATABASE_URL" \
     OPENKT_MEMORY_ENGINE=local MEMORY_ENGINE=local OPENKT_INLINE_EMBED=true \
     OPENKT_EMBEDDING_BACKEND=openai OPENAI_API_KEY=local \

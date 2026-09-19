@@ -1,6 +1,6 @@
 # Connect OpenKT in OpenAI Codex (CLI and IDE extension)
 
-Status: **verified** on 2026-09-19 against OpenAI's Codex docs (developers.openai.com/codex/mcp, which now redirects to learn.chatgpt.com/docs/extend/mcp) and the skills page. No experimental flag is mentioned for remote servers any more; if `codex mcp add --url` is rejected, update Codex.
+Status: **verified** on 2026-09-19 against OpenAI's Codex docs (developers.openai.com/codex/mcp, which now redirects to learn.chatgpt.com/docs/extend/mcp), the skills page, and `codex mcp add --help` / `codex mcp login` in codex-cli 0.131. The Codex app and IDE extension read the same `~/.codex/config.toml`. If `codex mcp add --url` is rejected, update Codex.
 
 ## Server
 

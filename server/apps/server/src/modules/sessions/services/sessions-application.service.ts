@@ -16,7 +16,10 @@ import { SessionRepository } from "../repositories/session.repository";
 import { ProjectScopeService } from "../../projects/services/project-scope.service";
 import { MemoryRepository } from "../../memory/repositories/memory.repository";
 import type { MemoryRecord } from "../../memory/contracts/memory.contract";
+import { refuseSecrets } from "../../../common/secrets/refuse-secrets";
 import { GrantRepository } from "../../grants/repositories/grant.repository";
+
+export type SessionRole = "owner" | "editor" | "reader";
 
 @Injectable()
 export class SessionsApplicationService {
@@ -33,6 +36,7 @@ export class SessionsApplicationService {
   ) {}
 
   async start(context: ActorContext, input: CreateSessionInput): Promise<SessionRecord> {
+    refuseSecrets("session title", input.title);
     const projectId = await this.projectScopeService.resolveProjectIdOrSlug(
       context,
       input.project_id,
@@ -50,6 +54,7 @@ export class SessionsApplicationService {
     sessionId: string,
     input: AddSessionTurnInput,
   ): Promise<SessionTurnRecord> {
+    refuseSecrets("turn", input.content);
     await this.requireWritable(context, sessionId);
     return this.sessionRepository.addTurn(sessionId, input);
   }
@@ -59,6 +64,7 @@ export class SessionsApplicationService {
     sessionId: string,
     input: CloseSessionInput,
   ): Promise<SessionRecord> {
+    refuseSecrets("summary", input.summary);
     await this.requireWritable(context, sessionId);
     return this.sessionRepository.close(sessionId, input.summary ?? null);
   }
@@ -79,20 +85,30 @@ export class SessionsApplicationService {
     });
   }
 
+  // Spec 04: `GET /v1/sessions/:id` → the session, its facts and `my_role`.
+  // Transcripts (turns) need editor or owner — a reader gets the facts, not
+  // the turns, so for a reader the `turns` key is absent.
   async get(
     context: ActorContext,
     sessionId: string,
-  ): Promise<{ session: SessionRecord; turns: SessionTurnRecord[]; memories: MemoryRecord[] }> {
+  ): Promise<{
+    session: SessionRecord;
+    turns?: SessionTurnRecord[];
+    memories: MemoryRecord[];
+    my_role: SessionRole;
+  }> {
     const session = await this.sessionRepository.findById(sessionId);
     if (!session) throw new NotFoundDomainError("session");
-    await this.requireReadable(context, session);
+    const myRole = await this.roleOn(context, session);
 
     const [turns, memories] = await Promise.all([
-      this.sessionRepository.turnsForSession(sessionId),
+      myRole === "reader" ? null : this.sessionRepository.turnsForSession(sessionId),
       this.memoryRepository.findBySessionId(sessionId),
     ]);
 
-    return { session, turns, memories };
+    return turns
+      ? { session, turns, memories, my_role: myRole }
+      : { session, memories, my_role: myRole };
   }
 
   // Shared write-access + open-session guard for addTurn/close.
@@ -106,24 +122,34 @@ export class SessionsApplicationService {
     return session;
   }
 
-  // Read access to a single session: either the caller can read the
-  // owning project (owner/org member/project grant — the common
-  // case), OR the caller holds a direct grant on THIS session (M4 —
-  // the "share one conversation from my personal space" case, where
-  // the project itself stays private). The project check is tried
-  // first since it's the common path; the session-grant lookup only
-  // runs on that 404/403.
-  private async requireReadable(context: ActorContext, session: SessionRecord): Promise<void> {
-    try {
-      await this.projectScopeService.requireProjectAccess(context, session.project_id, "read");
-      return;
-    } catch (err) {
-      if (!(err instanceof NotFoundDomainError)) throw err;
-      const userId = context.principal.userId;
-      if (userId && (await this.grantRepository.hasSessionGrant(session.id, userId))) {
-        return;
+  // The caller's role on one session, or 404. `owner` is the session's own
+  // author; `editor` is anyone who may write to its space, or who holds an
+  // editor/owner grant on the session itself; `reader` can read the space or
+  // holds a reader grant on the session (M4 — "share one conversation from my
+  // personal space" while the space itself stays private).
+  private async roleOn(context: ActorContext, session: SessionRecord): Promise<SessionRole> {
+    const userId = context.principal.userId;
+    if (!userId) throw new NotFoundDomainError("session");
+    if (session.owner_user_id === userId) return "owner";
+
+    const [spaceRole, sessionGrant] = await Promise.all([
+      this.spaceRole(context, session.project_id),
+      this.grantRepository.findUserRole("session", session.id, userId),
+    ]);
+    if (spaceRole === "editor" || sessionGrant === "editor" || sessionGrant === "owner") return "editor";
+    if (spaceRole === "reader" || sessionGrant === "reader") return "reader";
+    throw new NotFoundDomainError("session");
+  }
+
+  private async spaceRole(context: ActorContext, projectId: string): Promise<"editor" | "reader" | null> {
+    for (const mode of ["write", "read"] as const) {
+      try {
+        await this.projectScopeService.requireProjectAccess(context, projectId, mode);
+        return mode === "write" ? "editor" : "reader";
+      } catch (err) {
+        if (!(err instanceof NotFoundDomainError)) throw err;
       }
-      throw err;
     }
+    return null;
   }
 }

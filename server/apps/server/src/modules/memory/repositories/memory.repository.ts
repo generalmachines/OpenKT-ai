@@ -6,6 +6,7 @@ import { NotFoundDomainError, ValidationDomainError } from "@openkt/core-errors"
 
 import { DRIZZLE, type DrizzleDb } from "../../../db/drizzle.module";
 import {
+  grants,
   memories,
   memoryAccesses,
   memoryTags,
@@ -63,6 +64,21 @@ export class MemoryRepository {
           or(
             eq(projects.ownerUserId, userId),
             and(eq(orgMembers.userId, userId), sql`${orgMembers.role} in ('owner', 'admin', 'member')`),
+            // A space shared with the caller (grants, migration 0038) — on
+            // the project or on its org. Without this, a teammate the owner
+            // made an editor could not save into the shared space: create()
+            // passes the service's write check, then fails here in
+            // findDuplicate. Callers check the read/write mode themselves.
+            sql`exists (
+              select 1 from ${grants}
+               where ${grants.subjectType} = 'user'
+                 and ${grants.subjectId} = ${userId}::uuid
+                 and ${grants.role} in ('reader', 'editor', 'owner')
+                 and (
+                   (${grants.resourceType} = 'project' and ${grants.resourceId} = ${projects.id})
+                   or (${grants.resourceType} = 'org' and ${grants.resourceId} = ${projects.orgId})
+                 )
+            )`,
           ),
         ),
       )
@@ -203,12 +219,18 @@ export class MemoryRepository {
     return this.toRecord(rows[0], tagMap.get(rows[0].m.id) ?? []);
   }
 
+  // Called only on the save path, after ProjectScopeService.requireProjectAccess
+  // ("write") — which also admits editors through a grant, so the owner/org
+  // check in assertProjectMember would wrongly refuse a teammate's save. A
+  // duplicate is only ever one the caller may see: never someone else's
+  // `personal` memory.
   async findDuplicate(
     context: ActorContext,
     projectId: string,
     content: string,
   ): Promise<MemoryRecord | null> {
-    await this.assertProjectMember(context, projectId);
+    const userId = context.principal.userId;
+    if (!userId) throw new ValidationDomainError("user principal required");
     const rows = await this.db
       .select({ id: memories.id })
       .from(memories)
@@ -217,6 +239,7 @@ export class MemoryRepository {
           eq(memories.projectId, projectId),
           eq(memories.content, content),
           eq(memories.archived, false),
+          or(eq(memories.ownerUserId, userId), sql`${memories.visibility} <> 'personal'`),
         ),
       )
       .limit(1);

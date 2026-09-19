@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useHotkeys } from '../../api/hotkeys';
 import { Key } from '../../components/bits';
-import type { HotkeyInfo } from '../../shared/ipc';
+import { displayOf } from '../../shared/hotkeys';
 
 function Row({ job, title, meta, keys }: { job: string; title: string; meta: string; keys: ReactNode }) {
   return (
@@ -18,34 +19,66 @@ function Row({ job, title, meta, keys }: { job: string; title: string; meta: str
   );
 }
 
-/** No artboard: laid out like Models.dc.html. Rebinding is static for now. */
+/** Keys as caps: "⌃⌥Space" → ⌃ ⌥ Space. */
+function Caps({ label }: { label: string }) {
+  const parts = label.match(/[⌃⌥⌘⇧]|[^⌃⌥⌘⇧]+/g) ?? [label];
+  return (
+    <>
+      {parts.map((p, i) => (
+        <Key key={i}>{p}</Key>
+      ))}
+    </>
+  );
+}
+
+const DEFAULTS: Record<'voice' | 'screenshot', string[]> = { voice: ['Control+Alt+Space', 'Control+Alt+N'], screenshot: ['Control+Alt+S'] };
+
+/**
+ * No artboard: laid out like Models.dc.html. Shows the keys this build really listens for — and,
+ * when one cannot work (another app holds it, macOS keeps it), says so on its row. `fn` arrives with
+ * the capture engine; until then it is not offered as if it worked.
+ */
 export function Hotkeys() {
-  const [info, setInfo] = useState<HotkeyInfo[] | null>(null);
-  useEffect(() => {
-    void window.openkt?.app.hotkeys().then(setInfo);
-  }, []);
-  const fallback = (id: HotkeyInfo['id']) => info?.find((h) => h.id === id)?.fallbackAccelerator;
+  const info = useHotkeys();
+  const row = (id: 'voice' | 'screenshot') => info?.find((h) => h.id === id);
+  const keysOf = (id: 'voice' | 'screenshot') => {
+    const r = row(id);
+    const list = r ? (r.accelerators?.length ? r.accelerators : []) : DEFAULTS[id];
+    return list.length ? (
+      list.map((a, i) => (
+        <span key={a} className="keys">
+          {i > 0 && <span className="keys__verb">or</span>}
+          <Caps label={displayOf(a)} />
+        </span>
+      ))
+    ) : (
+      <span className="keys__verb">unavailable</span>
+    );
+  };
+  const meta = (id: 'voice' | 'screenshot', ok: string) => {
+    if (!info) return window.openkt ? ok : `${ok} · in OpenKT for Mac`;
+    const r = row(id);
+    return r?.problem ?? (r?.registered ? ok : 'not registered');
+  };
 
   return (
     <>
       <h1 className="h1 h1--sm">Hotkeys</h1>
       <p className="lede" style={{ maxWidth: 560, marginBottom: 14 }}>
-        Capture is a function key away, from any app. Nothing is recorded until you press, and what you say is transcribed on this Mac.
+        Capture is a key away, from any app. Nothing is recorded until you press, and what you say is transcribed on this Mac.
       </p>
       <ul className="plain">
-        <Row job="Talk" title="Hold to talk" meta="release to save · filed by the Voice connector default" keys={<><span className="keys__verb">hold</span><Key>fn</Key></>} />
-        <Row job="Keep listening" title="Double-tap to latch" meta="tap fn again to stop · for longer thoughts" keys={<><Key>fn</Key><Key>fn</Key></>} />
-        <Row job="Screenshot" title="Capture what is on screen" meta="drag a region · text is read on this Mac" keys={<><Key>⌃</Key><Key>⌥</Key><Key>S</Key></>} />
-        <Row job="Search" title="Search all context" meta="inside OpenKT" keys={<><Key>⌘</Key><Key>K</Key></>} />
+        <Row job="Talk" title="Start and stop a voice note" meta={meta('voice', 'press again to stop and save')} keys={keysOf('voice')} />
+        <Row job="Screenshot" title="Capture what is on screen" meta={meta('screenshot', 'drag a region · text is read on this Mac')} keys={keysOf('screenshot')} />
+        <Row job="Search" title="Search all context" meta="inside OpenKT" keys={<Caps label="⌘K" />} />
       </ul>
       <div style={{ height: 18, flexShrink: 0 }} />
       <div className="card card--row">
         <span className="card__text">
-          <span className="card__title">The fn key needs the capture engine</span>
+          <span className="card__title">Hold fn to talk arrives with the capture engine</span>
           <span className="card__desc">
-            {info
-              ? `Until it ships, this build listens for ${fallback('voice') ?? 'no key'} to start and stop a voice note, and ${fallback('screenshot') ?? 'no key'} for a screenshot.`
-              : 'Until it ships, the desktop build registers stand-in shortcuts and the menu-bar item starts a voice note or a screenshot.'}
+            The fn key needs a native key tap this build does not have yet. Until then, use the keys above or the menu-bar item. If a key does nothing, the
+            row above says why; a capture that cannot start (microphone or screen recording off) says so when you press it.
           </span>
         </span>
       </div>
