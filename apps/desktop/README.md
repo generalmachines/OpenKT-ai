@@ -9,7 +9,8 @@ The OpenKT desktop app: an Electron shell (React, Vite) built screen for screen 
 ## Status
 
 - **Works now.** Every screen renders and navigates on seeded mock data (`src/api/mock/`). Unit tests cover the routes and the API adapter's request shapes.
-- **Stubbed.** Voice, screenshot and meeting capture run against `StubEngine`, which returns canned text. The Swift capture engine does not exist yet; [`src/main/engine/README.md`](src/main/engine/README.md) describes the seam it will plug into.
+- **Real, on this Mac.** Voice notes (whisper.cpp) and screenshots (Apple Vision OCR + the local vision model) — interim runtime, see [`src/main/models/README.md`](src/main/models/README.md). So far they are compiled and exercised only on the macOS CI runner, not on a physical Mac.
+- **Stubbed.** Meeting capture runs against `StubEngine`, which returns canned text. The Swift capture engine does not exist yet; [`src/main/engine/README.md`](src/main/engine/README.md) describes the seam it will plug into.
 - **Untested.** The `http` adapter (`src/api/http.ts`) follows [`docs/specs/04-api-contract.md`](../../docs/specs/04-api-contract.md) but has not been run against a live server. Methods the server does not expose yet fall back to mock data.
 - **Planned.** Sign-in, wiring AI tools from the app, page editing, macOS packaging and signing. See [`PLAN.md`](../../PLAN.md), version 0.3.
 

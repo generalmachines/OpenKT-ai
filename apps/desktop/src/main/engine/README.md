@@ -9,7 +9,7 @@ the seam it plugs into.
 | File | Role |
 |---|---|
 | `protocol.ts` | Message types and the `Engine` interface. The contract. |
-| `stub.ts` | `StubEngine`: simulates results with canned text. What runs today. |
+| `stub.ts` | `StubEngine`: simulates results with canned text. Today it only serves **meetings**; voice notes and screenshots are real (`../capture/`, interim runtime of Spec 03 §1a). |
 | *(planned)* `swift.ts` | `SwiftEngine`: spawns the helper and speaks the protocol. |
 
 `src/main/capture` depends only on the `Engine` interface, so replacing the

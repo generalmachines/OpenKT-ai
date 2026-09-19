@@ -84,7 +84,8 @@ try {
   const { pcm, sampleRate, channels } = pcmFromWav(readFileSync(voiceWav));
   check('voice_fixture_is_16k_mono_pcm16', sampleRate === 16000 && channels === 1, { sampleRate, channels, bytes: pcm.length });
   const clipMs = Math.round((pcm.length / 2 / 16000) * 1000);
-  const push = async (buf) => {
+  const push = (buf) => pushTo(voice, buf);
+  const pushTo = async (voice, buf) => {
     const id = await voice.begin();
     if (typeof id !== 'string') throw new Error(`voice.begin: ${JSON.stringify(id)}`);
     for (let off = 0; off < buf.length; off += 8000) {
@@ -114,6 +115,15 @@ try {
     report.voiceSession = s;
     check('voice_to_session', s.facts.length >= 1 && s.facts.every(validFact) && gate.dropped.length === 0 && typeof s.title === 'string', { status: s.status, title: s.title, summary: s.summary, facts: s.facts, quoteGateDropped: gate.dropped.length });
     check('voice_session_forgotten', voice.activeCount === 0, { activeCount: voice.activeCount });
+
+    // The same clip on the CPU (`-ng`), the path a Mac takes after a Metal failure. On CI this is also the
+    // honest latency: the runner's GPU is a paravirtual device and far slower than its CPU.
+    const onCpu = createVoiceService(ai, paths, { whisperCpuOnly: true });
+    const c = await onCpu.end(await pushTo(onCpu, pcm), { language: 'auto' });
+    if (c.error) throw new Error(`voice.end on the CPU: ${c.error}: ${c.message}`);
+    report.latenciesMs.transcribeCpu = c.transcribe_ms;
+    const heardCpu = words(c.text ?? '');
+    check('voice_transcript_cpu', !c.empty && c.used_gpu === false && needles.every((n) => heardCpu.includes(n)) && wavsLeft().length === 0, { text: c.text, transcribeMs: c.transcribe_ms, usedGpu: c.used_gpu });
   }
   {
     const short = await voice.end(await push(pcm.subarray(0, 32000)));

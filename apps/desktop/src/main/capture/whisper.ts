@@ -15,6 +15,8 @@ export interface WhisperOptions {
   prefixArgs?: string[];
   model: string;
   threads?: number;
+  /** Start on the CPU (`-ng`) instead of falling back to it. */
+  cpuOnly?: boolean;
   log?: (line: string) => void;
 }
 
@@ -50,8 +52,10 @@ function run(binary: string, args: string[], timeoutMs: number): Promise<Exit> {
 
 export class Whisper {
   /** Sticky after the first GPU failure. */
-  cpuOnly = false;
-  constructor(private readonly opts: WhisperOptions) {}
+  cpuOnly: boolean;
+  constructor(private readonly opts: WhisperOptions) {
+    this.cpuOnly = opts.cpuOnly === true;
+  }
 
   /** The exact arguments, public for the unit test and the README. `-of` is the output path without ".json". */
   args(wav: string, outBase: string, language: string, cpuOnly: boolean): string[] {

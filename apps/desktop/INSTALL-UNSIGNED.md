@@ -34,10 +34,24 @@ the same quarantine block worded differently — use B.
 
 ## 3. First launch
 
-OpenKT downloads its local models by itself (about 4 GB on Macs with more than 8 GB of RAM,
-about 2.6 GB otherwise) into `~/Library/Application Support/OpenKT/models/`. Keep the app open
+OpenKT downloads its local models by itself (about 4.6 GB on Macs with more than 8 GB of RAM,
+about 3.1 GB otherwise — text, embeddings, speech and vision) into `~/Library/Application Support/OpenKT/models/`. Keep the app open
 and stay online; if the download is interrupted it resumes where it stopped. Nothing else
 needs to be installed.
+
+## 4. Voice notes and screenshots
+
+- **Voice note — Control+Option+Space.** The first time, macOS asks whether OpenKT may use the
+  **microphone**: click **Allow**. If you clicked Don't Allow, turn it on in **System Settings →
+  Privacy & Security → Microphone → OpenKT**. Press the shortcut again to stop; the words appear
+  a moment later (transcription runs on this Mac, after you stop — there is no live text yet).
+  The audio file is deleted as soon as it has been transcribed.
+- **Screenshot — Control+Option+S**, then drag over the part of the screen you want (Esc cancels).
+  macOS only lets an app capture other apps' windows when **Screen Recording** is on for it:
+  **System Settings → Privacy & Security → Screen Recording** (on macOS 15: **Screen & System Audio
+  Recording**) **→ enable OpenKT → quit and reopen OpenKT**. Without it, screenshots show only your
+  desktop picture and OpenKT's own windows.
+- The `fn` key is not used yet.
 
 ## Remove
 

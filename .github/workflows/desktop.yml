@@ -240,6 +240,10 @@ jobs:
           OPENKT_WHISPER_MODEL: base
           OPENKT_VOICE_WAV: ${{ runner.temp }}/v.wav
           OPENKT_SMOKE_VISION: try
+          # llama.cpp on the CPU here. This runner's GPU is a paravirtual device: in run 35433787580 llama-server
+          # did not crash on it (so the app's crash → CPU fallback never fired) but generated at 4 tokens/s and
+          # ran away until the request timed out. whisper-cli is still exercised on Metal AND on the CPU.
+          OPENKT_LLAMA_EXTRA_ARGS: --device none --no-mmproj-offload
           OPENKT_SMOKE_REPORT: ${{ runner.temp }}/smoke-capture-report.json
         run: |
           sysctl -n machdep.cpu.brand_string hw.memsize

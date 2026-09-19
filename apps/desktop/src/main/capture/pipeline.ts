@@ -20,8 +20,8 @@ export interface CapturePaths {
 export const whisperBinary = (dir: string) => join(dir, 'whisper-cli');
 export const ocrBinary = (dir: string) => join(dir, 'openkt-ocr');
 
-export function createVoiceService(ai: LlamaLocalAi, paths: CapturePaths, extra: Pick<VoiceDeps, 'askMicrophone'> & { log?: (l: string) => void; agentTimeoutMs?: number } = {}): VoiceService {
-  const whisper = new Whisper({ binary: whisperBinary(paths.whisperDir), model: ai.store.pathOf('whisper'), log: extra.log });
+export function createVoiceService(ai: LlamaLocalAi, paths: CapturePaths, extra: Pick<VoiceDeps, 'askMicrophone'> & { log?: (l: string) => void; agentTimeoutMs?: number; whisperCpuOnly?: boolean } = {}): VoiceService {
+  const whisper = new Whisper({ binary: whisperBinary(paths.whisperDir), model: ai.store.pathOf('whisper'), cpuOnly: extra.whisperCpuOnly, log: extra.log });
   return new VoiceService({
     whisper,
     tmpDir: join(paths.tmpDir, 'voice'),

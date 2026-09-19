@@ -30,7 +30,7 @@ let voice: VoiceService | null = null;
 let screenshot: ScreenshotService | null = null;
 
 export function getVoice(): VoiceService {
-  voice ??= createVoiceService(getLocalAi(), capturePaths(), { askMicrophone, log: (l) => console.log(l) });
+  voice ??= createVoiceService(getLocalAi(), capturePaths(), { askMicrophone, whisperCpuOnly: process.env['OPENKT_WHISPER_NO_GPU'] === '1', log: (l) => console.log(l) });
   return voice;
 }
 
