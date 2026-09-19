@@ -17,6 +17,10 @@ export interface LocalProviderConfig {
 export interface LocalEntry {
   name: string;
   type: "file" | "dir" | "symlink" | "other";
+  /** Modification time (ISO-8601 UTC), from `lstat` — absent when the stat fails. */
+  mtime?: string;
+  /** Bytes, on files only — never on directories, symlinks or others. */
+  size?: number;
 }
 
 /**
@@ -82,10 +86,26 @@ export function createLocalProvider(config: LocalProviderConfig): ToolProvider {
         }
         const dir = await resolveInsideRoot(root, params["dir"]);
         const entries = await fs.readdir(dir, { withFileTypes: true });
-        return entries.map((e) => ({
-          name: e.name,
-          type: e.isFile() ? "file" : e.isDirectory() ? "dir" : e.isSymbolicLink() ? "symlink" : "other",
-        })) as T;
+        // Stats come from `lstat` on the entry's path — never follow a
+        // symlink, so nothing outside the root is ever touched. An entry
+        // whose lstat fails (deleted between listing and stat) is still
+        // returned, without mtime and size.
+        return Promise.all(
+          entries.map(async (e): Promise<LocalEntry> => {
+            const entry: LocalEntry = {
+              name: e.name,
+              type: e.isFile() ? "file" : e.isDirectory() ? "dir" : e.isSymbolicLink() ? "symlink" : "other",
+            };
+            try {
+              const stats = await fs.lstat(path.join(dir, e.name));
+              entry.mtime = stats.mtime.toISOString();
+              if (entry.type === "file") entry.size = stats.size;
+            } catch {
+              // keep the entry without mtime/size
+            }
+            return entry;
+          }),
+        ) as T;
       }
       if (action === "fs.read") {
         if (typeof params["path"] !== "string") {
