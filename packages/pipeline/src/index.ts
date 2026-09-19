@@ -10,3 +10,5 @@ export * from "./secrets.js";
 export * from "./section.js";
 export * from "./tags.js";
 // Each task adds one line here, e.g.:  export * from "./chunker.js";
+
+export * from "./quote-gate.js";
