@@ -7,6 +7,13 @@ function facts(kinds: Kind[]): { kind: Kind; id: number }[] {
 }
 
 describe("capFacts", () => {
+  it("keeps original order when the same object appears twice", () => {
+    const a = { kind: "idea" as Kind, n: "a" };
+    const b = { kind: "decision" as Kind, n: "b" };
+    const c = { kind: "idea" as Kind, n: "c" };
+    expect(capFacts([a, b, a, c], 3).map((f) => f.n)).toEqual(["a", "b", "a"]);
+  });
+
   it("keeps 12 of 15 facts, removing the last three ideas, order preserved", () => {
     // 5 decisions, 5 facts, 5 ideas. Decisions and facts outrank ideas, so
     // exactly the last three ideas are dropped.

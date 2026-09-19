@@ -13,17 +13,17 @@ function priorityIndex(kind: Kind): number {
 
 export function capFacts<T extends { kind: Kind }>(facts: T[], max: number): T[] {
   if (facts.length <= max) return facts;
-  const byKind = new Map<Kind, T[]>();
-  for (const f of facts) {
+  const byKind = new Map<Kind, { item: T; at: number }[]>();
+  facts.forEach((f, i) => {
     const list = byKind.get(f.kind) ?? [];
-    list.push(f);
+    list.push({ item: f, at: i });
     byKind.set(f.kind, list);
-  }
+  });
   const kept: { item: T; at: number }[] = [];
   outer: for (const kind of KIND_PRIORITY) {
-    for (const item of byKind.get(kind) ?? []) {
+    for (const entry of byKind.get(kind) ?? []) {
       if (kept.length >= max) break outer;
-      kept.push({ item, at: facts.indexOf(item) });
+      kept.push({ item: entry.item, at: entry.at });
     }
   }
   return kept
