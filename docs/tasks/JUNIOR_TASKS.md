@@ -690,8 +690,8 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 
 **Do exactly this**
 1. Create `packages/pipeline/src/quote-gate.ts` exporting `normalise(s: string): string` and `quoteGate(facts: ExtractedFact[], chunk: { turns: Turn[]; overlap: Turn[] }): { kept: (ExtractedFact & { turn_seq: number })[]; dropped: { index: number; reason: 'quote_not_found' | 'quote_only_in_overlap' | 'quote_too_short' | 'secret' }[] }`.
-2. `normalise`: Unicode NFKC; curly quotes → straight; all whitespace runs → one space; trim; lowercase.
-3. A quote shorter than 12 normalised characters → `quote_too_short`.
+2. `normalise` is a copy of `normaliseForMatch` in `packages/agents/src/text.ts`, rule for rule and with no additions: NFKC; drop zero-width characters (U+200B–U+200D, U+2060, U+FEFF); curly quotes and backticks → `'` / `"`; dashes U+2010–U+2015 and U+2212 → `-`; `…` → `...`; whitespace runs → one space; trim. **No lowercasing** — the server re-runs this gate (`server/apps/server/src/modules/jobs/rules/living-rules.ts`) and `packages/agents/src/agents/extract.ts` matches case-sensitively, so lowercasing here would keep facts the server then drops.
+3. `export const MIN_QUOTE_CHARS = 8;` — the same value as `packages/agents/src/agents/extract.ts` and the server's rules. A quote shorter than that, after normalising, → `quote_too_short`.
 4. Search the normalised quote inside each normalised turn of `chunk.turns`; first hit sets `turn_seq`. Found only in `chunk.overlap` → `quote_only_in_overlap`. Not found → `quote_not_found`.
 5. If `hasSecret(statement) || hasSecret(quote)` → `secret` (import from `./secrets.js`).
 6. Check each fact in this order and stop at the first reason: `secret`, `quote_too_short`, then the search (`quote_only_in_overlap` / `quote_not_found`). Normalise each turn's content with the same `normalise` before searching.
@@ -703,10 +703,11 @@ The **Who** column uses the GitHub label names: `senior` is a maintainer task (d
 - `packages/pipeline/src/index.ts`
 
 **Acceptance — every line must be true and tested**
-- [ ] A quote differing only by curly quotes, case and double spaces is kept.
+- [ ] A quote differing only by curly quotes, double spaces, a zero-width character, an em dash or an ellipsis is kept.
+- [ ] A quote differing only in letter case is dropped (`quote_not_found`): the gate is case-sensitive, like the agents and server copies.
 - [ ] A quote spanning two turns is dropped (`quote_not_found`).
 - [ ] A quote present only in overlap is dropped with that reason.
-- [ ] An 11-char quote is dropped; a 12-char one can pass.
+- [ ] A 7-character quote is dropped; an 8-character one can pass.
 - [ ] A fact containing a fake AWS key is dropped as `secret`.
 - [ ] A Thai quote and a Hindi quote that appear verbatim are kept.
 - [ ] typecheck and tests pass.
