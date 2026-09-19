@@ -1,15 +1,20 @@
 import type {
   AccessDefault,
+  Capabilities,
   Connector,
+  Contributor,
   ContextItem,
   Grant,
   GrantSubject,
   Id,
+  JoinLink,
+  KnowledgeGraph,
   Me,
   ModelJob,
   ModelSettings,
   NewFactInput,
   NewSessionInput,
+  NewSpaceInput,
   Page,
   PageListItem,
   PreviewArea,
@@ -18,9 +23,13 @@ import type {
   Role,
   Session,
   SessionListItem,
+  NewSkillInput,
+  SaveSkillInput,
   Skill,
-  SkillRun,
+  SkillFile,
+  SkillSummary,
   Space,
+  SpaceMembers,
   Workspace,
 } from './types';
 
@@ -47,8 +56,24 @@ export interface OpenKTClient {
   getMe(): Promise<Me>;
   getWorkspace(): Promise<Workspace>;
 
+  /** What this server can do beyond the basics. Asked once; a missing route reads as false. */
+  capabilities(): Promise<Capabilities>;
+
   listSpaces(): Promise<Space[]>;
   getSpace(id: Id): Promise<Space>;
+  /**
+   * A new space owned by the signed-in person, shared with nobody yet. The slug
+   * comes from the name; when it is taken the next free `-2`, `-3`… is used.
+   */
+  createSpace(input: NewSpaceInput): Promise<Space>;
+  /** Everyone with access, with their roles. Only the owner sees the whole list; others get what they can piece together. */
+  listSpaceMembers(spaceId: Id): Promise<SpaceMembers>;
+  /** The newest context saved into a space, each with who saved it. */
+  listSpaceContext(spaceId: Id, opts?: { limit?: number }): Promise<ContextItem[]>;
+  /** A link anyone can use to join the space as `role`. Owner only. Needs `capabilities().joinLinks`. */
+  createJoinLink(spaceId: Id, role: Role): Promise<JoinLink>;
+  /** Join with a link or its code; returns the space joined. Needs `capabilities().joinLinks`. */
+  joinSpace(linkOrCode: string): Promise<Space>;
   listPages(spaceId: Id): Promise<PageListItem[]>;
   getPage(id: Id): Promise<Page>;
 
@@ -56,6 +81,8 @@ export interface OpenKTClient {
   listSessions(filter?: { spaceId?: Id; mine?: boolean }): Promise<SessionListItem[]>;
   getSession(id: Id): Promise<Session>;
   createSession(input: NewSessionInput): Promise<Session>;
+  /** File a session (and its context) under another space. Needs `capabilities().moveSession`. */
+  moveSession(id: Id, spaceId: Id): Promise<Session>;
   /** `summary` is what the session view shows once closed. */
   closeSession(id: Id, summary?: string): Promise<Session>;
   listContext(sessionId: Id): Promise<ContextItem[]>;
@@ -74,15 +101,40 @@ export interface OpenKTClient {
   listConnectors(): Promise<Connector[]>;
   updateConnector(id: Id, patch: Partial<Pick<Connector, 'defaultAccess' | 'connected'>>): Promise<Connector>;
 
-  listSkills(): Promise<Skill[]>;
-  createSkill(name: string): Promise<Skill>;
-  runSkill(id: Id): Promise<SkillRun>;
+  /**
+   * Skills. Grants on a skill go through `listGrants`/`inviteByEmail`/… with `{type:'skill'}`.
+   * Failures are `ApiError`s: `conflict` + code `version_conflict` when someone saved first;
+   * `invalid` + one of `SKILL_ERROR_CODES` (src/api/skillFiles.ts) when the files are not a skill.
+   */
+  listSkills(filter?: { spaceId?: Id; q?: string }): Promise<SkillSummary[]>;
+  /** Creates v1 and returns it opened, ready to edit. */
+  createSkill(input: NewSkillInput): Promise<Skill>;
+  getSkill(id: Id): Promise<Skill>;
+  /** The files as they were at version `n`. */
+  getSkillVersion(id: Id, version: number): Promise<SkillFile[]>;
+  /** Saves the whole file set as a new version. */
+  saveSkill(id: Id, input: SaveSkillInput): Promise<Skill>;
+  /** Makes version `n` current again, as a new version on top. */
+  restoreSkillVersion(id: Id, version: number): Promise<Skill>;
+  /** Move to another space, or archive. */
+  updateSkill(id: Id, patch: { spaceId?: Id; archived?: boolean }): Promise<SkillSummary>;
+  deleteSkill(id: Id): Promise<void>;
+  /** Tell the server a run really happened here. Returns the files that ran. Never call it for a run that did not happen. */
+  recordSkillRun(id: Id): Promise<SkillFile[]>;
 
   getModelSettings(): Promise<ModelSettings>;
   setModel(job: ModelJob, name: string): Promise<ModelSettings>;
   setModelEndpoint(endpoint: string): Promise<ModelSettings>;
 
   recall(query: string, opts?: { spaceId?: Id; limit?: number }): Promise<RecallHit[]>;
+
+  /**
+   * Who has added what to a space, and which pages it feeds. Optional: only the
+   * sample workspace has it for now, and the screens hide the panel without it.
+   */
+  listContributors?(spaceId: Id): Promise<Contributor[]>;
+  /** A space's people, pages and facts and how they connect. Optional, like `listContributors`. */
+  getKnowledgeGraph?(spaceId: Id): Promise<KnowledgeGraph>;
 }
 
 export class NotFoundError extends Error {

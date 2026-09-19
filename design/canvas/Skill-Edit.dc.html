@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Editing a skill</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1a1a18;background:#fff;-webkit-font-smoothing:antialiased}
+a{color:#b4532a}a:hover{color:#8f3f1e}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; display: flex; background: #fff; overflow: hidden;">
+<nav aria-label="Sessions" style="width: 272px; flex-shrink: 0; box-sizing: border-box; height: 100%; background: #f7f7f5; border-right: 1px solid #e8e7e3; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 12px;">
+<span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em;">OpenKT</span>
+<span class="mono" style="font-size: 10.5px; color: #6b6a65; display: flex; align-items: center; gap: 6px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #4f7a4a; display: inline-block;"></span>local</span>
+</div>
+<button style="display: flex; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 8px; border: 1px solid #e8e7e3; background: #fff; font-size: 13.5px; color: #6b6a65; text-align: left; min-height: 44px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="flex-grow: 1;">Search all context</span><span class="mono" style="font-size: 11px;">⌘K</span></button>
+<div style="height: 6px;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>New note</a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Today</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pricing call with Northgate</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">meeting · 42 min</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fix auth refresh storm</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">claude code · openkt</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Idea: per-store onboarding kit</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">voice · ideas</span>
+</span></a>
+<div class="mono" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6a65; padding: 14px 10px 6px;">Yesterday</div>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Q4 launch messaging</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">chatgpt · marketing</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"></rect><path d="M12 8V4M9 13v1.5M15 13v1.5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Inbox triage</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">hermes · personal</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Competitor pricing page</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">screenshot · sales</span>
+</span></a>
+<a href="#" style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: transparent; color: #1a1a18; text-decoration: none;">
+<span style="color: #6b6a65; padding-top: 2px; display: flex;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 13.5px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Hiring plan notes</span>
+<span class="mono" style="font-size: 11px; color: #6b6a65;">note · founders</span>
+</span></a>
+<div style="flex-grow: 1;"></div>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>Spaces</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: #ecebe7; font-weight: 500;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span>Skills</a>
+<a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; color: #1a1a18; text-decoration: none; background: transparent; font-weight: 400;"><span style="color: #55544f; display: flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg></span>Settings</a>
+</nav>
+<main style="flex-grow: 1; min-width: 0; padding: 32px 40px 28px 48px; display: flex; flex-direction: column; gap: 12px;">
+<div class="mono" style="font-size: 11.5px; color: #6b6a65; display: flex; gap: 8px; align-items: center;">Skills <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg> marketing</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; flex-grow: 1;">Sharpen a marketing message</h1>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #e8e7e3; background: #fff; font-size: 13px;">Cancel</button>
+<button style="height: 36px; padding: 0 16px; border-radius: 18px; border: none; background: #1a1a18; color: #fff; font-size: 13px; font-weight: 500;">Save as v5</button>
+</div>
+<div class="mono" style="font-size: 11.5px; color: #6b6a65; display: flex; gap: 14px;"><span>editing · your changes become v5</span><span style="display: flex; gap: 6px; align-items: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>marketing can edit · sales can use</span></div>
+<div style="display: flex; gap: 36px; flex-grow: 1; min-height: 0; padding-top: 6px;">
+<section style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;"><div style="border: 1px solid #1a1a18; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;">
+<div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #e8e7e3; background: #f7f7f5;">
+<span class="mono" style="font-size: 12px; flex-grow: 1;">SKILL.md</span><span class="mono" style="font-size: 11px; color: #6b6a65;">markdown · ⌘S saves · Esc cancels</span>
+</div>
+<div style="display: flex; flex-grow: 1; min-height: 0; overflow: hidden;">
+<div class="mono" aria-hidden="true" style="display: flex; flex-direction: column; padding: 14px 10px 14px 16px; font-size: 12px; line-height: 20px; color: #a3a29c; text-align: right; user-select: none; border-right: 1px solid #e8e7e3;"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span></div>
+<label for="src" style="position: absolute; left: -9999px;">Skill source</label>
+<textarea id="src" spellcheck="false" style="flex-grow: 1; border: none; outline: none; resize: none; padding: 14px 16px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; line-height: 20px; color: #1a1a18; background: #fff; white-space: pre; overflow: hidden;">---
+name: sharpen-marketing-message
+description: Rewrite a marketing draft in our voice. Use when someone shares launch copy, an email, a post or a headline and asks to tighten it.
+---
+
+# Sharpen a marketing message
+
+Rewrite the draft so it sounds like us.
+
+## Voice
+- Short sentences. One claim per message.
+- Plain words. No superlatives, no &quot;revolutionary&quot;, no exclamation marks.
+- Say who it is for in the first line.
+
+## Steps
+1. Ask OpenKT for the current positioning: recall &quot;positioning&quot; in the marketing space.
+2. Find the single claim the draft is trying to make. If there are two, ask which one.
+3. Rewrite. Keep it under 60 words unless asked otherwise.
+4. Show the rewrite, then one line on what you changed.</textarea>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid #e8e7e3;">
+<label for="note" style="font-size: 12.5px; color: #6b6a65;">What changed</label>
+<input id="note" type="text" placeholder="One line for your teammates" style="flex-grow: 1; height: 34px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; border: 1px solid #e8e7e3; font: inherit; font-size: 13px;">
+</div></div></section>
+<aside style="width: 264px; flex-shrink: 0; display: flex; flex-direction: column; gap: 22px; padding-top: 4px;">
+<div><h3 class="mono" style="margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; color: #6b6a65;">Files</h3>
+<a href="#" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: #1a1a18; background: #ecebe7;"><span style="color: #6b6a65; display: flex;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span><span class="mono" style="font-size: 12px; flex-grow: 1;">SKILL.md</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">1.1 KB</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: #1a1a18; background: transparent;"><span style="color: #6b6a65; display: flex;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span><span class="mono" style="font-size: 12px; flex-grow: 1;">references/voice.md</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">2.4 KB</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: #1a1a18; background: transparent;"><span style="color: #6b6a65; display: flex;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"></path></svg></span><span class="mono" style="font-size: 12px; flex-grow: 1;">references/examples.md</span><span class="mono" style="font-size: 10.5px; color: #6b6a65;">3.0 KB</span></a>
+</div>
+<div><h3 class="mono" style="margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; color: #6b6a65;">Who can use it</h3>
+<div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;"><span style="width: 26px; height: 26px; border-radius: 50%; background: #ecebe7; display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: #55544f; flex-shrink: 0;">AN</span><span style="font-size: 13px; flex-grow: 1;">Ana Reyes</span><span class="mono" style="font-size: 11px; color: #6b6a65;">owner</span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;"><span style="width: 26px; height: 26px; border-radius: 50%; background: #ecebe7; display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: #55544f; flex-shrink: 0;">MK</span><span style="font-size: 13px; flex-grow: 1;">Marketing</span><span class="mono" style="font-size: 11px; color: #6b6a65;">editors</span></div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;"><span style="width: 26px; height: 26px; border-radius: 50%; background: #ecebe7; display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: #55544f; flex-shrink: 0;">SA</span><span style="font-size: 13px; flex-grow: 1;">Sales</span><span class="mono" style="font-size: 11px; color: #6b6a65;">readers</span></div>
+</div>
+<div><h3 class="mono" style="margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; color: #6b6a65;">Versions</h3>
+<a href="#" style="display: flex; gap: 10px; padding: 6px 0; text-decoration: none; color: #1a1a18;"><span class="mono" style="font-size: 11.5px; width: 22px; color: #b4532a;">v4</span><span style="font-size: 12.5px; color: #55544f; line-height: 1.4;">Ana · 2 days ago · shorter word limit</span></a>
+<a href="#" style="display: flex; gap: 10px; padding: 6px 0; text-decoration: none; color: #1a1a18;"><span class="mono" style="font-size: 11.5px; width: 22px; color: #6b6a65;">v3</span><span style="font-size: 12.5px; color: #55544f; line-height: 1.4;">Ravi · 3 weeks ago · added the recall step</span></a>
+<a href="#" style="display: flex; gap: 10px; padding: 6px 0; text-decoration: none; color: #1a1a18;"><span class="mono" style="font-size: 11.5px; width: 22px; color: #6b6a65;">v2</span><span style="font-size: 12.5px; color: #55544f; line-height: 1.4;">Ana · 5 weeks ago</span></a>
+</div>
+<p class="mono" style="margin: 0; font-size: 11px; line-height: 1.6; color: #6b6a65;">used 31 times this month · available in every connected tool</p>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

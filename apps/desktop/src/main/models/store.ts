@@ -15,6 +15,12 @@ export interface ModelStatus {
   receivedBytes: number;
   state: ModelState;
   error?: string;
+  /** From the manifest, for the "which open-source models" list. */
+  name?: string;
+  license?: string;
+  /** The original model card, and the repository the file is downloaded from. */
+  card?: string;
+  source?: string;
 }
 
 export interface ModelsProgress {
@@ -61,7 +67,8 @@ export class ModelStore {
         const partial = done ? m.bytes : Math.max(0, await size(`${path}.part`));
         const error = this.errors.get(role);
         const state: ModelState = done ? 'ready' : this.active === role ? 'downloading' : error ? 'error' : partial > 0 ? 'partial' : 'missing';
-        return { role, id: m.id, file: localName(m), path, totalBytes: m.bytes, receivedBytes: partial, state, ...(error && !done ? { error } : {}) };
+        const about = { ...(m.name ? { name: m.name } : {}), ...(m.license ? { license: m.license } : {}), ...(m.model ? { card: `https://huggingface.co/${m.model}` } : {}), source: `https://huggingface.co/${m.repo}` };
+        return { role, id: m.id, file: localName(m), path, totalBytes: m.bytes, receivedBytes: partial, state, ...about, ...(error && !done ? { error } : {}) };
       }),
     );
   }
@@ -97,6 +104,13 @@ export class ModelStore {
         before += m.bytes;
         onProgress?.({ ...base, receivedBytes: m.bytes, bytesPerSec: 0, overall: before / grand, state: 'ready' });
       } catch (e) {
+        if (signal?.aborted) {
+          // Paused, not failed: the .part file stays and the next ensure() resumes from it.
+          this.active = null;
+          const kept = Math.max(0, await size(`${this.pathOf(role)}.part`));
+          onProgress?.({ ...base, receivedBytes: kept, bytesPerSec: 0, overall: (before + kept) / grand, state: kept > 0 ? 'partial' : 'missing' });
+          throw e;
+        }
         const error = (e as Error).message;
         this.errors.set(role, error);
         this.active = null;

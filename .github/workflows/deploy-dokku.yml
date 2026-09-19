@@ -12,6 +12,7 @@ on:
       - "server/**"
       - "docker/**"
       - ".dokku/**"
+      - "deploy/dokku/**"
       - ".github/workflows/deploy-dokku.yml"
   workflow_dispatch:
 
@@ -94,86 +95,20 @@ jobs:
           role-session-name: openkt-next-dokku-${{ github.run_id }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Upload immutable source archive
-        id: artifact
-        shell: bash
-        env:
-          ARTIFACT_BUCKET: ${{ vars.DEPLOY_ARTIFACT_BUCKET }}
-        run: |
-          set -euo pipefail
-          artifact_key="ci/${GITHUB_SHA}/openkt-next.tar"
-          artifact_path="${RUNNER_TEMP}/openkt-next.tar"
-          # Only what the images need — keeps the archive small.
-          git archive --format=tar --output="${artifact_path}" "${GITHUB_SHA}" server docker .dokku .dockerignore
-          aws s3 cp "${artifact_path}" "s3://${ARTIFACT_BUCKET}/${artifact_key}" --only-show-errors
-          echo "uri=s3://${ARTIFACT_BUCKET}/${artifact_key}" >>"${GITHUB_OUTPUT}"
-
+      # One implementation of the deploy, shared with scripts/deploy-from-box.sh: archive (+ build-info.json
+      # carrying this commit) → S3 ci/<sha> → SSM → dokku git:from-archive (release-phase migrations, then the
+      # .dokku/app.json healthcheck before traffic moves). The archive is removed afterwards.
       - name: Deploy through AWS Systems Manager
         shell: bash
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           DOKKU_INSTANCE_ID: ${{ vars.DOKKU_INSTANCE_ID }}
-          ARTIFACT_URI: ${{ steps.artifact.outputs.uri }}
+          DEPLOY_ARTIFACT_BUCKET: ${{ vars.DEPLOY_ARTIFACT_BUCKET }}
           DEPLOY_EMBEDDING: ${{ steps.changes.outputs.embedding }}
-        run: |
-          set -euo pipefail
-          parameters="$(
-            jq -cn \
-              --arg artifact "${ARTIFACT_URI}" \
-              --arg embedding "${DEPLOY_EMBEDDING}" \
-              '{
-                commands: [
-                  "if [ -z \"${BASH_VERSION:-}\" ]; then exec /bin/bash \"$0\" \"$@\"; fi",
-                  "set -euo pipefail",
-                  ("ARTIFACT_URI=" + ($artifact | @sh)),
-                  "deploy_app() { aws s3 cp \"${ARTIFACT_URI}\" - --only-show-errors | dokku git:from-archive \"$1\" --; }",
-                  (if $embedding == "true" then "deploy_app openkt-next-embedding" else "echo \"Embedding image unchanged; skipping\"" end),
-                  "dokku ps:set openkt-next-api procfile-path .dokku/Procfile.api",
-                  "deploy_app openkt-next-api",
-                  "for app in openkt-next-api openkt-next-embedding; do dokku ps:report \"$app\"; done"
-                ]
-              }'
-          )"
-          command_id="$(
-            aws ssm send-command \
-              --region "${AWS_REGION}" \
-              --instance-ids "${DOKKU_INSTANCE_ID}" \
-              --document-name AWS-RunShellScript \
-              --comment "Deploy OpenKT next ${GITHUB_SHA}" \
-              --timeout-seconds 2400 \
-              --parameters "${parameters}" \
-              --query "Command.CommandId" \
-              --output text
-          )"
-          while true; do
-            if invocation="$(
-              aws ssm get-command-invocation \
-                --region "${AWS_REGION}" \
-                --command-id "${command_id}" \
-                --instance-id "${DOKKU_INSTANCE_ID}" \
-                --output json 2>/dev/null
-            )"; then
-              status="$(jq -r ".Status" <<<"${invocation}")"
-            else
-              status="Pending"; invocation=""
-            fi
-            case "${status}" in
-              Success)
-                jq -r ".StandardOutputContent" <<<"${invocation}"; break ;;
-              Failed|TimedOut|Cancelled|Cancelling)
-                jq -r ".StandardOutputContent, .StandardErrorContent" <<<"${invocation}"; exit 1 ;;
-              *)
-                echo "SSM deployment status: ${status}"; sleep 10 ;;
-            esac
-          done
+        run: bash deploy/dokku/ship.sh "${GITHUB_SHA}"
 
-      - name: Remove source archive
-        if: always() && steps.artifact.outputs.uri != ''
-        shell: bash
-        env:
-          ARTIFACT_URI: ${{ steps.artifact.outputs.uri }}
-        run: aws s3 rm "${ARTIFACT_URI}" --only-show-errors
-
+      # Passes only when the public /v1/meta reports the commit just shipped (and auth still refuses a
+      # tokenless call). Each failed attempt prints curl's reason; a final failure prints DNS/TLS diagnostics.
       - name: Smoke test the public endpoint
         shell: bash
         env:
@@ -181,9 +116,4 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "${PUBLIC_URL}" ] || { echo "PUBLIC_URL not set; skipping"; exit 0; }
-          for i in $(seq 1 30); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/v1/projects" || true)"
-            [ "${code}" = "401" ] && { echo "API is up (401 without a token, as expected)"; exit 0; }
-            sleep 5
-          done
-          echo "API did not come up: last status ${code}"; exit 1
+          bash deploy/dokku/smoke.sh "${PUBLIC_URL}" "${GITHUB_SHA}"

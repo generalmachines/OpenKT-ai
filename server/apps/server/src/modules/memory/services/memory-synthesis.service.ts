@@ -134,6 +134,9 @@ export class MemorySynthesisService {
             AND m.archived = false
             AND m.superseded_by IS NULL
             AND m.embedding IS NOT NULL
+            -- In a shared space, never merge into (and so return) a
+            -- teammate's personal memory.
+            AND (m.owner_user_id = ${context.principal.userId}::uuid OR m.visibility <> 'personal')
           ORDER BY m.embedding <=> ${vectorLiteral}::vector
           LIMIT ${TOP_K_NEIGHBORS}
         `,

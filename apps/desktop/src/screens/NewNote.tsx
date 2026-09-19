@@ -1,11 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { describeError, type ContextKind } from '../api';
 import { localAi } from '../api/bridge';
-import { useClient, useQuery } from '../api/hooks';
+import { useHotkeys, voiceKeys } from '../api/hotkeys';
+import { asWritten, localAiReady } from '../capture/save';
+import { useClient } from '../api/hooks';
 import { Key, KindChip } from '../components/bits';
 import { Icon } from '../components/Icon';
+import { ModelsOffer } from '../components/ModelsOffer';
 import { Select } from '../components/Select';
+import { useSaveSpace } from '../components/useSaveSpace';
 
 interface Draft {
   title: string;
@@ -23,22 +27,22 @@ type Phase = { step: 'write' } | { step: 'extracting' } | { step: 'confirm'; dra
  * layout. Save runs in two beats when this Mac has local AI: the model
  * proposes a title, a summary and facts; the person confirms; then the
  * session, its turn and each fact are filed and the session is closed.
- * Without local AI the note is filed exactly as written.
+ * Without local AI the note is filed as written, and the note itself becomes
+ * its one context item so it can be recalled.
  */
 export function NewNote() {
   const client = useClient();
   const navigate = useNavigate();
-  const spaces = useQuery((c) => c.listSpaces(), []);
+  const [params] = useSearchParams();
+  // The space saved into last (else Personal: nothing is ever dropped for lack of somewhere to put it); a space page's "New note" names its own.
+  const { spaceId, setSpaceId, space, options, remember } = useSaveSpace(params.get('space') ?? undefined);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
-  const [spaceId, setSpaceId] = useState('');
   const [phase, setPhase] = useState<Phase>({ step: 'write' });
   const [error, setError] = useState('');
-
-  // Default to the personal space once the list arrives: nothing is ever dropped for lack of somewhere to put it.
-  useEffect(() => {
-    if (!spaceId && spaces.data?.length) setSpaceId((spaces.data.find((s) => s.personal) ?? spaces.data[0]!).id);
-  }, [spaceId, spaces.data]);
+  const [aiReady, setAiReady] = useState(false);
+  const voice = voiceKeys(useHotkeys());
+  useEffect(() => void localAiReady().then(setAiReady, () => setAiReady(false)), []);
 
   const firstLine = text.trim().split('\n')[0]?.slice(0, 60) ?? '';
   const empty = !title.trim() && !text.trim();
@@ -52,18 +56,23 @@ export function NewNote() {
         title: title.trim() || draft?.title.trim() || firstLine,
         spaceId,
         text,
+        extractedOn: draft ? 'device' : 'none',
       });
-      for (const f of draft?.facts ?? []) {
-        if (f.keep && f.text.trim())
-          await client.saveFact({
-            sessionId: session.id,
-            spaceId,
-            statement: f.text,
-            kind: f.kind,
-          });
+      const kept = (draft?.facts ?? []).filter((f) => f.keep && f.text.trim());
+      for (const f of kept) {
+        await client.saveFact({
+          sessionId: session.id,
+          spaceId,
+          statement: f.text,
+          kind: f.kind,
+        });
       }
+      // No on-device AI (or it found nothing to split out): the note itself is the context, so ⌘K, a
+      // teammate it is shared with and every connected tool can recall it. A refusal keeps the session.
+      if (kept.length === 0) await client.saveFact(asWritten(session.id, spaceId, title.trim() || draft?.title.trim() || '', text)).catch(() => undefined);
       await client.closeSession(session.id, draft?.summary.trim() || text.trim().slice(0, 600));
-      navigate(`/sessions/${session.id}${draft?.facts.some((f) => f.keep) ? '/context' : ''}`);
+      remember();
+      navigate(`/sessions/${session.id}${kept.length ? '/context' : ''}`);
     } catch (e) {
       setError(describeError(e));
       setPhase(draft ? { step: 'confirm', draft } : { step: 'write' });
@@ -74,7 +83,7 @@ export function NewNote() {
     e.preventDefault();
     if (empty || !spaceId) return;
     if (phase.step === 'confirm') return file(phase.draft);
-    if (!localAi.available() || !text.trim()) return file(null);
+    if (!text.trim() || !(await localAiReady())) return file(null);
     setPhase({ step: 'extracting' });
     const got = await localAi.extractNote(text);
     if (!got) return file(null);
@@ -89,7 +98,6 @@ export function NewNote() {
     if (!title.trim() && got.title) setTitle(got.title);
   };
 
-  const space = spaces.data?.find((s) => s.id === spaceId);
   const draft = phase.step === 'confirm' ? phase.draft : null;
   const patchDraft = (p: Partial<Draft>) => draft && setPhase({ step: 'confirm', draft: { ...draft, ...p } });
   const busy = phase.step === 'extracting' || phase.step === 'saving';
@@ -109,7 +117,7 @@ export function NewNote() {
           </span>
           <span className="with-icon">
             <Icon name="lock" size={13} />
-            {space?.personal ? 'only you' : `filed in ${space?.name ?? ''}`}
+            {space?.personal ? 'only you' : space ? `filed in ${space.name}${space.memberCount > 1 ? ` · ${space.memberCount} people` : space.myRole && space.myRole !== 'owner' ? ' · shared' : ''}` : ''}
           </span>
         </div>
         <div className="rule" />
@@ -159,13 +167,15 @@ export function NewNote() {
             <textarea
               id="note-body"
               className="note__body"
-              placeholder={localAi.available() ? 'Write it down. Context is extracted on this Mac when you save.' : 'Write it down.'}
+              placeholder={aiReady ? 'Write it down. Context is extracted on this Mac when you save.' : 'Write it down. It is saved as written — on-device AI would pull out the facts.'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               readOnly={busy}
             />
           </>
         )}
+        {/* first run: extraction needs the on-device AI; say so and offer it when it is not on this Mac */}
+        {!draft && <ModelsOffer needs="a note" />}
         {error && (
           <p className="state mono" role="alert">
             {error}
@@ -181,10 +191,8 @@ export function NewNote() {
               up
               value={spaceId}
               onChange={setSpaceId}
-              options={(spaces.data ?? []).map((s) => ({
-                value: s.id,
-                label: s.name,
-              }))}
+              options={options}
+              display={space ? (space.personal ? 'Personal' : space.name) : undefined}
               leading={<Icon name="folder" size={13} />}
             />
             {draft ? (
@@ -199,7 +207,11 @@ export function NewNote() {
                   'filing…'
                 ) : (
                   <>
-                    or hold <Key>fn</Key> and say it
+                    {voice ? (
+                      <>
+                        or press <Key>{voice[0]}</Key> and say it
+                      </>
+                    ) : null}
                   </>
                 )}
               </span>
