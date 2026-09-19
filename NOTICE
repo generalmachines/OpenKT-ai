@@ -1,0 +1,69 @@
+OpenKT
+Copyright 2026 The OpenKT Authors
+
+This product is licensed under the Apache License, Version 2.0. See the
+LICENSE file.
+
+Dependencies installed by npm are not part of this repository and carry their
+own licences. The items below are third-party works that are committed to this
+repository or built into its distributed artefacts, and whose licences require
+attribution.
+
+-------------------------------------------------------------------------------
+Bundled in packages/mcp-cards/dist/openkt-cards.html
+-------------------------------------------------------------------------------
+
+The committed bundle is built with esbuild from packages/mcp-cards/src and
+includes the following libraries in minified form.
+
+1. @modelcontextprotocol/ext-apps 2.0.0, with the Model Context Protocol
+   TypeScript SDK modules it bundles
+   https://github.com/modelcontextprotocol/ext-apps
+   Copyright the Model Context Protocol project contributors.
+   The MCP project is moving from the MIT License to the Apache License,
+   Version 2.0. Contributions relicensed with consent are under Apache-2.0;
+   the remaining contributions are under the MIT License below.
+
+2. zod 4.x
+   https://github.com/colinhacks/zod
+   Copyright (c) 2025 Colin McDonnell
+   MIT License.
+
+3. @standard-schema/spec (type definitions used by the above)
+   Copyright (c) 2024 Colin McDonnell
+   MIT License.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------
+Distributed with builds of the desktop app (apps/desktop)
+-------------------------------------------------------------------------------
+
+Geist and Geist Mono typefaces
+   https://github.com/vercel/geist-font
+   Copyright 2024 The Geist Project Authors
+   SIL Open Font License, Version 1.1. https://openfontlicense.org
+
+   The font files are not committed to this repository. They are installed
+   from the @fontsource-variable/geist and @fontsource-variable/geist-mono npm
+   packages, which include the full licence text, and are copied into the
+   desktop app's build output. The design canvas in design/canvas/ loads the
+   same typefaces from Google Fonts at view time.

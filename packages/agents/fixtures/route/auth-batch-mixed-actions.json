@@ -1,0 +1,156 @@
+{
+  "name": "auth-batch-mixed-actions",
+  "description": "Three facts, three actions. The scripted reply adds a decision for a fact that was never sent and points one at a page that does not exist.",
+  "input": {
+    "facts": [
+      {
+        "id": "f_120",
+        "statement": "Dashboard users were logged out after about an hour because two tabs could call refreshSession() at the same time; the second call sent an already revoked refresh token.",
+        "kind": "issue"
+      },
+      {
+        "id": "f_122",
+        "statement": "Pratham decided to fix the refresh race with a BroadcastChannel lock in the web client and a grace window on the server.",
+        "kind": "decision"
+      },
+      {
+        "id": "f_124",
+        "statement": "It is unknown whether Safari private mode supports BroadcastChannel.",
+        "kind": "question"
+      },
+      {
+        "id": "f_125",
+        "statement": "Pratham said he was shipping the change.",
+        "kind": "fact"
+      }
+    ],
+    "pages": [
+      {
+        "id": "p_auth",
+        "title": "Auth — token refresh",
+        "summary": "How sessions are refreshed in the dashboard, token lifetimes, and known problems.",
+        "section_titles": [
+          "Overview",
+          "Known issues",
+          "Decisions"
+        ]
+      },
+      {
+        "id": "p_ng_pricing",
+        "title": "Northgate — pricing",
+        "summary": "What Northgate Market has been quoted and what they asked for.",
+        "section_titles": [
+          "Current quote",
+          "Requests"
+        ]
+      },
+      {
+        "id": "p_deploy",
+        "title": "Deploy — staging",
+        "summary": "How staging deploys run and what has gone wrong.",
+        "section_titles": [
+          "Pipeline",
+          "Incidents"
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "decisions": [
+        {
+          "fact_id": "f_120",
+          "page_id": "p_auth"
+        },
+        {
+          "fact_id": "f_122",
+          "page_id": "p_auth"
+        },
+        {
+          "fact_id": "f_124"
+        },
+        {
+          "fact_id": "f_125"
+        }
+      ]
+    }
+  },
+  "mock_replies": [
+    {
+      "decisions": [
+        {
+          "fact_id": "f_120",
+          "action": "rewrite_section",
+          "page_id": "p_auth",
+          "section_title": "known issues",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_122",
+          "action": "append",
+          "page_id": "p_auth",
+          "section_title": "Decisions",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_124",
+          "action": "append",
+          "page_id": "p_auth",
+          "section_title": "Open questions",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_125",
+          "action": "append",
+          "page_id": "p_shipping_log",
+          "section_title": "Log",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_777",
+          "action": "noop",
+          "page_id": null,
+          "section_title": null,
+          "new_page_title": null
+        }
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 2,
+    "output": {
+      "decisions": [
+        {
+          "fact_id": "f_120",
+          "action": "rewrite_section",
+          "page_id": "p_auth",
+          "section_title": "Known issues",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_122",
+          "action": "append",
+          "page_id": "p_auth",
+          "section_title": "Decisions",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_124",
+          "action": "append",
+          "page_id": "p_auth",
+          "section_title": "Open questions",
+          "new_page_title": null
+        },
+        {
+          "fact_id": "f_125",
+          "action": "noop",
+          "page_id": null,
+          "section_title": null,
+          "new_page_title": null
+        }
+      ]
+    }
+  }
+}

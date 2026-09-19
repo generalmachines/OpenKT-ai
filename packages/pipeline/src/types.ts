@@ -29,7 +29,7 @@ export interface FactRef {
   project_id: string;
   statement: string;
   kind: Kind;
-  created_at: string; // ISO-8601
+  created_at: string; // ISO-8601 with `Z` or an offset; compare as instants (Date.parse), never as text
   owner_user_id: string;
   is_pinned: boolean;
   confidence: number;

@@ -1,6 +1,6 @@
 # Founder brief — OpenKT (Open Knowledge Transfer), September 2026
 
-Raw direction from the founder, consolidated. This is the source of truth for product.md.
+> Historical record: the project founder's original direction, consolidated in September 2026 and kept unedited. [`docs/product.md`](../product.md) was written from it and is the current source of truth; where the two differ, `product.md` wins.
 
 ## Positioning
 - OpenKT is a **shared context engine for teams** — a "context cloud". One confined team knowledge base where context from everyone's tools lands, and from which everyone's AI tools retrieve.

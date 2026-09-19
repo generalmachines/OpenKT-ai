@@ -1,0 +1,34 @@
+import type { ActorContext } from "@openkt/core-context";
+
+import type {
+  MemoryRecord,
+  MemorySearchMeta,
+  MemorySearchRequest,
+  MemoryWithSimilarityRecord,
+  RecallMeta,
+} from "../contracts/memory.contract";
+
+export const MEMORY_ENGINE = Symbol("MEMORY_ENGINE");
+
+export interface MemoryEngine {
+  remember(context: ActorContext, memory: MemoryRecord): Promise<void>;
+  forget(context: ActorContext, memoryId: string, hard: boolean): Promise<void>;
+  search(
+    context: ActorContext,
+    request: MemorySearchRequest,
+    workspaceIds: string[],
+    // Sessions the asker holds a direct grant on (AccessScopeService,
+    // M4) — the escape hatch that lets a `visibility: 'personal'`
+    // memory be seen by someone other than its owner: architecture.md
+    // §3 "A fact extracted from a private session stays private until
+    // the session is shared". Defaults to [] for callers that haven't
+    // been updated yet (list/browse paths that don't touch personal
+    // memories owned by someone else).
+    grantedSessionIds?: string[],
+  ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: MemorySearchMeta }>;
+  recall(
+    context: ActorContext,
+    searchResult: { data: MemoryWithSimilarityRecord[]; meta: MemorySearchMeta },
+    invocationId?: string,
+  ): Promise<{ data: MemoryWithSimilarityRecord[]; meta: RecallMeta }>;
+}

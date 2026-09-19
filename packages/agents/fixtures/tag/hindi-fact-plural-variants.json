@@ -1,0 +1,77 @@
+{
+  "name": "hindi-fact-plural-variants",
+  "description": "Hindi fact, English vocabulary. The scripted reply uses plural/singular variants and a repeat; they converge on the existing spelling.",
+  "input": {
+    "fact": {
+      "statement": "Ojas ने तय किया कि आगे से हर बड़ा इंडेक्स CONCURRENTLY से ही बनेगा।",
+      "kind": "decision"
+    },
+    "vocabulary": [
+      {
+        "tag": "auth",
+        "count": 41
+      },
+      {
+        "tag": "frontend",
+        "count": 30
+      },
+      {
+        "tag": "deploy",
+        "count": 22
+      },
+      {
+        "tag": "northgate",
+        "count": 14
+      },
+      {
+        "tag": "pricing",
+        "count": 9
+      },
+      {
+        "tag": "token-refresh",
+        "count": 6
+      },
+      {
+        "tag": "migrations",
+        "count": 5
+      },
+      {
+        "tag": "postgres",
+        "count": 12
+      }
+    ]
+  },
+  "expect": {
+    "require_any": [
+      "migrations",
+      "postgres"
+    ],
+    "count": {
+      "key": "tags",
+      "min": 1,
+      "max": 4
+    }
+  },
+  "mock_replies": [
+    {
+      "tags": [
+        "migration",
+        "postgres",
+        "Migrations",
+        "deploys"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 1,
+    "output": {
+      "tags": [
+        "migrations",
+        "postgres",
+        "deploy"
+      ]
+    }
+  }
+}

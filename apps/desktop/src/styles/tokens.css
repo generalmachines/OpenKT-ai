@@ -1,0 +1,23 @@
+/* Tokens lifted from design/gen.py — the only palette in the app. */
+:root {
+  --ink: #1a1a18;
+  --ink-2: #55544f;
+  --ink-3: #6b6a65;
+  --line: #e8e7e3;
+  --line-strong: #c9c8c3;
+  --side: #f7f7f5;
+  --active: #ecebe7;
+  --bg: #fff;
+  --accent: #b4532a;
+  --accent-hover: #8f3f1e;
+  --accent-wash: rgba(180, 83, 42, 0.06);
+  --ok: #3f6a3b;
+  --ok-dot: #4f7a4a;
+  --desk: #d9d7d1;
+  --desk-line: #dedcd6;
+
+  --font-sans: 'Geist Variable', 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, monospace;
+
+  --sidebar-w: 272px;
+}

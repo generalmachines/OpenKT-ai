@@ -1,0 +1,68 @@
+{
+  "name": "pricing-customer-fact",
+  "description": "Customer and topic tags both exist.",
+  "input": {
+    "fact": {
+      "statement": "Daniel of Northgate Market wants per-store pricing with a lower rate for express formats.",
+      "kind": "fact"
+    },
+    "vocabulary": [
+      {
+        "tag": "auth",
+        "count": 41
+      },
+      {
+        "tag": "frontend",
+        "count": 30
+      },
+      {
+        "tag": "deploy",
+        "count": 22
+      },
+      {
+        "tag": "northgate",
+        "count": 14
+      },
+      {
+        "tag": "pricing",
+        "count": 9
+      },
+      {
+        "tag": "token-refresh",
+        "count": 6
+      },
+      {
+        "tag": "migrations",
+        "count": 5
+      },
+      {
+        "tag": "postgres",
+        "count": 12
+      }
+    ]
+  },
+  "expect": {
+    "require_all": [
+      "northgate",
+      "pricing"
+    ],
+    "count": {
+      "key": "tags",
+      "min": 1,
+      "max": 4
+    }
+  },
+  "mock_replies": [
+    {
+      "tags": [
+        "northgate",
+        "pricing"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "dropped": 0
+  }
+}

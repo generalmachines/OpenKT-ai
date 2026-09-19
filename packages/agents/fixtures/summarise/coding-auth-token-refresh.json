@@ -1,0 +1,88 @@
+{
+  "name": "coding-auth-token-refresh",
+  "description": "Coding session. The scripted title is too long and must be cut to 8 words.",
+  "input": {
+    "chunk": [
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "the dashboard keeps logging people out after about an hour. I think it's the token refresh. can you look at apps/web/lib/auth/refresh.ts"
+      },
+      {
+        "role": "assistant",
+        "text": "I read refresh.ts. Two tabs can call refreshSession() at the same time. The first call rotates the refresh token, so the second call sends a token that is already revoked and the API answers 401 invalid_grant. That 401 is what triggers the logout."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "yes that matches, it only happens to people with multiple tabs open. what's the fix"
+      },
+      {
+        "role": "assistant",
+        "text": "Two options: (a) a BroadcastChannel lock so only one tab refreshes and the others wait for the new token, or (b) have the server accept the previous refresh token for a short grace window. (a) needs no backend change."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "let's do both. go with the BroadcastChannel lock now, and I'll ask Ojas to add a 10 second grace window on the server by Friday. also access tokens stay at 1 hour, we're not changing that"
+      },
+      {
+        "role": "assistant",
+        "text": "Done. Added a lock in refresh.ts using BroadcastChannel('auth-refresh'); tabs that lose the lock wait up to 5 seconds for the new token. Tests pass: npm test -- refresh (14 passed)."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "nice. one thing I don't know - does Safari private mode even support BroadcastChannel? we should check"
+      },
+      {
+        "role": "assistant",
+        "text": "I am not certain. I'd verify it in Safari before relying on it."
+      },
+      {
+        "role": "user",
+        "speaker": "Pratham",
+        "text": "ok thanks, shipping it"
+      }
+    ],
+    "session": {
+      "date": "2026-09-17",
+      "title": "dashboard logout bug",
+      "source": "claude-code",
+      "author": "Pratham",
+      "participants": [
+        "Pratham",
+        "assistant"
+      ],
+      "space": "openkt-server"
+    }
+  },
+  "expect": {
+    "require_any": [
+      "refresh",
+      "logout",
+      "logged out"
+    ],
+    "count": {
+      "key": "open_questions",
+      "min": 0,
+      "max": 5
+    }
+  },
+  "mock_replies": [
+    {
+      "title": "Fixing the dashboard logout bug caused by a refresh token race between browser tabs",
+      "summary": "Pratham and the assistant traced hourly dashboard logouts to two tabs refreshing the session at once, which sent a revoked refresh token and returned 401. A BroadcastChannel lock was added in refresh.ts and tests pass. Pratham will ask Ojas for a 10 second server-side grace window by 2026-09-18; access tokens stay at 1 hour.",
+      "open_questions": [
+        "Does Safari private mode support BroadcastChannel?"
+      ]
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 1,
+    "output": {
+      "title": "Fixing the dashboard logout bug caused by a"
+    }
+  }
+}

@@ -2,7 +2,9 @@
 
 > Generated from `docs/tasks/issues.py` — edit that file, then run `python3 docs/tasks/build.py`. Mirrored as GitHub issues.
 
-How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies are closed. One task = one branch = one pull request.
+How to work: read `AGENTS.md`. Pick a task marked `junior` whose dependencies are closed. One task = one branch = one pull request.
+
+The **Who** column uses the GitHub label names: `senior` is a maintainer task (design decisions and the risky core), `junior` is a contributor task (small, fully specified, open to anyone, human or AI agent). The names are kept because the tooling depends on them.
 
 
 ---
@@ -11,33 +13,33 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `S1` S1 | senior | Import the server into this repository as `server/` | — |
-| `S2` S2 | senior | Built-in sign-in (email link + OIDC) so a server needs no third party | `S1` |
-| `J1` J1 | junior | recall: reciprocal rank fusion `fuse()` | — |
-| `J2` J2 | junior | recall: constants file and `applyWeights()` | `J1` |
-| `J3` J3 | junior | recall: `shouldAbstain()` | `J2` |
-| `J4` J4 | junior | recall: `finalize()` — diversity, citation de-duplication, budget | `J2` |
-| `J5` J5 | junior | recall: rerank HTTP client with score blending | `J2` |
-| `J6` J6 | junior | pipeline: secrets filter `findSecrets()` | — |
-| `J7` J7 | junior | server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint | `S1` |
-| `J8` J8 | junior | server: switch embeddings to Qwen3-Embedding-0.6B with an index guard and a re-embed script | `S1` |
-| `J9` J9 | junior | server: Postgres job queue (`jobs` table + worker loop) | `S1` |
-| `J10` J10 | junior | server: `GET /v1/meta` and 404-instead-of-403 audit | `S1` |
-| `J11` J11 | junior | `docker compose up` for the whole stack | `S1`, `J8` |
-| `J12` J12 | junior | Evaluation set: 50 questions with expected sources and access traps | `S1` |
+| #1 S1 | senior | Import the server into this repository as `server/` | — |
+| #2 S2 | senior | Built-in sign-in (email link + OIDC) so a server needs no third party | #1 |
+| #5 J1 | junior | recall: reciprocal rank fusion `fuse()` | — |
+| #6 J2 | junior | recall: constants file and `applyWeights()` | #5 |
+| #7 J3 | junior | recall: `shouldAbstain()` | #6 |
+| #8 J4 | junior | recall: `finalize()` — diversity, citation de-duplication, budget | #6 |
+| #9 J5 | junior | recall: rerank HTTP client with score blending | #6 |
+| #10 J6 | junior | pipeline: secrets filter `findSecrets()` | — |
+| #11 J7 | junior | server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint | #1 |
+| #12 J8 | junior | server: switch embeddings to Qwen3-Embedding-0.6B with an index guard and a re-embed script | #1 |
+| #13 J9 | junior | server: Postgres job queue (`jobs` table + worker loop) | #1 |
+| #14 J10 | junior | server: `GET /v1/meta` and 404-instead-of-403 audit | #1 |
+| #15 J11 | junior | `docker compose up` for the whole stack | #1, #12 |
+| #16 J12 | junior | Evaluation set: 50 questions with expected sources and access traps | #1 |
 
 
-### S1 · Import the server into this repository as `server/`  
+### S1 · Import the server into this repository as `server/`  #1
 
 `senior`
 
-**Context.** The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) is being finished on branch `feat/context-cloud-v0.1` of the private `openkt-server` repository. It moves here as a clean snapshot so all work happens in one place.
+**Context.** The v0.1 backend work (sessions, grants, access scope, hybrid recall, MCP session tools) was built in an earlier codebase that predates this repository. It moves here as a clean snapshot so all work happens in one place.
 
 **Do exactly this**
 1. Finish and verify milestones M1–M6 on the branch.
 2. Scan the tree for secrets; remove deploy-specific files.
 3. Copy `api/` to `server/` in this repository, add it to the npm workspaces, make `npm test` pass from a clean clone.
-4. Record the mapping old path → new path in `server/README.md`.
+4. Write `server/WHERE_THINGS_LIVE.md` for contributors.
 
 **Acceptance — every line must be true and tested**
 - [ ] `server/` builds and its unit tests pass from a clean clone.
@@ -46,11 +48,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Depends on:** nothing — can start now
 
 
-### S2 · Built-in sign-in (email link + OIDC) so a server needs no third party  
+### S2 · Built-in sign-in (email link + OIDC) so a server needs no third party  #2
 
 `senior` `blocked`
 
-**Context.** Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a junior task.
+**Context.** Sign-in is bound to Supabase today (Spec 04, Auth). Authentication is not a contributor task.
 
 **Do exactly this**
 1. Issue the server's own JWTs; keep accepting Supabase JWTs while `OPENKT_SUPABASE_JWKS_URL` is set.
@@ -62,7 +64,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] The v0.1 proof test passes with built-in sign-in only.
 - [ ] A read-only token calling a write tool gets 403 `insufficient_scope`.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
 
 ---
@@ -71,14 +73,14 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `S3` S3 | senior | Design the missing app screens on the canvas | — |
-| `J40` J40 | junior | desktop: implement the `http` API adapter against Spec 04 | `S1` |
-| `J41` J41 | junior | desktop: connect tools from the app (write each tool's MCP config) | `S3` |
-| `J42` J42 | junior | desktop: page view editing and revision history | `S3`, `J33` |
-| `J43` J43 | junior | desktop: macOS packaging, signing placeholders and auto-update wiring | — |
+| #3 S3 | senior | Design the missing app screens on the canvas | — |
+| #31 J40 | junior | desktop: implement the `http` API adapter against Spec 04 | #1 |
+| #32 J41 | junior | desktop: connect tools from the app (write each tool's MCP config) | #3 |
+| #33 J42 | junior | desktop: page view editing and revision history | #3, #28 |
+| #34 J43 | junior | desktop: macOS packaging, signing placeholders and auto-update wiring | — |
 
 
-### S3 · Design the missing app screens on the canvas  
+### S3 · Design the missing app screens on the canvas  #3
 
 `senior`
 
@@ -100,28 +102,29 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `S4` S4 | senior | Review and tune agent prompts against the evaluation set | — |
-| `J20` J20 | junior | pipeline: `chunkTurns()` | — |
-| `J21` J21 | junior | pipeline: `quoteGate()` | `J6` |
-| `J22` J22 | junior | pipeline: `capFacts()` and `mapKind()` | — |
-| `J23` J23 | junior | pipeline: `decideDuplicate()` and `guardSupersede()` | — |
-| `J24` J24 | junior | pipeline: `normaliseTags()` with vocabulary convergence | — |
-| `J25` J25 | junior | pipeline: `guardRoutes()` | — |
-| `J26` J26 | junior | pipeline: `validateSection()` and `fallbackAppend()` | — |
-| `J27` J27 | junior | pipeline: `assignConfidence()` | — |
-| `J30` J30 | junior | server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults | `S1` |
-| `J31` J31 | junior | server: job handlers J1–J4 (summarise, extract, embed, classify) | `J9`, `J20`, `J21`, `J22`, `J23`, `J24`, `J27`, `J30` |
-| `J32` J32 | junior | server: job handlers J5–J8 (route, write section, brief, lint) | `J31`, `J25`, `J26` |
-| `J33` J33 | junior | server: pages and briefs REST API + `kt_page` tool | `J32` |
-| `J34` J34 | junior | server: register the MCP Apps cards | `S1` |
-| `J35` J35 | junior | server: connector defaults API | `J30` |
+| #4 S4 | senior | Review and tune agent prompts against the evaluation set | — |
+| #48 S5 | senior | Server cleanup phase B: remove the broker plumbing and the old worker pipeline | #13, #26, #27, #2 |
+| #17 J20 | junior | pipeline: `chunkTurns()` | — |
+| #18 J21 | junior | pipeline: `quoteGate()` | #10 |
+| #19 J22 | junior | pipeline: `capFacts()` and `mapKind()` | — |
+| #20 J23 | junior | pipeline: `decideDuplicate()` and `guardSupersede()` | — |
+| #21 J24 | junior | pipeline: `normaliseTags()` with vocabulary convergence | — |
+| #22 J25 | junior | pipeline: `guardRoutes()` | — |
+| #23 J26 | junior | pipeline: `validateSection()` and `fallbackAppend()` | — |
+| #24 J27 | junior | pipeline: `assignConfidence()` | — |
+| #25 J30 | junior | server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults | #1 |
+| #26 J31 | junior | server: job handlers J1–J4 (summarise, extract, embed, classify) | #13, #17, #18, #19, #20, #21, #24, #25 |
+| #27 J32 | junior | server: job handlers J5–J8 (route, write section, brief, lint) | #26, #22, #23 |
+| #28 J33 | junior | server: pages and briefs REST API + `kt_page` tool | #27 |
+| #29 J34 | junior | server: register the MCP Apps cards | #1 |
+| #30 J35 | junior | server: connector defaults API | #25 |
 
 
-### S4 · Review and tune agent prompts against the evaluation set  
+### S4 · Review and tune agent prompts against the evaluation set  #4
 
 `senior`
 
-**Context.** Prompts and schemas in `packages/agents` are senior-owned (AGENTS.md rule 5).
+**Context.** Prompts and schemas in `packages/agents` are maintainer-owned (AGENTS.md rule 5).
 
 **Do exactly this**
 1. Run `npm run eval -w @openkt/agents` against Qwen3.5-4B.
@@ -134,7 +137,28 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Depends on:** nothing — can start now
 
 
-### J1 · recall: reciprocal rank fusion `fuse()`  
+### S5 · Server cleanup phase B: remove the broker plumbing and the old worker pipeline  #48
+
+`senior` `blocked`
+
+**Context.** Phase A removed what the new product never uses (graph, MemMachine, waitlist, spikes). Phase B removes what the new job queue and pipeline replace: RabbitMQ, SQS, the outbox relay, and the old worker stages (preprocess, embed, triage, episode, synthesize, briefing, member knowledge). It can only happen once their replacements run, because today the old embed stage is what gives new facts their vectors.
+
+**Do exactly this**
+1. Confirm the Postgres job queue and job handlers J1–J8 are merged and the proof test passes with `OPENKT_QUEUE_BACKEND=postgres` and no broker configured.
+2. Delete `apps/worker/src/modules/{mq,outbox,memory-engine}` and the server-side publishers; drop `amqplib` and the AWS SQS client from dependencies; remove every `RABBITMQ_*`, `RMQ_*`, `OPENKT_SQS_*`, `OUTBOX_*` variable.
+3. Fold `briefing`, `briefings` and `member-knowledge` into the new brief (T3) code; delete what is left.
+4. Add one migration that drops the tables of removed features (`memmachine_nodes`, `project_code_graphs`, `waitlist`, `outbox`, `episodes`, `episode_memories`, `memory_neighbors`, `service_health`, legacy briefing caches) after checking nothing reads them.
+5. Replace Supabase-bound auth paths once built-in sign-in has shipped.
+
+**Acceptance — every line must be true and tested**
+- [ ] `docker compose up` works with Postgres as the only stateful service.
+- [ ] Proof test, unit and e2e suites pass.
+- [ ] `grep -ri 'rabbit\|amqp\|sqs\|outbox\|memmachine\|neo4j' server/apps server/libs` returns nothing.
+
+**Depends on:** #13, #26, #27, #2
+
+
+### J1 · recall: reciprocal rank fusion `fuse()`  #5
 
 `junior`
 
@@ -174,7 +198,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j1` · **Rules:** `AGENTS.md`
 
-### J2 · recall: constants file and `applyWeights()`  
+### J2 · recall: constants file and `applyWeights()`  #6
 
 `junior` `blocked`
 
@@ -213,11 +237,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Changing any constant value.
 
-**Depends on:** `J1`
+**Depends on:** #5
 
 **Branch:** `task/<issue-number>-j2` · **Rules:** `AGENTS.md`
 
-### J3 · recall: `shouldAbstain()`  
+### J3 · recall: `shouldAbstain()`  #7
 
 `junior` `blocked`
 
@@ -249,11 +273,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] items with neither field → true.
 - [ ] typecheck and tests pass.
 
-**Depends on:** `J2`
+**Depends on:** #6
 
 **Branch:** `task/<issue-number>-j3` · **Rules:** `AGENTS.md`
 
-### J4 · recall: `finalize()` — diversity, citation de-duplication, budget  
+### J4 · recall: `finalize()` — diversity, citation de-duplication, budget  #8
 
 `junior` `blocked`
 
@@ -288,11 +312,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] Output has sections before facts even when a fact ranked first.
 - [ ] typecheck and tests pass.
 
-**Depends on:** `J2`
+**Depends on:** #6
 
 **Branch:** `task/<issue-number>-j4` · **Rules:** `AGENTS.md`
 
-### J5 · recall: rerank HTTP client with score blending  
+### J5 · recall: rerank HTTP client with score blending  #9
 
 `junior` `blocked`
 
@@ -330,11 +354,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Choosing or hosting the rerank model.
 
-**Depends on:** `J2`
+**Depends on:** #6
 
 **Branch:** `task/<issue-number>-j5` · **Rules:** `AGENTS.md`
 
-### J6 · pipeline: secrets filter `findSecrets()`  
+### J6 · pipeline: secrets filter `findSecrets()`  #10
 
 `junior`
 
@@ -346,10 +370,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - docs/specs/02-agent-decisions.md §9
 
 **Do exactly this**
-1. Create `packages/pipeline/src/secrets.ts` exporting `findSecrets(text: string): { type: string; index: number }[]` and `hasSecret(text: string): boolean`.
-2. Detect, with one named regex each: `aws_access_key` (`AKIA` or `ASIA` + 16 uppercase alphanumerics); `github_token` (`gh[pousr]_` + 36 or more alphanumerics); `openai_key` (`sk-` + 20 or more of `[A-Za-z0-9_-]`); `anthropic_key` (`sk-ant-` …); `slack_token` (`xox[baprs]-` …); `openkt_pat` (`okt_pat_` + 20 or more); `private_key` (`-----BEGIN [A-Z ]*PRIVATE KEY-----`); `jwt` (three base64url parts separated by dots, the first starting `eyJ`, each part ≥ 10 chars); `connection_string` (`scheme://user:password@host` for schemes postgres, postgresql, mysql, mongodb, mongodb+srv, redis, amqp — the password part must be non-empty); `password_assignment` (case-insensitive `password`, `passwd`, `pwd`, `secret` or `api[_-]?key`, then optional spaces, then `is`, `=` or `:`, then a value of 6+ non-space characters that is not `null`, `none`, `true`, `false`, `required`, `missing`, `<…>` or `***`); `card_number` (13–19 digits, optional spaces or dashes between groups, passing the Luhn check).
-3. Return matches sorted by `index`. Never include the matched text in the result.
-4. Export from `src/index.ts`.
+1. `packages/agents/src/secrets.ts` already has a first version — copy it as your starting point (copy, do not import across packages), then make every test in this issue pass.
+2. Create `packages/pipeline/src/secrets.ts` exporting `findSecrets(text: string): { type: string; index: number }[]` and `hasSecret(text: string): boolean`.
+3. Detect, with one named regex each: `aws_access_key` (`AKIA` or `ASIA` + 16 uppercase alphanumerics); `github_token` (`gh[pousr]_` + 36 or more alphanumerics); `openai_key` (`sk-` + 20 or more of `[A-Za-z0-9_-]`); `anthropic_key` (`sk-ant-` …); `slack_token` (`xox[baprs]-` …); `openkt_pat` (`okt_pat_` + 20 or more); `private_key` (`-----BEGIN [A-Z ]*PRIVATE KEY-----`); `jwt` (three base64url parts separated by dots, the first starting `eyJ`, each part ≥ 10 chars); `connection_string` (`scheme://user:password@host` for schemes postgres, postgresql, mysql, mongodb, mongodb+srv, redis, amqp — the password part must be non-empty); `password_assignment` (case-insensitive `password`, `passwd`, `pwd`, `secret` or `api[_-]?key`, then optional spaces, then `is`, `=` or `:`, then a value of 6+ non-space characters that is not `null`, `none`, `true`, `false`, `required`, `missing`, `<…>` or `***`); `card_number` (13–19 digits, optional spaces or dashes between groups, passing the Luhn check).
+4. Return matches sorted by `index`. Never include the matched text in the result.
+5. Export from `src/index.ts`.
 
 **Files you may touch**
 - `packages/pipeline/src/secrets.ts`
@@ -370,7 +395,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j6` · **Rules:** `AGENTS.md`
 
-### J7 · server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint  
+### J7 · server: `recall_events` + `recall_feedback` tables, logging and the feedback endpoint  #11
 
 `junior` `needs-senior-review` `blocked`
 
@@ -381,7 +406,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Read first**
 - docs/specs/01-memory-overlays.md §3
 - `docs/specs/04-api-contract.md (Context section)`
-- `server/README.md (where migrations, schema files and controllers live)`
+- `server/WHERE_THINGS_LIVE.md`
 
 **Do exactly this**
 1. Add one migration creating `recall_events` and `recall_feedback` exactly as in Spec 01 §3, with an index on `recall_events(user_id, created_at desc)`. Append its entry to the migrations journal with a `when` value larger than every existing entry.
@@ -409,11 +434,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Using feedback in ranking (that is the `recalls_30d_unused` input, a later issue).
 
-**Depends on:** `S1`
+**Depends on:** #1
 
-**Branch:** `task/<issue-number>-j7` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j7` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J8 · server: switch embeddings to Qwen3-Embedding-0.6B with an index guard and a re-embed script  
+### J8 · server: switch embeddings to Qwen3-Embedding-0.6B with an index guard and a re-embed script  #12
 
 `junior` `needs-senior-review` `blocked`
 
@@ -453,11 +478,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Hosting the model.
 - Changing the vector column.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
-**Branch:** `task/<issue-number>-j8` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j8` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J9 · server: Postgres job queue (`jobs` table + worker loop)  
+### J9 · server: Postgres job queue (`jobs` table + worker loop)  #13
 
 `junior` `needs-senior-review` `blocked`
 
@@ -498,11 +523,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Removing the SQS or RabbitMQ adapters.
 - Writing any job handler.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
-**Branch:** `task/<issue-number>-j9` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j9` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J10 · server: `GET /v1/meta` and 404-instead-of-403 audit  
+### J10 · server: `GET /v1/meta` and 404-instead-of-403 audit  #14
 
 `junior` `blocked`
 
@@ -527,11 +552,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] `/v1/meta` works without a token.
 - [ ] The audit test lists every id-taking route (generate the list from the router, do not hand-pick) and passes.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
 **Branch:** `task/<issue-number>-j10` · **Rules:** `AGENTS.md`
 
-### J11 · `docker compose up` for the whole stack  
+### J11 · `docker compose up` for the whole stack  #15
 
 `junior` `blocked`
 
@@ -566,11 +591,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Kubernetes, Terraform, cloud deploys.
 - GPU images.
 
-**Depends on:** `S1`, `J8`
+**Depends on:** #1, #12
 
 **Branch:** `task/<issue-number>-j11` · **Rules:** `AGENTS.md`
 
-### J12 · Evaluation set: 50 questions with expected sources and access traps  
+### J12 · Evaluation set: 50 questions with expected sources and access traps  #16
 
 `junior` `blocked`
 
@@ -603,11 +628,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Tuning the server to score well.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
 **Branch:** `task/<issue-number>-j12` · **Rules:** `AGENTS.md`
 
-### J20 · pipeline: `chunkTurns()`  
+### J20 · pipeline: `chunkTurns()`  #17
 
 `junior`
 
@@ -650,7 +675,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j20` · **Rules:** `AGENTS.md`
 
-### J21 · pipeline: `quoteGate()`  
+### J21 · pipeline: `quoteGate()`  #18
 
 `junior` `blocked`
 
@@ -685,11 +710,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] A Thai quote and a Hindi quote that appear verbatim are kept.
 - [ ] typecheck and tests pass.
 
-**Depends on:** `J6`
+**Depends on:** #10
 
 **Branch:** `task/<issue-number>-j21` · **Rules:** `AGENTS.md`
 
-### J22 · pipeline: `capFacts()` and `mapKind()`  
+### J22 · pipeline: `capFacts()` and `mapKind()`  #19
 
 `junior`
 
@@ -723,7 +748,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j22` · **Rules:** `AGENTS.md`
 
-### J23 · pipeline: `decideDuplicate()` and `guardSupersede()`  
+### J23 · pipeline: `decideDuplicate()` and `guardSupersede()`  #20
 
 `junior`
 
@@ -758,7 +783,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j23` · **Rules:** `AGENTS.md`
 
-### J24 · pipeline: `normaliseTags()` with vocabulary convergence  
+### J24 · pipeline: `normaliseTags()` with vocabulary convergence  #21
 
 `junior`
 
@@ -795,7 +820,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j24` · **Rules:** `AGENTS.md`
 
-### J25 · pipeline: `guardRoutes()`  
+### J25 · pipeline: `guardRoutes()`  #22
 
 `junior`
 
@@ -808,8 +833,8 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - `packages/agents/schemas/route.json (the agent's output shape — read only)`
 
 **Do exactly this**
-1. `packages/pipeline/src/route-guards.ts` exporting `guardRoutes(input: { facts: (FactRef & { age_days: number })[]; proposals: Proposal[]; pages: { id: string; sections: { heading: string; locked: boolean }[] }[]; unroutedTitles: string[]; titleSimilarity: (a: string, b: string) => number }): { routes: Route[]; unrouted: { fact_id: string; reason: string }[] }`. `Proposal = { fact_id, action: 'append'|'rewrite_section'|'new_page'|'noop', page_id?, section_heading?, new_page_title? }`. `Route` is the same without `noop`, plus `redirected_from_locked?: boolean`.
-2. Rules, in this order: unknown `fact_id` → ignore. `confidence < 0.4` → unrouted `low_confidence`. kind `action` or `question` with `age_days > 30` → unrouted `stale`. `append`/`rewrite_section` with unknown `page_id` → unrouted `unknown_page`. Unknown `section_heading` on a known page → treat as `append` to a new section with that heading. Target section `locked` → change to `append` on heading `Updates`, set `redirected_from_locked`. `new_page`: title must be ≤ 60 chars, contain ` — `, and not end with `.`, `?` or `!`, else unrouted `bad_title`.
+1. `packages/pipeline/src/route-guards.ts` exporting `guardRoutes(input: { facts: (FactRef & { age_days: number })[]; proposals: Proposal[]; pages: { id: string; sections: { heading: string; locked: boolean }[] }[]; unroutedTitles: string[]; titleSimilarity: (a: string, b: string) => number }): { routes: Route[]; unrouted: { fact_id: string; reason: string }[] }`. `Proposal = { fact_id, action: 'append'|'rewrite_section'|'new_page'|'noop', page_id?, section_title?, new_page_title? }`. `Route` is the same without `noop`, plus `redirected_from_locked?: boolean`.
+2. Rules, in this order: unknown `fact_id` → ignore. `confidence < 0.4` → unrouted `low_confidence`. kind `action` or `question` with `age_days > 30` → unrouted `stale`. `append`/`rewrite_section` with unknown `page_id` → unrouted `unknown_page`. Unknown `section_title` on a known page → treat as `append` to a new section with that heading. Target section `locked` → change to `append` on heading `Updates`, set `redirected_from_locked`. `new_page`: title must be ≤ 60 chars, contain ` — `, and not end with `.`, `?` or `!`, else unrouted `bad_title`.
 3. `new_page` titles with `titleSimilarity ≥ 0.85` are merged into the first one seen. A `new_page` group is allowed when it has ≥ 3 facts (counting entries of `unroutedTitles` equal or similar ≥ 0.85) **or** any fact in it has kind `decision`; otherwise its facts are unrouted `waiting_for_more`.
 4. Export from `src/index.ts`.
 
@@ -829,7 +854,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j25` · **Rules:** `AGENTS.md`
 
-### J26 · pipeline: `validateSection()` and `fallbackAppend()`  
+### J26 · pipeline: `validateSection()` and `fallbackAppend()`  #23
 
 `junior`
 
@@ -863,7 +888,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j26` · **Rules:** `AGENTS.md`
 
-### J27 · pipeline: `assignConfidence()`  
+### J27 · pipeline: `assignConfidence()`  #24
 
 `junior`
 
@@ -893,7 +918,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j27` · **Rules:** `AGENTS.md`
 
-### J30 · server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults  
+### J30 · server: migrations and schema for pages, sections, revisions, briefs, attachments, connector defaults  #25
 
 `junior` `blocked`
 
@@ -903,7 +928,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Read first**
 - docs/specs/01-memory-overlays.md §3
-- `server/README.md`
+- `server/WHERE_THINGS_LIVE.md`
 - an existing migration + schema pair in `server/` as a style reference
 
 **Do exactly this**
@@ -926,11 +951,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Any service or endpoint.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
 **Branch:** `task/<issue-number>-j30` · **Rules:** `AGENTS.md`
 
-### J31 · server: job handlers J1–J4 (summarise, extract, embed, classify)  
+### J31 · server: job handlers J1–J4 (summarise, extract, embed, classify)  #26
 
 `junior` `needs-senior-review` `blocked`
 
@@ -969,11 +994,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Routing and pages (next issue).
 - Changing prompts.
 
-**Depends on:** `J9`, `J20`, `J21`, `J22`, `J23`, `J24`, `J27`, `J30`
+**Depends on:** #13, #17, #18, #19, #20, #21, #24, #25
 
-**Branch:** `task/<issue-number>-j31` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j31` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J32 · server: job handlers J5–J8 (route, write section, brief, lint)  
+### J32 · server: job handlers J5–J8 (route, write section, brief, lint)  #27
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1007,11 +1032,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Page editing endpoints (next issue).
 
-**Depends on:** `J31`, `J25`, `J26`
+**Depends on:** #26, #22, #23
 
-**Branch:** `task/<issue-number>-j32` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j32` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J33 · server: pages and briefs REST API + `kt_page` tool  
+### J33 · server: pages and briefs REST API + `kt_page` tool  #28
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1041,11 +1066,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] A restricted source never leaks its title.
 - [ ] After a human edit, the write pipeline leaves that section alone (reuse the fixture from the previous issue).
 
-**Depends on:** `J32`
+**Depends on:** #27
 
-**Branch:** `task/<issue-number>-j33` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j33` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J34 · server: register the MCP Apps cards  
+### J34 · server: register the MCP Apps cards  #29
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1077,11 +1102,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Changing the card bundle.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
-**Branch:** `task/<issue-number>-j34` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j34` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J35 · server: connector defaults API  
+### J35 · server: connector defaults API  #30
 
 `junior` `blocked`
 
@@ -1108,11 +1133,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] No default → personal space, no grants.
 - [ ] A default pointing at a space the user can no longer write to falls back to personal and the response includes `default_ignored: true`.
 
-**Depends on:** `J30`
+**Depends on:** #25
 
 **Branch:** `task/<issue-number>-j35` · **Rules:** `AGENTS.md`
 
-### J40 · desktop: implement the `http` API adapter against Spec 04  
+### J40 · desktop: implement the `http` API adapter against Spec 04  #31
 
 `junior` `blocked`
 
@@ -1146,11 +1171,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - UI changes.
 
-**Depends on:** `S1`
+**Depends on:** #1
 
 **Branch:** `task/<issue-number>-j40` · **Rules:** `AGENTS.md`
 
-### J41 · desktop: connect tools from the app (write each tool's MCP config)  
+### J41 · desktop: connect tools from the app (write each tool's MCP config)  #32
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1185,11 +1210,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Hooks.
 - Windows and Linux paths.
 
-**Depends on:** `S3`
+**Depends on:** #3
 
-**Branch:** `task/<issue-number>-j41` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j41` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J42 · desktop: page view editing and revision history  
+### J42 · desktop: page view editing and revision history  #33
 
 `junior` `blocked`
 
@@ -1219,11 +1244,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Rich-text editing.
 
-**Depends on:** `S3`, `J33`
+**Depends on:** #3, #28
 
 **Branch:** `task/<issue-number>-j42` · **Rules:** `AGENTS.md`
 
-### J43 · desktop: macOS packaging, signing placeholders and auto-update wiring  
+### J43 · desktop: macOS packaging, signing placeholders and auto-update wiring  #34
 
 `junior` `needs-mac`
 
@@ -1260,14 +1285,14 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `J50` J50 | junior | engine: Swift package skeleton and the stdio JSON protocol loop | — |
-| `J51` J51 | junior | engine: model manager (download, verify, load/unload policy) | `J50` |
-| `J52` J52 | junior | engine: `agent.run` with guided generation, and `embed` with the parity test | `J51`, `S4` |
-| `J53` J53 | junior | engine: global hotkeys and the voice pipeline | `J51` |
-| `J54` J54 | junior | engine: screenshot capture, OCR and image understanding | `J52` |
+| #35 J50 | junior | engine: Swift package skeleton and the stdio JSON protocol loop | — |
+| #36 J51 | junior | engine: model manager (download, verify, load/unload policy) | #35 |
+| #37 J52 | junior | engine: `agent.run` with guided generation, and `embed` with the parity test | #36, #4 |
+| #38 J53 | junior | engine: global hotkeys and the voice pipeline | #36 |
+| #39 J54 | junior | engine: screenshot capture, OCR and image understanding | #37 |
 
 
-### J50 · engine: Swift package skeleton and the stdio JSON protocol loop  
+### J50 · engine: Swift package skeleton and the stdio JSON protocol loop  #35
 
 `junior` `needs-mac`
 
@@ -1302,7 +1327,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j50` · **Rules:** `AGENTS.md`
 
-### J51 · engine: model manager (download, verify, load/unload policy)  
+### J51 · engine: model manager (download, verify, load/unload policy)  #36
 
 `junior` `needs-mac` `blocked`
 
@@ -1330,11 +1355,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Running inference.
 
-**Depends on:** `J50`
+**Depends on:** #35
 
 **Branch:** `task/<issue-number>-j51` · **Rules:** `AGENTS.md`
 
-### J52 · engine: `agent.run` with guided generation, and `embed` with the parity test  
+### J52 · engine: `agent.run` with guided generation, and `embed` with the parity test  #37
 
 `junior` `needs-senior-review` `needs-mac` `blocked`
 
@@ -1365,11 +1390,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Prompt changes.
 
-**Depends on:** `J51`, `S4`
+**Depends on:** #36, #4
 
-**Branch:** `task/<issue-number>-j52` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j52` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J53 · engine: global hotkeys and the voice pipeline  
+### J53 · engine: global hotkeys and the voice pipeline  #38
 
 `junior` `needs-mac` `blocked`
 
@@ -1400,11 +1425,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Meeting capture.
 
-**Depends on:** `J51`
+**Depends on:** #36
 
 **Branch:** `task/<issue-number>-j53` · **Rules:** `AGENTS.md`
 
-### J54 · engine: screenshot capture, OCR and image understanding  
+### J54 · engine: screenshot capture, OCR and image understanding  #39
 
 `junior` `needs-mac` `blocked`
 
@@ -1430,7 +1455,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] Fixture images (a pricing page, a chart, a blank desktop) give: useful description, useful description, nothing saved.
 - [ ] A number that appears only in the model's description is removed from extracted facts.
 
-**Depends on:** `J52`
+**Depends on:** #37
 
 **Branch:** `task/<issue-number>-j54` · **Rules:** `AGENTS.md`
 
@@ -1440,10 +1465,10 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `J60` J60 | junior | engine: meeting detection, two-channel capture and transcript merge | `J53` |
+| #40 J60 | junior | engine: meeting detection, two-channel capture and transcript merge | #38 |
 
 
-### J60 · engine: meeting detection, two-channel capture and transcript merge  
+### J60 · engine: meeting detection, two-channel capture and transcript merge  #40
 
 `junior` `needs-senior-review` `needs-mac` `blocked`
 
@@ -1473,9 +1498,9 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Calendar lookup.
 
-**Depends on:** `J53`
+**Depends on:** #38
 
-**Branch:** `task/<issue-number>-j60` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j60` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ---
 
@@ -1483,14 +1508,14 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `J70` J70 | junior | providers: types, registry and the `local` provider | — |
-| `J71` J71 | junior | providers: Composio plugin (bring your own API key) | `J70` |
-| `J72` J72 | junior | connectors: interface + Obsidian (local vault) | `J70` |
-| `J73` J73 | junior | connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll | `J72` |
-| `J74` J74 | junior | server + app: connector setup flow and the poll job | `J71`, `J73`, `J31`, `S3` |
+| #41 J70 | junior | providers: types, registry and the `local` provider | — |
+| #42 J71 | junior | providers: Composio plugin (bring your own API key) | #41 |
+| #43 J72 | junior | connectors: interface + Obsidian (local vault) | #41 |
+| #44 J73 | junior | connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll | #43 |
+| #45 J74 | junior | server + app: connector setup flow and the poll job | #42, #44, #26, #3 |
 
 
-### J70 · providers: types, registry and the `local` provider  
+### J70 · providers: types, registry and the `local` provider  #41
 
 `junior`
 
@@ -1517,7 +1542,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 **Branch:** `task/<issue-number>-j70` · **Rules:** `AGENTS.md`
 
-### J71 · providers: Composio plugin (bring your own API key)  
+### J71 · providers: Composio plugin (bring your own API key)  #42
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1547,11 +1572,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Server endpoints, UI.
 
-**Depends on:** `J70`
+**Depends on:** #41
 
-**Branch:** `task/<issue-number>-j71` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j71` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
-### J72 · connectors: interface + Obsidian (local vault)  
+### J72 · connectors: interface + Obsidian (local vault)  #43
 
 `junior` `blocked`
 
@@ -1577,11 +1602,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Watching the filesystem (the app does that).
 
-**Depends on:** `J70`
+**Depends on:** #41
 
 **Branch:** `task/<issue-number>-j72` · **Rules:** `AGENTS.md`
 
-### J73 · connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll  
+### J73 · connectors: Notion, Google Drive, Linear, Gmail `toSession` + list/backfill/poll  #44
 
 `junior` `blocked`
 
@@ -1613,11 +1638,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - Slack.
 - Attachments.
 
-**Depends on:** `J72`
+**Depends on:** #43
 
 **Branch:** `task/<issue-number>-j73` · **Rules:** `AGENTS.md`
 
-### J74 · server + app: connector setup flow and the poll job  
+### J74 · server + app: connector setup flow and the poll job  #45
 
 `junior` `needs-senior-review` `blocked`
 
@@ -1645,9 +1670,9 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] A changed item creates a new session whose facts supersede the old ones through the normal dedupe path.
 - [ ] Provider keys are never returned by any endpoint.
 
-**Depends on:** `J71`, `J73`, `J31`, `S3`
+**Depends on:** #42, #44, #26, #3
 
-**Branch:** `task/<issue-number>-j74` · **Rules:** `AGENTS.md` · a senior engineer reviews this pull request before merge
+**Branch:** `task/<issue-number>-j74` · **Rules:** `AGENTS.md` · a maintainer reviews this pull request before merge
 
 ---
 
@@ -1655,11 +1680,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 
 | Task | Who | Title | Depends on |
 |---|---|---|---|
-| `J80` J80 | junior | Docs site with interactive examples | `J11` |
-| `J81` J81 | junior | Landing page copy for openkt.ai from product.md | — |
+| #46 J80 | junior | Docs site with interactive examples | #15 |
+| #47 J81 | junior | Landing page copy for openkt.ai from product.md | — |
 
 
-### J80 · Docs site with interactive examples  
+### J80 · Docs site with interactive examples  #46
 
 `junior` `blocked`
 
@@ -1688,11 +1713,11 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 **Out of scope**
 - Deploying.
 
-**Depends on:** `J11`
+**Depends on:** #15
 
 **Branch:** `task/<issue-number>-j80` · **Rules:** `AGENTS.md`
 
-### J81 · Landing page copy for openkt.ai from product.md  
+### J81 · Landing page copy for openkt.ai from product.md  #47
 
 `junior`
 
@@ -1714,7 +1739,7 @@ How to work: read `AGENTS.md`. Pick a task marked **junior** whose dependencies 
 - [ ] A reviewer can point each paragraph to a product.md section (add the section name as an HTML comment above each block).
 
 **Out of scope**
-- Changing the live site — that is a separate, senior-approved deploy.
+- Changing the live site — that is a separate, maintainer-approved deploy.
 
 **Depends on:** nothing — can start now
 

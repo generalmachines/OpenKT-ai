@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2022",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@openkt/auth-authorization": ["libs/auth/authorization/src/index"],
+      "@openkt/auth-principal": ["libs/auth/principal/src/index"],
+      "@openkt/auth-service-auth": ["libs/auth/service-auth/src/index"],
+      "@openkt/core-context": ["libs/core/context/src/index"],
+      "@openkt/core-errors": ["libs/core/errors/src/index"],
+      "@openkt/data-repositories": ["libs/data/repositories/src/index"],
+      "@openkt/data-supabase": ["libs/data/supabase/src/index"],
+      "@openkt/platform-audit": ["libs/platform/audit/src/index"],
+      "@openkt/platform-config": ["libs/platform/config/src/index"],
+      "@openkt/platform-cors": ["libs/platform/cors/src/index"],
+      "@openkt/platform-llm": ["libs/platform/llm/src/index"],
+      "@openkt/platform-logging": ["libs/platform/logging/src/index"]
+    }
+  },
+  "include": ["apps/**/*.ts", "libs/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

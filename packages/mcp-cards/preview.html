@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenKT cards — local host harness</title>
+<style>
+  :root { --bg:#fff; --ink:#1a1a18; --muted:#6b6a65; --line:#e8e7e3; --soft:#f7f7f5; }
+  :root[data-theme="dark"] { --bg:#141413; --ink:#f1f0ec; --muted:#9c9b95; --line:#34332f; --soft:#262624; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .mono { font-family: ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); font-size:12px; }
+  .bar label { color:var(--muted); display:inline-flex; gap:6px; align-items:center; }
+  .bar select, .bar input { font:inherit; color:var(--ink); background:var(--soft); border:1px solid var(--line); border-radius:8px; height:30px; padding:0 8px; }
+  .bar input { width:72px; }
+  body.bare .bar, body.bare .log { display:none; }
+  .chat { padding:20px 16px; display:flex; flex-direction:column; gap:16px; margin:0 auto; }
+  .eyebrow { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .bubble { align-self:flex-end; max-width:85%; background:var(--soft); border-radius:18px; padding:10px 15px; font-size:14.5px; }
+  iframe { width:100%; border:0; display:block; height:60px; background:transparent; color-scheme:normal; }
+  .log { margin:0 16px 24px; border:1px solid var(--line); border-radius:12px; padding:12px; font-size:11px; color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; }
+  .log b { color:var(--ink); font-weight:500; }
+</style>
+</head>
+<body>
+<div class="bar mono">
+  <label>view <select id="view"></select></label>
+  <label>theme <select id="theme"><option>light</option><option>dark</option></select></label>
+  <label>width <input id="width" type="number" min="280" max="900" step="10"></label>
+  <label>host <select id="host"><option value="full">full</option><option value="noctx">no update-model-context</option><option value="notools">no tools/call from view</option><option value="fail">kt_commit_save fails</option></select></label>
+</div>
+<div class="chat" id="chat">
+  <div class="eyebrow mono">fake host · sandboxed iframe · CSP default-src 'none'</div>
+  <div class="bubble" id="bubble"></div>
+  <iframe id="frame" sandbox="allow-scripts" title="OpenKT card"></iframe>
+</div>
+<div class="log mono" id="log"></div>
+<script type="module">
+import { fixtures } from "./test/fixtures.js";
+
+const CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
+const BUBBLES = { save: "Save that — we quote Northgate per store from now on.", saveFew: "Remember how staging is set up.", results: "Draft the Northgate proposal. What do we already know?", resultsMixed: "What do we know about token refresh?", resultsEmpty: "Anything on the vendor contract renewal?", session: "That's all for today, wrap up." };
+const q = new URLSearchParams(location.search);
+const opts = { view: q.get("view") || "save", theme: q.get("theme") || "light", width: Number(q.get("width")) || 640, host: q.get("host") || "full" };
+if (q.has("bare")) document.body.classList.add("bare");
+
+const $ = (id) => document.getElementById(id);
+const frame = $("frame");
+for (const k of Object.keys(fixtures)) $("view").append(new Option(k, k));
+$("view").value = opts.view; $("theme").value = opts.theme; $("width").value = opts.width; $("host").value = opts.host;
+for (const id of ["view", "theme", "width", "host"]) $(id).addEventListener("change", () => { const p = new URLSearchParams({ view: $("view").value, theme: $("theme").value, width: $("width").value, host: $("host").value }); location.search = p.toString(); });
+
+document.documentElement.dataset.theme = opts.theme;
+$("chat").style.width = opts.width + "px";
+$("chat").style.maxWidth = "100%";
+$("bubble").textContent = BUBBLES[opts.view] || "";
+
+const log = (dir, msg) => { const el = $("log"); const line = document.createElement("div"); const b = document.createElement("b"); b.textContent = dir + " " + (msg.method || (msg.error ? "error" : "result")); line.append(b, " " + JSON.stringify(msg.params ?? msg.result ?? msg.error ?? {}).slice(0, 600)); el.prepend(line); };
+const post = (msg) => { log("host→view", msg); frame.contentWindow.postMessage({ jsonrpc: "2.0", ...msg }, "*"); };
+const fx = fixtures[opts.view] || fixtures.save;
+window.__hostLog = []; // inspected by the screenshot/e2e script
+
+const caps = { openLinks: {}, logging: {}, serverTools: {}, message: { text: {} }, updateModelContext: { text: {}, structuredContent: {} } };
+if (opts.host === "noctx") delete caps.updateModelContext;
+if (opts.host === "notools") delete caps.serverTools;
+
+window.addEventListener("message", (ev) => {
+  if (ev.source !== frame.contentWindow || !ev.data || ev.data.jsonrpc !== "2.0") return;
+  const m = ev.data;
+  log("view→host", m);
+  window.__hostLog.push(m);
+  const reply = (result) => post({ id: m.id, result });
+  switch (m.method) {
+    case "ui/initialize":
+      return reply({ protocolVersion: m.params.protocolVersion, hostInfo: { name: "openkt-preview-host", version: "0.1.0" }, hostCapabilities: caps,
+        hostContext: { theme: opts.theme, displayMode: "inline", availableDisplayModes: ["inline"], containerDimensions: { width: opts.width - 32, maxHeight: 1200 }, platform: "web" } });
+    case "ui/notifications/initialized":
+      post({ method: "ui/notifications/tool-input", params: { arguments: fx.arguments } });
+      return setTimeout(() => post({ method: "ui/notifications/tool-result", params: fx.result }), q.has("bare") ? 0 : 350);
+    case "ui/notifications/size-changed":
+      if (m.params.height) frame.style.height = Math.ceil(m.params.height) + "px";
+      return void (document.body.dataset.sized = String((Number(document.body.dataset.sized) || 0) + 1));
+    case "tools/call":
+      if (m.params.name !== "kt_commit_save") return post({ id: m.id, error: { code: -32601, message: "unknown tool" } });
+      return setTimeout(() => opts.host === "fail"
+        ? reply({ isError: true, content: [{ type: "text", text: "You no longer have write access to that space." }] })
+        : reply({ content: [{ type: "text", text: "Saved." }], structuredContent: { id: "mem_" + Math.random().toString(36).slice(2, 8), page: { title: "Northgate — pricing" } } }), 500);
+    case "ui/update-model-context": case "ui/message": case "ui/open-link":
+      return reply({});
+    case "ping":
+      return reply({});
+    default:
+      if (m.id != null && m.method) post({ id: m.id, error: { code: -32601, message: "method not found: " + m.method } });
+  }
+});
+
+const html = await (await fetch("./dist/openkt-cards.html", { cache: "no-store" })).text();
+frame.srcdoc = html.replace("<head>", '<head><meta http-equiv="Content-Security-Policy" content="' + CSP + '">');
+</script>
+</body>
+</html>

@@ -1,6 +1,12 @@
-import json, pathlib
-exec(open("gen.py").read())   # reuse fragments (sidebar, ico, page, colours)
-P = pathlib.Path("project")
+#!/usr/bin/env python3
+"""Second half of the design canvas: the knowledge and MCP card artboards.
+
+`python3 design/gen.py` runs this file too. Run on its own, it first regenerates
+gen.py's artboards, because it reuses that file's fragments (sidebar, ico, page, colours).
+"""
+import pathlib
+_FROM_GEN2 = True
+exec((pathlib.Path(__file__).resolve().parent / "gen.py").read_text())
 
 # ── Living page ──────────────────────────────────────────────────────────
 def cite(n): return f'<sup class="mono" style="font-size: 10px; color: {ACC}; padding-left: 2px;">{n}</sup>'
@@ -144,15 +150,11 @@ search = host("Draft the Northgate proposal. What do we already know?", f'''<div
 </div>''', f'<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: {INK};">Here is a draft built on per-store pricing for all fourteen stores…</p>')
 (P/"MCP-Search.dc.html").write_text(page("Search card in a chat tool", MW, MH, search))
 
-# ── index: start from the copy just read, add only new keys ──────────────
-idx = json.load(open("/tmp/claude-1000/-home-ubuntu/c7beb324-0a1a-4578-a57c-2853c532e5e6/scratchpad/artifact-files/93a061d0-13b8-4861-b24f-8eb02c14cb62/project/canvas.json"))
+# ── index: add the new boards and notes to canvas.json ───────────────────
 yC, yD = 2100, 3320
 new = [("Space.dc.html","9 · A space",0,yC,W,H),("Page.dc.html","10 · A living page",W+80,yC,W,H),("Models.dc.html","11 · Local models",2*(W+80),yC,W,H),
        ("MCP-Save.dc.html","12 · Save, from any chat tool",0,yD,MW,MH),("MCP-Search.dc.html","13 · What your team knows",MW+80,yD,MW,MH)]
-for f,t,x,y,w,h in new:
-    idx["boards"][f] = {"x":x,"y":y,"w":w,"h":h,"title":t}
-    if f not in idx["order"]: idx["order"].append(f)
-idx["notes"]["t-kb"]  = {"x":0,"y":yC-300,"text":"Knowledge — pages that keep themselves current","kind":"title1","maxW":3*W+2*80}
-idx["notes"]["t-mcp"] = {"x":0,"y":yD-300,"text":"In other tools — cards over MCP","kind":"title1","maxW":2*MW+80}
-(P/"canvas.json").write_text(json.dumps(idx, indent=1))
+idx = write_index({f: {"x":x,"y":y,"w":w,"h":h,"title":t} for f,t,x,y,w,h in new}, [f for f,*_ in new],
+ {"t-kb":  {"x":0,"y":yC-300,"text":"Knowledge — pages that keep themselves current","kind":"title1","maxW":3*W+2*80},
+  "t-mcp": {"x":0,"y":yD-300,"text":"In other tools — cards over MCP","kind":"title1","maxW":2*MW+80}})
 print("ok", len(idx["boards"]))

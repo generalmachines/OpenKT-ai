@@ -1,0 +1,91 @@
+import type { ContextKind, Grant, SessionListItem, SessionSource, Space } from './types';
+
+export const SOURCE_LABEL: Record<SessionSource, string> = {
+  meeting: 'meeting',
+  'claude-code': 'claude code',
+  cursor: 'cursor',
+  chatgpt: 'chatgpt',
+  claude: 'claude',
+  hermes: 'hermes',
+  voice: 'voice',
+  screenshot: 'screenshot',
+  note: 'note',
+};
+
+export function sourceLabel(s: SessionSource): string {
+  return SOURCE_LABEL[s];
+}
+
+/** Colours per kind, from design/gen.py `KC`. `issue` is not in the mocks. */
+export const KIND_COLOR: Record<ContextKind, string> = {
+  decision: '#b4532a',
+  action: '#4f7a4a',
+  fact: '#4f6471',
+  question: '#9b771a',
+  idea: '#7a5a8c',
+  'how-to': '#55544f',
+  issue: '#8f3f1e',
+};
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+export function daysAgo(iso: string, now: Date = new Date()): number {
+  return Math.round((startOfDay(now) - startOfDay(new Date(iso))) / 86_400_000);
+}
+
+/** "today" · "yesterday" · "11 Sep" */
+export function relativeDay(iso: string, now: Date = new Date()): string {
+  const n = daysAgo(iso, now);
+  if (n <= 0) return 'today';
+  if (n === 1) return 'yesterday';
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+export function clock(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** "today 10:02" */
+export function relativeDayTime(iso: string, now: Date = new Date()): string {
+  return `${relativeDay(iso, now)} ${clock(iso)}`;
+}
+
+export function duration(sec: number): string {
+  if (sec < 60) return `${sec} sec`;
+  return `${Math.round(sec / 60)} min`;
+}
+
+/** "12:41" style offset for transcript rows and the recording pill. */
+export function offset(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** Sidebar meta line: "meeting · 42 min", "claude code · openkt". */
+export function sessionListMeta(s: SessionListItem, space: Space | undefined): string {
+  const tail = s.source === 'meeting' && s.durationSec ? duration(s.durationSec) : (space?.slug ?? '');
+  return tail ? `${sourceLabel(s.source)} · ${tail}` : sourceLabel(s.source);
+}
+
+/** Header lock line: "sales team can read" · "only you". */
+export function accessSummary(grants: Grant[]): string {
+  const team = grants.find((g) => g.subject.type === 'team');
+  if (team) {
+    const verb = team.role === 'reader' ? 'read' : team.role === 'editor' ? 'edit' : 'manage';
+    return `${team.subject.name.toLowerCase()} can ${verb}`;
+  }
+  const others = grants.filter((g) => g.role !== 'owner').length;
+  if (others > 0) return `you and ${others} ${others === 1 ? 'person' : 'people'}`;
+  return 'only you';
+}
+
+export function roleLabel(role: string): string {
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}

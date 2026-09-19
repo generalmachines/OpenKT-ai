@@ -1,0 +1,14 @@
+{
+  "name": "openkt",
+  "owner": { "name": "OpenKT", "url": "https://openkt.ai" },
+  "description": "OpenKT: shared team context over MCP.",
+  "plugins": [
+    {
+      "name": "openkt",
+      "source": "./",
+      "description": "Connects the OpenKT MCP server and adds the OpenKT skill, /kt-* commands and optional session hooks.",
+      "category": "productivity",
+      "homepage": "https://openkt.ai"
+    }
+  ]
+}

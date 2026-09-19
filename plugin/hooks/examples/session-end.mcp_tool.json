@@ -1,0 +1,18 @@
+{
+  "description": "NOT ENABLED. A script-free SessionEnd hook for when the server lets kt_session_end address a session by the client's own id. Today kt_session_end needs the OpenKT session_id, which only the model holds, and mcp_tool hook input can only template fields of the hook's own JSON (the Claude Code session_id). To use: have kt_session_start accept client_session_id, have kt_session_end accept it in place of session_id, then merge this block into hooks.json.",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "plugin:openkt:openkt",
+            "tool": "kt_session_end",
+            "input": { "client_session_id": "${session_id}", "summary": "Closed by the Claude Code SessionEnd hook (${reason}); no model summary." },
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

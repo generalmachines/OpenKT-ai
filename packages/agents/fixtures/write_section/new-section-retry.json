@@ -1,0 +1,51 @@
+{
+  "name": "new-section-retry",
+  "description": "A new, empty section. The first scripted reply forgets one fact and cites an id it made up; the second is correct.",
+  "input": {
+    "page_title": "Northgate — pricing",
+    "section_title": "Requests",
+    "section_md": "",
+    "facts": [
+      {
+        "id": "f_130",
+        "statement": "Daniel of Northgate Market wants per-store pricing with a lower rate for express formats.",
+        "author": "Mira",
+        "date": "2026-09-15"
+      },
+      {
+        "id": "f_131",
+        "statement": "Northgate Market has 42 stores, of which 17 are express format.",
+        "author": "Mira",
+        "date": "2026-09-15"
+      },
+      {
+        "id": "f_132",
+        "statement": "Northgate Market requires all data to be hosted in Singapore.",
+        "author": "Mira",
+        "date": "2026-09-15"
+      }
+    ],
+    "superseded_ids": [],
+    "max_chars": 600
+  },
+  "expect": {
+    "require_all": [
+      "[^f:f_130]",
+      "[^f:f_131]",
+      "[^f:f_132]",
+      "Singapore"
+    ]
+  },
+  "mock_replies": [
+    {
+      "section_md": "- Daniel wants per-store pricing with a lower rate for express formats [^f:f_130].\n- Northgate has 42 stores, 17 of them express [^f:f_13].\n- This will likely close in Q4."
+    },
+    {
+      "section_md": "- Daniel wants per-store pricing with a lower rate for express formats [^f:f_130].\n- Northgate Market has 42 stores, 17 of them express [^f:f_131].\n- All data must be hosted in Singapore [^f:f_132]."
+    }
+  ],
+  "mock_expect": {
+    "status": "ok",
+    "attempts": 2
+  }
+}
