@@ -4,10 +4,14 @@
 // provider's action contract:
 //
 //   gdrive.listContainers {}                     → Array<{ id, name }>
-//   gdrive.listChildren { containerId, cursor? } → { entries: [{ id, name, mimeType, modifiedTime, webViewLink }], nextCursor? }
-//       Lists every document under the container, subfolders included
-//       (recursively — the provider walks the folder tree), paginated with
-//       `nextCursor`; a `null`/`""` cursor ends the listing.
+//   gdrive.listChildren { containerId, cursor? } → { entries: [{ id, name, mimeType, modifiedTime, webViewLink, shortcutDetails? }], nextCursor? }
+//       Lists the DIRECT children of one folder, paginated; a `null`/`""`
+//       cursor ends the listing. An entry is a document, a folder
+//       (`mimeType: 'application/vnd.google-apps.folder'`), or a shortcut
+//       (`mimeType: 'application/vnd.google-apps.shortcut'` with
+//       `shortcutDetails: { targetId, targetMimeType }`, as the Drive API
+//       names them). The connector walks the folder tree itself — provider
+//       list actions return direct children only (#121, J73b).
 //   gdrive.readText { fileId }                   → { title, modifiedTime, webViewLink, text }
 //       `text` is markdown-ready plain text (the provider exports Google
 //       Docs); binary formats are never read — the connector only ingests
@@ -23,7 +27,21 @@ import {
   noteToTurns,
   sha256Hex,
 } from "./obsidian.js";
-import type { Connector, ExternalItem, SessionDraft } from "./types.js";
+import type { Connector, ExternalItem, ProviderHandle, SessionDraft } from "./types.js";
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+const SHORTCUT_MIME = "application/vnd.google-apps.shortcut";
+
+/** Subfolders deeper than this are never listed (#121, J73b). */
+export const MAX_FOLDER_DEPTH = 8;
+
+/** `backfill` returns this many documents per call, `nextCursor` = offset (Obsidian pattern). */
+export const BACKFILL_PAGE_SIZE = 50;
+
+export interface DriveShortcutDetails {
+  targetId: string;
+  targetMimeType: string;
+}
 
 export interface DriveEntry {
   id: string;
@@ -31,6 +49,7 @@ export interface DriveEntry {
   mimeType: string;
   modifiedTime: string; // ISO-8601
   webViewLink: string;
+  shortcutDetails?: DriveShortcutDetails;
 }
 
 export interface DriveText {
@@ -51,10 +70,69 @@ export const INGESTIBLE_MIME_TYPES = new Set([
  * Drive's API returns `nextPageToken` as `null`-ish on the last page, so a
  * provider may pass `nextCursor: null` through — treated like an absent
  * cursor everywhere (a `null` cursor would otherwise loop a poll job
- * forever).
+ * forever). Private copy: the shared-helpers home (`obsidian.ts`) is out of
+ * scope for J73b (Issue #121).
  */
 function normalizeCursor(value: string | undefined): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * Walk the container's folder tree (depth 0 = the container) and return
+ * every ingestible document, de-duplicated by file id and sorted by id:
+ *
+ * - A folder, or a shortcut whose `targetMimeType` is a folder (via
+ *   `targetId`), is descended into only while its depth is ≤
+ *   `MAX_FOLDER_DEPTH`; a folder at depth 9 is never listed.
+ * - The visited-folder `Set` starts with the container, so shared folders
+ *   and shortcut cycles are listed exactly once.
+ * - A shortcut to an ingestible document counts as that document
+ *   (`id = targetId`).
+ * - Every folder's listing follows its cursors with the `normalizeCursor`
+ *   and repeated-cursor rules, so a buggy provider cannot spin the walk.
+ */
+async function listTreeDocuments(p: ProviderHandle, containerId: string): Promise<DriveEntry[]> {
+  const documents = new Map<string, DriveEntry>();
+  const visitedFolders = new Set<string>([containerId]);
+  const queue: Array<{ id: string; depth: number }> = [{ id: containerId, depth: 0 }];
+  while (queue.length > 0) {
+    const { id, depth } = queue.shift()!;
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await p.call<{ entries: DriveEntry[]; nextCursor?: string }>("gdrive.listChildren", {
+        containerId: id,
+        ...(cursor !== undefined ? { cursor } : {}),
+      });
+      for (const entry of page.entries) {
+        const folderId = entry.mimeType === FOLDER_MIME
+          ? entry.id
+          : entry.mimeType === SHORTCUT_MIME && entry.shortcutDetails?.targetMimeType === FOLDER_MIME
+            ? entry.shortcutDetails.targetId
+            : undefined;
+        if (folderId !== undefined) {
+          if (depth + 1 <= MAX_FOLDER_DEPTH && !visitedFolders.has(folderId)) {
+            visitedFolders.add(folderId);
+            queue.push({ id: folderId, depth: depth + 1 });
+          }
+          continue;
+        }
+        const docMimeType = entry.mimeType === SHORTCUT_MIME
+          ? entry.shortcutDetails?.targetMimeType
+          : entry.mimeType;
+        const docId = entry.mimeType === SHORTCUT_MIME ? entry.shortcutDetails?.targetId : entry.id;
+        if (docMimeType === undefined || docId === undefined || !INGESTIBLE_MIME_TYPES.has(docMimeType)) continue;
+        if (!documents.has(docId)) {
+          documents.set(docId, { ...entry, id: docId, mimeType: docMimeType });
+        }
+      }
+      const next = normalizeCursor(page.nextCursor);
+      if (next === undefined || seenCursors.has(next)) break;
+      seenCursors.add(next);
+      cursor = next;
+    }
+  }
+  return [...documents.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /**
@@ -93,10 +171,6 @@ function toExternalItem(entry: DriveEntry, text: string): ExternalItem {
   };
 }
 
-function isIngestible(entry: DriveEntry): boolean {
-  return INGESTIBLE_MIME_TYPES.has(entry.mimeType);
-}
-
 export function createDriveConnector(): Connector {
   return {
     app: "gdrive",
@@ -108,52 +182,30 @@ export function createDriveConnector(): Connector {
     },
 
     async backfill(p, container, cursor) {
-      // The outer cursor IS the provider's pagination cursor: one backfill
-      // call reads one `listChildren` page, and the app follows `nextCursor`.
-      const page = await p.call<{ entries: DriveEntry[]; nextCursor?: string }>("gdrive.listChildren", {
-        containerId: container.id,
-        ...(cursor !== undefined ? { cursor } : {}),
-      });
+      // Walk the whole tree, then page the de-duplicated documents 50 at a
+      // time — `nextCursor` is the offset string (the Obsidian pattern).
+      const documents = await listTreeDocuments(p, container.id);
+      const start = cursor === undefined ? 0 : Number.parseInt(cursor, 10);
+      const offset = Number.isFinite(start) ? start : 0;
+      const page = documents.slice(offset, offset + BACKFILL_PAGE_SIZE);
       const items: ExternalItem[] = [];
-      for (const entry of page.entries) {
-        if (!isIngestible(entry)) continue;
+      for (const entry of page) {
         const content = await p.call<DriveText>("gdrive.readText", { fileId: entry.id });
         items.push(toExternalItem(entry, content.text));
       }
-      const next = normalizeCursor(page.nextCursor);
+      const next = offset + BACKFILL_PAGE_SIZE < documents.length ? String(offset + BACKFILL_PAGE_SIZE) : undefined;
       return next !== undefined ? { items, nextCursor: next } : { items };
     },
 
     async poll(p, container, since) {
-      // Page through the listing until it is exhausted (a repeated cursor
-      // stops the loop, so a buggy provider cannot spin), de-duplicated by
-      // id, then read what changed. Entries without a usable modifiedTime
-      // are treated as changed.
-      const entries: DriveEntry[] = [];
-      const seenIds = new Set<string>();
-      let cursor: string | undefined;
-      const seenCursors = new Set<string>();
-      for (;;) {
-        const page = await p.call<{ entries: DriveEntry[]; nextCursor?: string }>("gdrive.listChildren", {
-          containerId: container.id,
-          ...(cursor !== undefined ? { cursor } : {}),
-        });
-        for (const entry of page.entries) {
-          if (seenIds.has(entry.id)) continue;
-          seenIds.add(entry.id);
-          entries.push(entry);
-        }
-        const next = normalizeCursor(page.nextCursor);
-        if (next === undefined || seenCursors.has(next)) break;
-        seenCursors.add(next);
-        cursor = next;
-      }
+      // Walk the whole tree, then read the documents modified after `since`.
+      // A missing or unparseable modifiedTime counts as changed.
+      const documents = await listTreeDocuments(p, container.id);
       const sinceMs = Date.parse(since);
       const items: ExternalItem[] = [];
-      for (const entry of entries) {
+      for (const entry of documents) {
         const modifiedMs = Date.parse(entry.modifiedTime);
         if (Number.isFinite(modifiedMs) && Number.isFinite(sinceMs) && modifiedMs <= sinceMs) continue;
-        if (!isIngestible(entry)) continue;
         const content = await p.call<DriveText>("gdrive.readText", { fileId: entry.id });
         items.push(toExternalItem(entry, content.text));
       }
