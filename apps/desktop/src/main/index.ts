@@ -8,7 +8,7 @@ import { autoEnsureModels, disposeLocalAi, registerLocalAiIpc } from './local-ai
 import { isSmoke, runSmoke } from './local-ai/smoke';
 import { registerNetIpc } from './net';
 import { registerPermissionsIpc } from './permissions/ipc';
-import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
+import { checkSystemConflicts, guardCapture, registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
 
@@ -108,15 +108,20 @@ if (!app.requestSingleInstanceLock()) {
     });
     await engine.start();
 
+    // A key press or a menu click that cannot start a capture says why (and opens the page that fixes it).
+    const openSettings = (route: string) => void openMainWindow(route);
+    const voiceKey = guardCapture('voice', toggleVoice, { openSettings });
+    const shotKey = guardCapture('screenshot', captureScreenshot, { openSettings });
     const actions: TrayActions = {
-      newVoiceNote: () => void startVoiceNote(),
-      captureScreenshot: () => void captureScreenshot(),
+      newVoiceNote: () => void guardCapture('voice', startVoiceNote, { openSettings })(),
+      captureScreenshot: () => void shotKey(),
       openApp: () => void openMainWindow(),
       simulateMeeting: () => engine.simulateMeetingDetected(),
     };
     applyAppMenu(actions);
     createTray(actions);
-    registerShortcuts({ toggleVoice: () => void toggleVoice(), captureScreenshot: () => void captureScreenshot() });
+    registerShortcuts({ toggleVoice: voiceKey, captureScreenshot: shotKey });
+    void checkSystemConflicts();
 
     await openMainWindow();
     autoEnsureModels(allWindows);
