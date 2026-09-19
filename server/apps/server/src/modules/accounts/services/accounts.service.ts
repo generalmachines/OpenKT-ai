@@ -96,17 +96,17 @@ export class AccountsService {
     request: RequestMetadata,
   ): Promise<SignedInUser> {
     const ip = request.ip ?? null;
-    await this.attempts.assertAllowed(input.email, ip);
+    await this.attempts.assertSignupAllowed(ip);
 
     // Judged before anything touches the database, so a refused password says
     // nothing about the email — and fumbling the rules does not use up attempts.
     const problem = passwordProblem(input.password, input.email);
     if (problem) throw fail(HttpStatus.BAD_REQUEST, "weak_password", problem);
 
-    // From here every sign-up counts, successful or not: it caps both
-    // account-farming from one address and probing the 409 below for who has
-    // an account.
-    await this.attempts.record(input.email, ip);
+    // From here every sign-up counts against the address (never the email),
+    // successful or not: it caps both account-farming from one address and
+    // probing the 409 below for who has an account.
+    await this.attempts.recordSignup(input.email, ip);
 
     if (await this.findByEmail(input.email)) {
       throw fail(HttpStatus.CONFLICT, "email_taken", "an account with this email already exists");
