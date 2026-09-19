@@ -16,6 +16,7 @@ def body(i, for_github=False):
     out = []
     if i["who"] == "junior":
         out.append("> Read `AGENTS.md` first. Do exactly what is written here. If something is unclear or looks wrong, comment on the issue — do not improvise.\n")
+    if i.get("hold"): out.append(f"**On hold — do not start.** {i['hold']}\n")
     out.append(f"**Context.** {i['context']}\n")
     if i.get("read"): out.append("**Read first**\n" + "\n".join(f"- `{r}`" if not r.startswith("the ") and not r.startswith("an ") and " " not in r.split("(")[0].strip() else f"- {r}" for r in i["read"]) + "\n")
     out.append("**Do exactly this**\n" + "\n".join(f"{n}. {s}" for n, s in enumerate(i["steps"], 1)) + "\n")
@@ -32,7 +33,7 @@ def labels(i):
     l = [i["who"]]
     if i.get("review"): l.append("needs-senior-review")
     l += i.get("tags", [])
-    if any(d not in ("",) for d in (i.get("deps") or [])): l.append("blocked")
+    if i.get("hold") or any(d not in ("",) for d in (i.get("deps") or [])): l.append("blocked")
     return l
 
 def render():
@@ -76,7 +77,7 @@ def github(repo):
         n = idmap[i["key"]]
         gh("issue","edit",str(n),"--repo",repo,"--body-file","-", inp=body(i, True))
         open_deps = [d for d in (i.get("deps") or []) if idmap.get(d) not in closed]
-        gh("issue","edit",str(n),"--repo",repo, *(["--add-label","blocked"] if open_deps else ["--remove-label","blocked"]))
+        gh("issue","edit",str(n),"--repo",repo, *(["--add-label","blocked"] if open_deps or i.get("hold") else ["--remove-label","blocked"]))
 
 if __name__ == "__main__":
     if "--github" in sys.argv:
