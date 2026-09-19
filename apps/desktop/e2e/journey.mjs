@@ -152,55 +152,52 @@ try {
     row.owner = 'onboarding';
     const p = a.page;
     if (!a.route().startsWith('/onboarding')) {
-      if (!EXISTING) {
-        rec.finding({ screen: 'Onboarding', item: `a new account landed on ${a.route()} instead of onboarding`, cls: 'BROKEN', severity: 'minor', owner: 'onboarding' });
-        return;
-      }
-      await a.goto('/onboarding/2'); // an existing account skips onboarding; walk it anyway, it is the same screens
+      if (!EXISTING) rec.finding({ screen: 'Onboarding', item: `a new account landed on ${a.route()} instead of onboarding`, cls: 'BROKEN', severity: 'minor', owner: 'onboarding' });
+      await a.goto('/onboarding/2'); // an existing account on a new Mac: walk the same screens
     }
-    // Step 2: connect your tools
-    let t0 = Date.now();
-    row.shot = await a.shot('onboarding-tools');
-    const toolsText = await a.text();
-    if (/Signed in as/.test(toolsText) && toolsText.includes(A.name)) rec.finding({ screen: 'Onboarding', item: '"Signed in as <name>"', cls: 'REAL', evidence: row.shot });
-    if (/found · ~\/\.claude|found · ~\/\.cursor/.test(toolsText))
-      rec.finding({ screen: 'Onboarding · Connect your tools', item: '"found · ~/.claude", "found · ~/.cursor" are hard-coded strings — nothing on this machine was looked at', cls: 'MOCK', severity: 'blocker', owner: 'onboarding', evidence: row.shot, note: 'src/screens/Onboarding.tsx:34-40 (TOOLS)' });
-    await p.getByRole('button', { name: /^Connect \d+ tools?$/ }).click();
-    await a.settle(300);
-    const afterConnect = (await a.requests(t0)).filter((r) => !r.path.startsWith('/v1/me'));
-    rec.finding({
-      screen: 'Onboarding · Connect your tools',
-      item: `"Connect N tools" ${afterConnect.length ? `made ${afterConnect.length} request(s)` : 'does nothing: no request, no file written, no IPC — it only navigates to the next step'}`,
-      cls: afterConnect.length ? 'REAL' : 'MOCK',
-      severity: afterConnect.length ? 'ok' : 'blocker',
-      owner: 'onboarding',
-      evidence: row.shot,
-      note: 'src/screens/Onboarding.tsx:52-84 (ConnectTools → onDone)',
-    });
-    // Step 3: models
-    row.shot = await a.shot('onboarding-models');
-    const modelsBefore = await a.app.evaluate(() => globalThis.__e2eRequests.length);
-    const dl = p.getByRole('button', { name: /^Download/ });
-    if (await dl.count()) {
-      t0 = Date.now();
-      await dl.click();
-      await p.getByRole('button', { name: 'Open OpenKT' }).waitFor({ timeout: 30_000 });
-      const took = Date.now() - t0;
-      row.shot = await a.shot('onboarding-models-done');
-      const modelReqs = (await a.app.evaluate(() => globalThis.__e2eRequests.length)) - modelsBefore;
-      rec.finding({
-        screen: 'Onboarding · Get the local models',
-        item: `"Download 3.6 GB" reached "ready" in ${(took / 1000).toFixed(1)} s with ${modelReqs} network request(s) — the progress bar is a timer, nothing is downloaded`,
-        cls: 'MOCK',
-        severity: 'blocker',
-        owner: 'onboarding',
-        evidence: row.shot,
-        note: 'src/screens/Onboarding.tsx:86-95 (setTimeout +4% every 120 ms); the real downloader is window.openkt.models.ensure()',
-      });
-      await p.getByRole('button', { name: 'Open OpenKT' }).click();
+    // "Set up on-device AI" starts a ~4 GB download the moment it opens. The harness never downloads models:
+    // pause first (the step then says "paused", which is what it would say to a person who paused it).
+    const paused = await p.evaluate(async () => Boolean(await window.openkt?.models?.pause?.().catch(() => null)));
+    const walked = [];
+    for (let i = 0; i < 8 && a.route().startsWith('/onboarding'); i++) {
+      await a.settle(400);
+      const n = Number(a.route().split('/')[2] || 0);
+      const shot = await a.shot(`onboarding-${n || 'start'}`);
+      const text = await a.text();
+      const title = ((await a.text('.onb__h2')) || `step ${n}`).split('\n')[0];
+      if (i === 0 && text.includes(A.name)) rec.finding({ screen: 'Onboarding', item: `"Signed in as ${A.name}"`, cls: 'REAL', owner: 'onboarding', evidence: shot });
+      const t0 = Date.now();
+      if (n === 3) {
+        if (/found · ~\/\.claude|found · ~\/\.cursor/.test(text))
+          rec.finding({ screen: 'Onboarding · Connect your tools', item: '"found · ~/.claude", "found · ~/.cursor" are hard-coded strings — nothing on this machine was looked at', cls: 'MOCK', severity: 'blocker', owner: 'integrations', evidence: shot, note: 'src/screens/Onboarding.tsx TOOLS (the step-3 slot)' });
+        const connect = p.getByRole('button', { name: /^Connect \d+ tools?$/ });
+        if (await connect.count()) {
+          await connect.click();
+          await a.settle(300);
+          // Background list refreshes do not count: connecting a tool writes something, or talks to a connector/OAuth endpoint.
+          const sent = (await a.requests(t0)).filter((r) => r.method !== 'GET' || /connector|oauth|token|mcp|integration/i.test(r.path));
+          rec.finding({ screen: 'Onboarding · Connect your tools', item: `"Connect N tools" ${sent.length ? `made ${sent.length} request(s)` : 'does nothing: no request, no file written — it only moves to the next step'}`, cls: sent.length ? 'REAL' : 'MOCK', severity: sent.length ? 'ok' : 'blocker', owner: 'integrations', evidence: shot, note: 'src/screens/Onboarding.tsx ConnectTools → onDone' });
+          walked.push(`${n} ${title} → "${(await connect.textContent().catch(() => '')) || 'Connect'}"`);
+          continue;
+        }
+      }
+      if (n === 4) rec.finding({ screen: 'Onboarding · Set up on-device AI', item: `not exercised: the step downloads ~4 GB on entry${paused ? ' (paused by the harness)' : ' — and the harness could NOT pause it'}`, cls: 'EMPTY-HONEST', severity: paused ? 'ok' : 'major', owner: 'onboarding', evidence: shot });
+      const primary = p.locator('.onb .btn--accent').last();
+      const later = p.getByRole('button', { name: /Do this later/ });
+      let pressed = '';
+      if ((await primary.count()) && (await primary.isEnabled())) {
+        pressed = (await primary.innerText()).trim();
+        await primary.click();
+      } else if (await later.count()) {
+        pressed = 'Do this later';
+        await later.click();
+      } else break;
+      walked.push(`${n} ${title} → "${pressed}"`);
     }
     await a.settle();
     row.shot = await a.shot('landed');
+    const done = !a.route().startsWith('/onboarding');
+    rec.finding({ screen: 'Onboarding', item: done ? `walked to the end: ${walked.join(' · ')}` : `stuck on ${a.route()} after ${walked.join(' · ')}`, cls: done ? 'REAL' : 'BROKEN', severity: done ? 'ok' : 'blocker', owner: 'onboarding', evidence: row.shot, note: process.platform === 'darwin' ? '' : 'Allow access has nothing to ask for off macOS' });
   });
 
   // ── 4. landing: is anything fake? ──────────────────────────────────────────────────────────────
@@ -454,6 +451,8 @@ try {
     if (b.route().includes('/welcome')) throw new Error(`the teammate could not sign in: ${await b.text('[role="alert"]')}`);
     if (b.route().startsWith('/onboarding')) {
       rec.finding({ screen: 'Onboarding', item: 'signing in to an existing account on a new Mac goes through onboarding', cls: 'REAL', evidence: row.shot, owner: 'onboarding' });
+      // Walked once already as the owner; the teammate skips it (its models step would start a 4 GB download).
+      await p.evaluate(() => localStorage.setItem('openkt.onboarded', '1'));
       await b.goto('/');
     }
     await classifyMock(b, 'Teammate · landing', row.shot);
@@ -571,7 +570,12 @@ try {
   await rec.step('Skills', async (row) => {
     await a.goto('/skills');
     row.shot = await a.shot('skills');
-    await classifyMock(a, 'Skills', row.shot, { owner: 'skills', selector: 'main' });
+    const hits = await classifyMock(a, 'Skills', row.shot, { owner: 'skills', selector: 'main' });
+    if (!hits.length) {
+      const t = (await a.text('main')).replace(/\s+/g, ' ');
+      const empty = /no skills|nothing here|write your first/i.test(t);
+      rec.finding({ screen: 'Skills', item: empty ? `empty and says so: "${t.slice(0, 80)}"` : `no sample skills; shows "${t.slice(0, 80)}"`, cls: empty ? 'EMPTY-HONEST' : 'REAL', owner: 'skills', evidence: row.shot, note: `GET /v1/skills → ${(await a.requests()).filter((r) => r.path.startsWith('/v1/skills')).map((r) => r.status).slice(-1)[0] ?? 'not requested'}` });
+    }
   });
 
   for (const [section, owner] of [['connectors', 'integrations'], ['access', 'integrations'], ['models', 'onboarding'], ['hotkeys', 'qa'], ['workspace', 'qa'], ['account', 'qa']]) {
@@ -584,8 +588,7 @@ try {
       if (section === 'connectors' && /connected/.test(text) && !hits.length) rec.finding({ screen: 'Settings · connectors', item: 'tools shown as "connected" for an account that connected nothing', cls: 'MOCK', severity: 'blocker', owner, evidence: row.shot });
       if (section === 'workspace') rec.finding({ screen: 'Settings · workspace', item: /your account/.test(text) ? '"now showing your account"' : 'does not say which data is showing', cls: 'REAL', evidence: row.shot });
       if (section === 'account') rec.finding({ screen: 'Settings · account', item: text.includes(A.email) ? 'name and email from GET /v1/me' : 'the signed-in person is not shown', cls: text.includes(A.email) ? 'REAL' : 'BROKEN', severity: text.includes(A.email) ? 'ok' : 'major', evidence: row.shot });
-      if (section === 'models' && /not downloaded/.test(text))
-        rec.finding({ screen: 'Settings · models', item: `says "${(text.match(/\d+ of \d+ not on this Mac yet/) ?? ['not downloaded'])[0]}" — minutes after onboarding showed every model "ready"`, cls: 'BROKEN', severity: 'major', owner: 'onboarding', evidence: row.shot, note: 'the two screens disagree; this one reads window.openkt.models (real), onboarding runs a timer' });
+      if (section === 'models') rec.finding({ screen: 'Settings · models', item: `"${[...text.matchAll(/About [\d.]+ [GM]B[^\n]*|paused at \d+%[^\n]*|\d+ of \d+[^\n]*|[^\n]*not in this build/g)].map((m) => m[0].trim()).join(' · ')}" — read from this Mac's model store`, cls: 'REAL', owner: 'onboarding', evidence: row.shot });
       if (section === 'hotkeys' && process.platform !== 'darwin') rec.finding({ screen: 'Settings · hotkeys', item: 'global shortcuts: not exercised (needs macOS Accessibility/Input Monitoring — TCC)', cls: 'EMPTY-HONEST', evidence: row.shot, note: 'skipped' });
     });
   }
