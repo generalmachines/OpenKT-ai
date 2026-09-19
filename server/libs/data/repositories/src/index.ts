@@ -5,6 +5,5 @@ export * from "./org.repository";
 export * from "./outbox.repository";
 export * from "./profile.repository";
 export * from "./project.repository";
-export * from "./secret.repository";
 export * from "./settings.repository";
 export * from "./tokens";

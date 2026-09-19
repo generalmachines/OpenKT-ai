@@ -31,7 +31,6 @@ import { ProfileModule } from "./modules/profile/profile.module";
 import { PrimeModule } from "./modules/prime/prime.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { MemberKnowledgeModule } from "./modules/member-knowledge/member-knowledge.module";
-import { SecretsModule } from "./modules/secrets/secrets.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { PersonalTokensModule } from "./modules/personal-tokens/personal-tokens.module";
 import { ConnectorsModule } from "./modules/connectors/connectors.module";
@@ -61,7 +60,6 @@ import { AccessModule } from "./modules/access/access.module";
     ProjectsModule,
     ProfileModule,
     SettingsModule,
-    SecretsModule,
     InvitesModule,
     LlmConfigsModule,
     McpModule,
