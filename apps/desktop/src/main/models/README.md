@@ -50,6 +50,29 @@ the download resumes where it stopped. Sizes: embeddings 0.64 GB, 4B 2.74 GB (2B
 `models.ensure()` resolves once embeddings + LLM are on disk; whisper and mmproj continue in the background and
 show up in `models.status()` / `onProgress` like the others.
 
+### First run: one download, pause, disk and permissions
+
+`controller.ts` is the one download for the whole app — first launch, the onboarding screen,
+Settings → Models and Retry all join it, so Pause means pause everywhere. It checks free space
+before every start (`setup.ts`: `statfs` on the models folder, remaining bytes + 1 GB headroom) and
+resolves `models.ensure()` once search + understanding are on disk; speech (the transcriber's model)
+and images follow in the same run. Every model a feature needs is in this one manifest-driven list.
+
+```ts
+const info = await window.openkt.models.setupInfo();
+// { totalBytes, remainingBytes, freeBytes | null, neededBytes, enoughDisk, totalMemBytes,
+//   smallModel (≤ 8 GB → the 2B line-up), paused, bundled: { runtime, transcriber, textReader } }
+await window.openkt.models.pause();   // keeps the .part files; ensure() or resume() continue from them
+await window.openkt.models.resume();
+// ensure() → { ok: false, error: 'low_disk' | 'paused' | <message> } when it did not finish
+```
+
+macOS permissions live in `../permissions/` (`service.ts` is the state machine, `ipc.ts` the Electron
+wiring): `permissions.status() / request(kind) / openSettings(kind) / onChange(cb) / relaunch()`, kinds
+`microphone | screen | accessibility | systemAudio`, states `granted | denied | not-determined | restricted | unsupported`.
+Main polls every 1.5 s while a window is watching and re-checks on focus. What only a real Mac can
+confirm is listed in [`docs/manual-test-permissions.md`](../../../docs/manual-test-permissions.md).
+
 ## Capture: voice notes and screenshots (`../capture/`)
 
 Interim runtime of Spec 03 §1a. Nothing here streams: whisper runs once, after the recording ends.

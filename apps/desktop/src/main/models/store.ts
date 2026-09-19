@@ -97,6 +97,13 @@ export class ModelStore {
         before += m.bytes;
         onProgress?.({ ...base, receivedBytes: m.bytes, bytesPerSec: 0, overall: before / grand, state: 'ready' });
       } catch (e) {
+        if (signal?.aborted) {
+          // Paused, not failed: the .part file stays and the next ensure() resumes from it.
+          this.active = null;
+          const kept = Math.max(0, await size(`${this.pathOf(role)}.part`));
+          onProgress?.({ ...base, receivedBytes: kept, bytesPerSec: 0, overall: (before + kept) / grand, state: kept > 0 ? 'partial' : 'missing' });
+          throw e;
+        }
         const error = (e as Error).message;
         this.errors.set(role, error);
         this.active = null;

@@ -7,6 +7,7 @@ import { StubEngine } from './engine/stub';
 import { autoEnsureModels, disposeLocalAi, registerLocalAiIpc } from './local-ai/ipc';
 import { isSmoke, runSmoke } from './local-ai/smoke';
 import { registerNetIpc } from './net';
+import { registerPermissionsIpc } from './permissions/ipc';
 import { registerShortcuts, shortcutStatus, unregisterShortcuts } from './shortcuts';
 import { applyAppMenu, createTray, destroyTray, type TrayActions } from './tray';
 import { allWindows, closeOverlay, hardenWebContents, openMainWindow, showOverlay } from './windows';
@@ -78,6 +79,8 @@ function registerIpc(): void {
   });
   handle('app:open-main', (route) => void openMainWindow(typeof route === 'string' && route.startsWith('/') ? route : undefined));
   handle('app:hotkeys', () => shortcutStatus());
+  // first run "Try it": the same thing the hotkey does, for the person whose hotkey is taken by another app.
+  handle('app:start-capture', (kind) => void (kind === 'screenshot' ? captureScreenshot() : toggleVoice()));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -94,6 +97,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     registerLocalAiIpc(allWindows);
     registerCaptureIpc();
+    registerPermissionsIpc(allWindows); // first run: system permissions (src/main/permissions)
     if (isSmoke()) return void runSmoke(() => openMainWindow());
     registerNetIpc();
     registerAuthIpc(() => void openMainWindow());
