@@ -9,7 +9,6 @@ export * from "./memories";
 export * from "./memory-neighbors";
 export * from "./team";
 export * from "./member-knowledge";
-export * from "./code-graphs";
 export * from "./settings";
 export * from "./llm";
 export * from "./outbox";
