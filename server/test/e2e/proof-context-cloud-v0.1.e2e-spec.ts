@@ -191,7 +191,7 @@ describeIfDb("Proof: OpenKT v0.1 context-cloud promise (DB integration)", () => 
       grantRepository,
       new JobQueueRepository(db as never),
     );
-    grantsApp = new GrantsApplicationService(grantRepository);
+    grantsApp = new GrantsApplicationService(grantRepository, accessScopeService);
     mcpFactory = new McpServerFactoryService(
       memoryCommands,
       memoryQueries,
