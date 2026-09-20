@@ -41,6 +41,10 @@ function patchBody(path: string): object {
   return {};
 }
 
+function responseShape(body: Record<string, any>) {
+  return { ...body, error: body.error ? { ...body.error, request_id: null } : body.error };
+}
+
 describeIfDb("No existence leaks from id-taking routes (e2e)", () => {
   const t = new HttpApp();
   let owner: Person;
@@ -89,7 +93,7 @@ describeIfDb("No existence leaks from id-taking routes (e2e)", () => {
         ? await t.as(stranger).put(missingPath, route.body)
         : await t.as(stranger)[route.method](missingPath);
       expect(strangerResponse.status).toBe(404);
-      expect(strangerResponse.body).toEqual(missingResponse.body);
+      expect(responseShape(strangerResponse.body)).toEqual(responseShape(missingResponse.body));
     }
   });
 
@@ -100,13 +104,15 @@ describeIfDb("No existence leaks from id-taking routes (e2e)", () => {
 
     for (const route of routes) {
       const path = concretePath(route.path, ids);
-      const agent = t.as(stranger)[route.method](path, ...(route.method === "patch" ? [patchBody(path)] : []));
-      const response = await (agent as request.Test);
-      expect({ route, status: response.status, code: response.body?.error?.code }).toEqual({
-        route,
-        status: 404,
-        code: "not_found",
+      const missingPath = concretePath(route.path, {
+        project: randomUUID(), session: randomUUID(), memory: randomUUID(), grant: randomUUID(),
       });
+      const realAgent = t.as(stranger)[route.method](path, ...(route.method === "patch" ? [patchBody(path)] : []));
+      const missingAgent = t.as(stranger)[route.method](missingPath, ...(route.method === "patch" ? [patchBody(missingPath)] : []));
+      const [real, missing] = await Promise.all([realAgent as request.Test, missingAgent as request.Test]);
+      expect({ route, status: real.status }).not.toEqual({ route, status: 403 });
+      expect(real.status).toBe(missing.status);
+      expect(responseShape(real.body)).toEqual(responseShape(missing.body));
     }
   });
 });
