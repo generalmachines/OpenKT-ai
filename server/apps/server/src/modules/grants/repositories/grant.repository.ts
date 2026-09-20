@@ -16,6 +16,7 @@ import type {
 export interface ResourceOwnerLookup {
   ownerUserId: string;
   orgId: string | null;
+  projectId: string | null;
 }
 
 @Injectable()
@@ -40,7 +41,7 @@ export class GrantRepository {
     // A deleted space — and a session in one — is not found (migration 0046).
     if (table === projects) {
       const [row] = await db
-        .select({ ownerUserId: projects.ownerUserId, orgId: projects.orgId })
+        .select({ ownerUserId: projects.ownerUserId, orgId: projects.orgId, projectId: projects.id })
         .from(projects)
         .where(and(eq(projects.id, resourceId), isNull(projects.deletedAt)))
         .limit(1);
@@ -48,7 +49,7 @@ export class GrantRepository {
     }
     if (table === sessions) {
       const [row] = await db
-        .select({ ownerUserId: sessions.ownerUserId, orgId: sessions.orgId })
+        .select({ ownerUserId: sessions.ownerUserId, orgId: sessions.orgId, projectId: sessions.projectId })
         .from(sessions)
         .innerJoin(projects, eq(projects.id, sessions.projectId))
         .where(and(eq(sessions.id, resourceId), isNull(projects.deletedAt)))
@@ -56,8 +57,8 @@ export class GrantRepository {
       return row ?? null;
     }
     const [row] = await db
-      .select({ ownerUserId: table.ownerUserId, orgId: table.orgId })
-      .from(table)
+      .select({ ownerUserId: skills.ownerUserId, orgId: skills.orgId, projectId: skills.projectId })
+      .from(skills)
       .where(eq(table.id, resourceId))
       .limit(1);
     return row ?? null;
