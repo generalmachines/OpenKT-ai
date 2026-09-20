@@ -12,6 +12,7 @@ import type {
   PendingGrantView,
 } from "../contracts/grant.contract";
 import { GrantRepository } from "../repositories/grant.repository";
+import { AccessScopeService } from "../../access/services/access-scope.service";
 
 const GRANT_RANK: Record<GrantRole, number> = { reader: 1, editor: 2, owner: 3 };
 
@@ -26,7 +27,10 @@ const GRANT_RANK: Record<GrantRole, number> = { reader: 1, editor: 2, owner: 3 }
 // with that project's owner.
 @Injectable()
 export class GrantsApplicationService {
-  constructor(private readonly grantRepository: GrantRepository) {}
+  constructor(
+    private readonly grantRepository: GrantRepository,
+    private readonly accessScopeService: AccessScopeService,
+  ) {}
 
   async list(
     context: ActorContext,
@@ -151,9 +155,14 @@ export class GrantsApplicationService {
     const owner = await this.grantRepository.findResourceOwner(resourceType, resourceId);
 
     if (!owner) throw new NotFoundDomainError(resourceType);
-    if (owner.ownerUserId !== userId) {
-      throw new ForbiddenDomainError(`only the ${resourceType} owner can manage grants`);
+    if (owner.ownerUserId === userId) return owner;
+
+    if (resourceType === "project" || resourceType === "session") {
+      const scope = await this.accessScopeService.visibleScope(context);
+      const canRead = (owner.projectId !== null && scope.projectIds.includes(owner.projectId))
+        || (resourceType === "session" && scope.sessionIds.includes(resourceId));
+      if (!canRead) throw new NotFoundDomainError(resourceType);
     }
-    return owner;
+    throw new ForbiddenDomainError(`only the ${resourceType} owner can manage grants`);
   }
 }
