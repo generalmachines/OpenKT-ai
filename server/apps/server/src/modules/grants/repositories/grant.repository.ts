@@ -59,7 +59,7 @@ export class GrantRepository {
     const [row] = await db
       .select({ ownerUserId: skills.ownerUserId, orgId: skills.orgId, projectId: skills.projectId })
       .from(skills)
-      .where(eq(table.id, resourceId))
+      .where(eq(skills.id, resourceId))
       .limit(1);
     return row ?? null;
   }
