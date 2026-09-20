@@ -130,8 +130,8 @@ describe('the space a save goes into', () => {
     await user.type(screen.getByLabelText('Note', { exact: true }), 'The staging database moves to the new cluster on Monday.');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByRole('tab', { name: 'Summary' });
-    const [saved] = await client.listSessions({ spaceId: 'sp-openkt' });
-    expect(saved).toMatchObject({ source: 'note', title: 'The staging database moves to the new cluster on Monday.' });
+    const saved = (await client.listSessions({ spaceId: 'sp-openkt' })).find((x) => x.title === 'The staging database moves to the new cluster on Monday.');
+    expect(saved).toMatchObject({ source: 'note' });
     cleanup();
 
     renderApp('/new', client);
