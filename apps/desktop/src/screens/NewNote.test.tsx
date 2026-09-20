@@ -35,7 +35,7 @@ describe('New note without on-device AI', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Walrus pricing' })).toBeInTheDocument();
     expect(await screen.findByRole('tab', { name: 'Context · 1' })).toBeInTheDocument();
     expect(screen.getByText('saved as written')).toBeInTheDocument();
-    const [session] = await client.listSessions({ mine: true });
+    const session = (await client.listSessions({ mine: true })).find((x) => x.title === 'Walrus pricing');
     expect((await client.listContext(session!.id)).map((c) => c.statement)).toEqual(['Walrus pricing\n\nWe quote Walrus Grocers per store, not per seat.']);
   });
 

@@ -346,7 +346,7 @@ describe('step 5 — try it', () => {
     await user.click(within(card).getByRole('button', { name: 'Save note' }));
     expect(await within(card).findByText('done')).toBeInTheDocument();
     const mine = await client.listSessions({ mine: true });
-    expect(mine[0]).toMatchObject({ source: 'note' });
+    expect(mine.find((x) => x.title === 'Call with Ana — revised deck by Friday.')).toMatchObject({ source: 'note' });
     expect(screen.getByText('1 of 3 tried. The menu bar has all of these any time.')).toBeInTheDocument();
   });
 
